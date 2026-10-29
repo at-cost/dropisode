@@ -1,0 +1,671 @@
+{
+  "verifiedOn": "2026-10-29",
+  "_readme": "Every provider price Reel uses. Each has a source and the date it was read. Change prices here, never in code. See docs/PRICING_NOTES.md.",
+  "models": [
+    {
+      "id": "veo-3.1-lite",
+      "kind": "video",
+      "label": "Veo 3.1 Lite (720p)",
+      "provider": "fal",
+      "endpoint": "fal-ai/veo3.1/lite/image-to-video",
+      "tiers": ["draft"],
+      "nativeAudio": true,
+      "durations": [4, 6, 8],
+      "price": {
+        "unit": "second",
+        "usd": 0.03,
+        "audioUsd": 0.05,
+        "source": "https://fal.ai/models/fal-ai/veo3.1/lite/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Veo renders only 4, 6 or 8 second clips; audio price from the same page."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "string_s",
+        "aspect": "aspect_ratio",
+        "audio": "generate_audio",
+        "negativePrompt": "negative_prompt",
+        "extra": {
+          "resolution": "720p"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "veo-3.1-fast",
+      "kind": "video",
+      "label": "Veo 3.1 Fast (1080p)",
+      "provider": "fal",
+      "endpoint": "fal-ai/veo3.1/fast/image-to-video",
+      "tiers": ["final"],
+      "nativeAudio": true,
+      "durations": [4, 6, 8],
+      "price": {
+        "unit": "second",
+        "usd": 0.1,
+        "audioUsd": 0.15,
+        "source": "https://fal.ai/models/fal-ai/veo3.1/fast/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Same price at 720p and 1080p."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "string_s",
+        "aspect": "aspect_ratio",
+        "audio": "generate_audio",
+        "negativePrompt": "negative_prompt",
+        "extra": {
+          "resolution": "1080p"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "kling-3-std",
+      "kind": "video",
+      "label": "Kling 3.0 Standard",
+      "provider": "fal",
+      "endpoint": "fal-ai/kling-video/v3/standard/image-to-video",
+      "tiers": ["draft", "final"],
+      "nativeAudio": true,
+      "durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "price": {
+        "unit": "second",
+        "usd": 0.084,
+        "audioUsd": 0.126,
+        "source": "https://fal.ai/models/fal-ai/kling-video/v3/standard/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Aspect follows the first frame."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "start_image_url",
+        "duration": "duration",
+        "durationFormat": "string",
+        "audio": "generate_audio",
+        "negativePrompt": "negative_prompt",
+        "extra": {}
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "kling-3-pro",
+      "kind": "video",
+      "label": "Kling 3.0 Pro",
+      "provider": "fal",
+      "endpoint": "fal-ai/kling-video/v3/pro/image-to-video",
+      "tiers": ["final"],
+      "nativeAudio": true,
+      "durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "price": {
+        "unit": "second",
+        "usd": 0.112,
+        "audioUsd": 0.168,
+        "source": "https://fal.ai/models/fal-ai/kling-video/v3/pro/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Aspect follows the first frame. Voice control costs more ($0.196/s) and is not used."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "start_image_url",
+        "duration": "duration",
+        "durationFormat": "string",
+        "audio": "generate_audio",
+        "negativePrompt": "negative_prompt",
+        "extra": {}
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "kling-2.5-turbo-std",
+      "kind": "video",
+      "label": "Kling 2.5 Turbo Standard (silent)",
+      "provider": "fal",
+      "endpoint": "fal-ai/kling-video/v2.5-turbo/standard/image-to-video",
+      "tiers": ["draft"],
+      "nativeAudio": false,
+      "durations": [5, 10],
+      "price": {
+        "unit": "second",
+        "usd": 0.042,
+        "source": "https://fal.ai/models/fal-ai/kling-video/v2.5-turbo/standard/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified"
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "string",
+        "negativePrompt": "negative_prompt",
+        "extra": {}
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "seedance-2-mini",
+      "kind": "video",
+      "label": "Seedance 2.0 Mini (480p)",
+      "provider": "fal",
+      "endpoint": "bytedance/seedance-2.0/mini/image-to-video",
+      "tiers": ["draft"],
+      "nativeAudio": true,
+      "durations": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "price": {
+        "unit": "second",
+        "usd": 0.0721,
+        "audioUsd": 0.0721,
+        "source": "https://fal.ai/models/bytedance/seedance-2.0/mini/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Token billed; per-second price derived from fal's token formula. Real cost comes from fal's billing events. Realistic faces are reportedly blocked as inputs (secondary)."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "string",
+        "aspect": "aspect_ratio",
+        "audio": "generate_audio",
+        "extra": {
+          "resolution": "480p"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "seedance-2",
+      "kind": "video",
+      "label": "Seedance 2.0 (720p)",
+      "provider": "fal",
+      "endpoint": "bytedance/seedance-2.0/image-to-video",
+      "tiers": ["final"],
+      "nativeAudio": true,
+      "durations": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "price": {
+        "unit": "second",
+        "usd": 0.3024,
+        "audioUsd": 0.3024,
+        "source": "https://fal.ai/models/bytedance/seedance-2.0/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Token billed; per-second price derived from fal's token formula. Realistic faces are reportedly blocked as inputs (secondary)."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "string",
+        "aspect": "aspect_ratio",
+        "audio": "generate_audio",
+        "extra": {
+          "resolution": "720p"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "minimax-h3-max-turbo",
+      "kind": "video",
+      "label": "MiniMax H3 Max Turbo (768p)",
+      "provider": "fal",
+      "endpoint": "minimax/h3-max-turbo/image-to-video",
+      "tiers": ["draft"],
+      "nativeAudio": false,
+      "durations": [4, 5, 6, 8, 10],
+      "price": {
+        "unit": "second",
+        "usd": 0.04,
+        "source": "https://fal.ai/models/minimax/h3-max-turbo/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Post-promotion list price (promotion ends 2026-10-31). Makes a soundtrack, not dialogue, so Reel treats it as silent. Aspect follows the first frame."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "number",
+        "extra": {
+          "resolution": "768P",
+          "prompt_expansion_mode": "disabled"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "minimax-h3-max",
+      "kind": "video",
+      "label": "MiniMax H3 Max (1080p)",
+      "provider": "fal",
+      "endpoint": "minimax/h3-max/image-to-video",
+      "tiers": ["final"],
+      "nativeAudio": false,
+      "durations": [4, 5, 6, 8, 10],
+      "price": {
+        "unit": "second",
+        "usd": 0.16,
+        "source": "https://fal.ai/models/minimax/h3-max/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Post-promotion list price. Soundtrack only; dialogue uses text-to-speech."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "number",
+        "extra": {
+          "resolution": "1080P",
+          "prompt_expansion_mode": "disabled"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "wan-3-480p",
+      "kind": "video",
+      "label": "Wan 3.0 (480p)",
+      "provider": "fal",
+      "endpoint": "alibaba/wan-3.0/image-to-video",
+      "tiers": ["draft"],
+      "nativeAudio": true,
+      "durations": [4, 5, 6, 8, 10],
+      "price": {
+        "unit": "second",
+        "usd": 0.05,
+        "audioUsd": 0.05,
+        "source": "https://fal.ai/models/alibaba/wan-3.0/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Audio toggle with no separate price stated (uncertain). 'Pricing is subject to change'."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "start_image_url",
+        "duration": "duration",
+        "durationFormat": "number",
+        "aspect": "aspect_ratio",
+        "audio": "audio",
+        "extra": {
+          "resolution": "480p"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "wan-3-1080p",
+      "kind": "video",
+      "label": "Wan 3.0 (1080p)",
+      "provider": "fal",
+      "endpoint": "alibaba/wan-3.0/image-to-video",
+      "tiers": ["final"],
+      "nativeAudio": true,
+      "durations": [4, 5, 6, 8, 10],
+      "price": {
+        "unit": "second",
+        "usd": 0.2,
+        "audioUsd": 0.2,
+        "source": "https://fal.ai/models/alibaba/wan-3.0/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Audio toggle with no separate price stated (uncertain)."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "start_image_url",
+        "duration": "duration",
+        "durationFormat": "number",
+        "aspect": "aspect_ratio",
+        "audio": "audio",
+        "extra": {
+          "resolution": "1080p"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "seedream-4.5",
+      "kind": "image",
+      "label": "Seedream 4.5",
+      "provider": "fal",
+      "endpoint": "fal-ai/bytedance/seedream/v4.5/edit",
+      "textEndpoint": "fal-ai/bytedance/seedream/v4.5/text-to-image",
+      "tiers": ["draft", "final"],
+      "maxRefImages": 10,
+      "price": {
+        "unit": "image",
+        "usd": 0.04,
+        "source": "https://fal.ai/models/fal-ai/bytedance/seedream/v4.5/edit",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Text-to-image is the same $0.04 (fal.ai/models/fal-ai/bytedance/seedream/v4.5/text-to-image, read 2026-10-29)."
+      },
+      "input": {
+        "prompt": "prompt",
+        "images": "image_urls",
+        "aspect": "image_size",
+        "aspectValues": {
+          "9:16": "portrait_16_9",
+          "16:9": "landscape_16_9"
+        },
+        "extra": {
+          "num_images": 1
+        }
+      },
+      "output": {
+        "url": "images.0.url"
+      }
+    },
+    {
+      "id": "nano-banana-2.1",
+      "kind": "image",
+      "label": "Nano Banana 2.1 (1K)",
+      "provider": "fal",
+      "endpoint": "google/nano-banana-2.1/edit",
+      "textEndpoint": "google/nano-banana-2.1",
+      "tiers": ["final"],
+      "maxRefImages": 6,
+      "price": {
+        "unit": "image",
+        "usd": 0.044,
+        "source": "https://fal.ai/models/google/nano-banana-2.1/edit",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "Token billed. $0.044 is fal's example for a 1K edit with two inputs; each extra input about $0.002; text-to-image $0.040. Real cost from billing events."
+      },
+      "input": {
+        "prompt": "prompt",
+        "images": "image_urls",
+        "aspect": "aspect_ratio",
+        "extra": {
+          "num_images": 1,
+          "resolution": "1K",
+          "output_format": "png"
+        }
+      },
+      "output": {
+        "url": "images.0.url"
+      }
+    },
+    {
+      "id": "minimax-speech-2.8-turbo",
+      "kind": "tts",
+      "label": "MiniMax Speech 2.8 Turbo",
+      "provider": "fal",
+      "endpoint": "fal-ai/minimax/speech-2.8-turbo",
+      "price": {
+        "unit": "1k_chars",
+        "usd": 0.06,
+        "source": "https://fal.ai/models/fal-ai/minimax/speech-2.8-turbo",
+        "verifiedOn": "2026-10-29",
+        "status": "verified"
+      },
+      "input": {
+        "prompt": "prompt",
+        "text": "prompt",
+        "voice": "voice_setting.voice_id",
+        "extra": {
+          "output_format": "url"
+        }
+      },
+      "output": {
+        "url": "audio.url"
+      }
+    },
+    {
+      "id": "elevenlabs-v4-turbo",
+      "kind": "tts",
+      "label": "ElevenLabs v4 Turbo",
+      "provider": "fal",
+      "endpoint": "elevenlabs/tts/eleven-v4-turbo",
+      "price": {
+        "unit": "1k_chars",
+        "usd": 0.04,
+        "source": "https://fal.ai/models/elevenlabs/tts/eleven-v4-turbo",
+        "verifiedOn": "2026-10-29",
+        "status": "verified"
+      },
+      "input": {
+        "prompt": "text",
+        "text": "text",
+        "voice": "voice",
+        "extra": {}
+      },
+      "output": {
+        "url": "audio.url"
+      }
+    },
+    {
+      "id": "gemini-3.8-flash",
+      "kind": "llm",
+      "label": "Gemini 3.8 Flash",
+      "provider": "fal",
+      "endpoint": "openrouter/router",
+      "hidden": false,
+      "price": {
+        "unit": "tokens",
+        "inputUsdPer1M": 0.825,
+        "outputUsdPer1M": 4.125,
+        "source": "https://openrouter.ai/api/v1/models",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Reel records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
+      },
+      "input": {
+        "prompt": "prompt",
+        "system": "system_prompt",
+        "maxTokens": "max_tokens",
+        "extra": {
+          "model": "google/gemini-3.8-flash",
+          "temperature": 0.8
+        }
+      },
+      "output": {
+        "url": "output",
+        "text": "output",
+        "inputTokens": "usage.prompt_tokens",
+        "outputTokens": "usage.completion_tokens",
+        "costUsd": "usage.cost"
+      }
+    },
+    {
+      "id": "gpt-5-mini",
+      "kind": "llm",
+      "label": "GPT-5 mini",
+      "provider": "fal",
+      "endpoint": "openrouter/router",
+      "hidden": false,
+      "price": {
+        "unit": "tokens",
+        "inputUsdPer1M": 0.25,
+        "outputUsdPer1M": 2.0,
+        "source": "https://openrouter.ai/api/v1/models",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Reel records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
+      },
+      "input": {
+        "prompt": "prompt",
+        "system": "system_prompt",
+        "maxTokens": "max_tokens",
+        "extra": {
+          "model": "openai/gpt-5-mini",
+          "temperature": 0.8
+        }
+      },
+      "output": {
+        "url": "output",
+        "text": "output",
+        "inputTokens": "usage.prompt_tokens",
+        "outputTokens": "usage.completion_tokens",
+        "costUsd": "usage.cost"
+      }
+    },
+    {
+      "id": "claude-haiku-5.5",
+      "kind": "llm",
+      "label": "Claude Haiku 5.5",
+      "provider": "fal",
+      "endpoint": "openrouter/router",
+      "hidden": false,
+      "price": {
+        "unit": "tokens",
+        "inputUsdPer1M": 0.1,
+        "outputUsdPer1M": 0.5,
+        "source": "https://openrouter.ai/api/v1/models",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Reel records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
+      },
+      "input": {
+        "prompt": "prompt",
+        "system": "system_prompt",
+        "maxTokens": "max_tokens",
+        "extra": {
+          "model": "anthropic/claude-haiku-5.5",
+          "temperature": 0.8
+        }
+      },
+      "output": {
+        "url": "output",
+        "text": "output",
+        "inputTokens": "usage.prompt_tokens",
+        "outputTokens": "usage.completion_tokens",
+        "costUsd": "usage.cost"
+      }
+    },
+    {
+      "id": "deepseek-v4.1-flash",
+      "kind": "llm",
+      "label": "DeepSeek V4.1 Flash",
+      "provider": "fal",
+      "endpoint": "openrouter/router",
+      "hidden": false,
+      "price": {
+        "unit": "tokens",
+        "inputUsdPer1M": 0.045,
+        "outputUsdPer1M": 0.5,
+        "source": "https://openrouter.ai/api/v1/models",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Reel records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
+      },
+      "input": {
+        "prompt": "prompt",
+        "system": "system_prompt",
+        "maxTokens": "max_tokens",
+        "extra": {
+          "model": "deepseek/deepseek-v4.1-flash",
+          "temperature": 0.8
+        }
+      },
+      "output": {
+        "url": "output",
+        "text": "output",
+        "inputTokens": "usage.prompt_tokens",
+        "outputTokens": "usage.completion_tokens",
+        "costUsd": "usage.cost"
+      }
+    }
+  ],
+  "defaults": {
+    "draft": {
+      "image": "seedream-4.5",
+      "video": "veo-3.1-lite"
+    },
+    "final": {
+      "image": "seedream-4.5",
+      "video": "kling-3-pro"
+    },
+    "castImage": "seedream-4.5",
+    "tts": "minimax-speech-2.8-turbo",
+    "llm": "gemini-3.8-flash",
+    "draftAudio": false
+  },
+  "services": {
+    "r2_storage": {
+      "usd": 0.015,
+      "unit": "gb_month",
+      "source": "https://developers.cloudflare.com/r2/pricing/",
+      "verifiedOn": "2026-10-29",
+      "status": "verified",
+      "notes": "Standard class. First 10 GB-month free per account; units round up."
+    },
+    "r2_class_a": {
+      "usd": 4.5,
+      "unit": "million_ops",
+      "source": "https://developers.cloudflare.com/r2/pricing/",
+      "verifiedOn": "2026-10-29",
+      "status": "verified"
+    },
+    "r2_class_b": {
+      "usd": 0.36,
+      "unit": "million_ops",
+      "source": "https://developers.cloudflare.com/r2/pricing/",
+      "verifiedOn": "2026-10-29",
+      "status": "verified"
+    },
+    "r2_egress": {
+      "usd": 0,
+      "unit": "gb",
+      "source": "https://developers.cloudflare.com/r2/pricing/",
+      "verifiedOn": "2026-10-29",
+      "status": "verified"
+    },
+    "moderation_openai": {
+      "usd": 0,
+      "unit": "request",
+      "source": "https://developers.openai.com/api/docs/guides/moderation",
+      "verifiedOn": "2026-10-29",
+      "status": "verified",
+      "notes": "omni-moderation-latest is free. sexual/minors is text only."
+    },
+    "stripe_card_percent": {
+      "usd": 0.0315,
+      "unit": "fraction_of_amount",
+      "source": "https://stripe.com/gb/pricing",
+      "verifiedOn": "2026-10-29",
+      "status": "secondary",
+      "notes": "Blended figure Glasstrack uses for USD top-ups on a UK Stripe account: card fee plus currency conversion. Used only to show fees on the finances page; never charged on top."
+    },
+    "stripe_card_fixed": {
+      "usd": 0.27,
+      "unit": "per_payment",
+      "source": "https://stripe.com/gb/pricing",
+      "verifiedOn": "2026-10-29",
+      "status": "secondary",
+      "notes": "20p fixed fee converted to USD (approximate)."
+    }
+  }
+}

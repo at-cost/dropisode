@@ -1,0 +1,111 @@
+{
+  "verifiedOn": "2026-10-29",
+  "models": [
+    {
+      "id": "img-cheap",
+      "kind": "image",
+      "label": "Test image",
+      "provider": "fal",
+      "endpoint": "fal-ai/test-image",
+      "tiers": ["draft", "final"],
+      "maxRefImages": 4,
+      "price": { "unit": "image", "usd": 0.039, "source": "https://example.com/img", "verifiedOn": "2026-10-29", "status": "verified" },
+      "input": { "prompt": "prompt", "images": "image_urls", "aspect": "aspect_ratio" },
+      "output": { "url": "images.0.url" }
+    },
+    {
+      "id": "vid-draft",
+      "kind": "video",
+      "label": "Test draft video",
+      "provider": "fal",
+      "endpoint": "fal-ai/test-draft",
+      "tiers": ["draft"],
+      "durations": [5, 10],
+      "price": { "unit": "second", "usd": 0.05, "source": "https://example.com/draft", "verifiedOn": "2026-10-29", "status": "verified" },
+      "input": { "prompt": "prompt", "image": "image_url", "duration": "duration", "durationFormat": "string", "aspect": "aspect_ratio" },
+      "output": { "url": "video.url" }
+    },
+    {
+      "id": "vid-final",
+      "kind": "video",
+      "label": "Test final video",
+      "provider": "fal",
+      "endpoint": "fal-ai/test-final",
+      "tiers": ["final"],
+      "durations": [4, 6, 8],
+      "nativeAudio": true,
+      "price": {
+        "unit": "second",
+        "usd": 0.1,
+        "audioUsd": 0.15,
+        "source": "https://example.com/final",
+        "verifiedOn": "2026-10-29",
+        "status": "verified"
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "string_s",
+        "aspect": "aspect_ratio",
+        "audio": "generate_audio"
+      },
+      "output": { "url": "video.url" }
+    },
+    {
+      "id": "vid-clip",
+      "kind": "video",
+      "label": "Per-clip video",
+      "provider": "fal",
+      "endpoint": "fal-ai/test-clip",
+      "tiers": [],
+      "durations": [6, 10],
+      "price": {
+        "unit": "video",
+        "byDurationUsd": { "6": 0.27, "10": 0.45 },
+        "source": "https://example.com/clip",
+        "verifiedOn": "2026-10-29",
+        "status": "verified"
+      },
+      "input": { "prompt": "prompt", "image": "image_url", "duration": "duration" },
+      "output": { "url": "video.url" }
+    },
+    {
+      "id": "tts",
+      "kind": "tts",
+      "label": "Test TTS",
+      "provider": "fal",
+      "endpoint": "fal-ai/test-tts",
+      "price": { "unit": "1k_chars", "usd": 0.1, "source": "https://example.com/tts", "verifiedOn": "2026-10-29", "status": "verified" },
+      "input": { "prompt": "prompt", "text": "text" },
+      "output": { "url": "audio.url" }
+    },
+    {
+      "id": "llm",
+      "kind": "llm",
+      "label": "Test LLM",
+      "provider": "fal",
+      "endpoint": "openrouter/router",
+      "price": {
+        "unit": "tokens",
+        "inputUsdPer1M": 0.3,
+        "outputUsdPer1M": 2.5,
+        "source": "https://example.com/llm",
+        "verifiedOn": "2026-10-29",
+        "status": "verified"
+      },
+      "input": { "prompt": "prompt", "extra": { "model": "test/model" } },
+      "output": { "url": "output", "text": "output", "inputTokens": "usage.prompt_tokens", "outputTokens": "usage.completion_tokens" }
+    }
+  ],
+  "defaults": {
+    "draft": { "image": "img-cheap", "video": "vid-draft" },
+    "final": { "image": "img-cheap", "video": "vid-final" },
+    "castImage": "img-cheap",
+    "tts": "tts",
+    "llm": "llm"
+  },
+  "services": {
+    "r2_storage": { "usd": 0.015, "unit": "gb_month", "source": "https://example.com/r2", "verifiedOn": "2026-10-29", "status": "verified" }
+  }
+}

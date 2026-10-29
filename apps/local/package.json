@@ -1,0 +1,37 @@
+{
+  "name": "reel-studio",
+  "version": "0.1.0",
+  "description": "Reel: an open-source AI drama studio. Runs locally with your own fal.ai key. Exact price before every shot.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "reel-studio": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/cli.ts --no-open",
+    "start": "tsx src/cli.ts",
+    "build": "pnpm --filter @reel/studio build && tsup && node scripts/copy-web.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fal-ai/client": "^1.10.1",
+    "@hono/node-server": "^2.1.5",
+    "fflate": "^0.8.3",
+    "ffmpeg-static": "^5.3.0",
+    "hono": "^4.13.14",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@reel/core": "workspace:*",
+    "@reel/studio": "workspace:*",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15"
+  }
+}
