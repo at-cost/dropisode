@@ -1,0 +1,23 @@
+{
+  "_readme": "Moderation rules for hosted Reel. Checked before any money is spent (prompts, scripts, reference images) and on samples of generated outputs. A rule blocks when OpenAI flags its category (if orFlagged) or the category score reaches the threshold. 'applies': text, image or any. 'when: request_has_image' only applies when the same request also carries an image. Changes need the owner's OK. Categories: https://developers.openai.com/api/docs/guides/moderation",
+  "verifiedOn": "2026-10-29",
+  "model": "omni-moderation-latest",
+  "endpoint": "https://api.openai.com/v1/moderations",
+  "timeoutMs": 15000,
+  "maxTextChars": 10000,
+  "images": {
+    "acceptedTypes": ["image/png", "image/jpeg", "image/webp", "image/gif"],
+    "resizeAboveBytes": 4000000,
+    "resizeMaxSide": 1536,
+    "maxBytes": 20000000
+  },
+  "outputFrames": 3,
+  "rules": [
+    { "id": "sexual/minors", "category": "sexual/minors", "applies": "any", "orFlagged": true, "threshold": 0.05 },
+    { "id": "sexual/image", "category": "sexual", "applies": "image", "orFlagged": true, "threshold": 0.3 },
+    { "id": "sexual/real-person", "category": "sexual", "applies": "text", "when": "request_has_image", "orFlagged": true, "threshold": 0.5 },
+    { "id": "harassment/threatening", "category": "harassment/threatening", "applies": "text", "orFlagged": true, "threshold": 0.5 },
+    { "id": "hate/threatening", "category": "hate/threatening", "applies": "text", "orFlagged": true, "threshold": 0.5 },
+    { "id": "illicit/violent", "category": "illicit/violent", "applies": "text", "orFlagged": true, "threshold": 0.5 }
+  ]
+}

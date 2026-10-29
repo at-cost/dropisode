@@ -1,0 +1,285 @@
+import { Hono } from "hono";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { authPages } from "../src/auth/routes";
+import { sessionMiddleware } from "../src/auth/session";
+import { safeNext } from "../src/auth/util";
+import type { AppEnv } from "../src/context";
+import { type TestApp, testApp } from "./harness";
+
+let t: TestApp;
+beforeEach(async () => {
+  t = await testApp();
+});
+afterEach(async () => {
+  await t.close();
+});
+
+/** Merges a response's Set-Cookie values into a Cookie header. */
+function withCookies(cookie: string, res: Response): string {
+  const jar = new Map(
+    cookie
+      .split("; ")
+      .filter(Boolean)
+      .map((p) => [p.split("=")[0]!, p] as const),
+  );
+  for (const sc of res.headers.getSetCookie()) {
+    const pair = sc.split(";")[0]!;
+    jar.set(pair.split("=")[0]!, pair);
+  }
+  return [...jar.values()].join("; ");
+}
+
+const lastMailTo = (to: string) => [...(t.deps.mailer.sent ?? [])].reverse().find((m) => m.to === to);
+/** Opens the emailed link (the confirm page) and presses Continue. */
+async function follow(url: URL): Promise<Response> {
+  const page = await t.request("GET", `${url.pathname}${url.search}`);
+  if (page.status !== 200) return page;
+  const token = url.searchParams.get("token") ?? "";
+  return t.request("POST", "/auth/verify", {
+    body: `token=${encodeURIComponent(token)}`,
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+  });
+}
+
+const linkIn = (text: string, path: string) => {
+  const m = text.match(new RegExp(`https?://[^\\s]+${path}[^\\s]+`));
+  if (!m) throw new Error(`no ${path} link in: ${text}`);
+  return new URL(m[0]);
+};
+
+async function emailSignIn(email: string, next?: string): Promise<Response> {
+  const res = await t.request("POST", "/auth/email", { body: { email, next } });
+  expect(res.status).toBe(200);
+  const url = linkIn(lastMailTo(email.toLowerCase())!.text, "/auth/verify");
+  return follow(url);
+}
+
+/** Serves the page router the way app.ts will (deps + session first). */
+function pages() {
+  const app = new Hono<AppEnv>();
+  app.use("*", async (c, next) => {
+    c.set("deps", t.deps);
+    await next();
+  });
+  app.use("*", sessionMiddleware);
+  app.route("/", authPages);
+  return (path: string, cookie?: string) =>
+    app.fetch(new Request(`${t.deps.config.APP_URL}${path}`, { headers: cookie ? { cookie } : {}, redirect: "manual" }));
+}
+
+async function invite(owner: string, email: string): Promise<string> {
+  const res = await t.request("POST", "/api/account/invites", { cookie: owner, body: { email } });
+  expect(res.status).toBe(201);
+  return linkIn(lastMailTo(email)!.text, "/invite/").pathname.split("/").pop()!;
+}
+
+describe("email link sign-in", () => {
+  it("signs in end to end and the link works once", async () => {
+    const res = await emailSignIn("New.Person@Reel.test", "/account");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/account");
+    const cookie = withCookies("", res);
+    const me = (await (await t.request("GET", "/api/account", { cookie })).json()) as {
+      user: { email: string };
+      memberships: { role: string }[];
+    };
+    expect(me.user.email).toBe("new.person@reel.test");
+    expect(me.memberships).toHaveLength(1);
+    expect(me.memberships[0]!.role).toBe("owner");
+    const u = await t.deps.db
+      .selectFrom("users")
+      .select("emailVerifiedAt")
+      .where("email", "=", "new.person@reel.test")
+      .executeTakeFirstOrThrow();
+    expect(u.emailVerifiedAt).not.toBeNull();
+
+    // The token is stored hashed and is single use.
+    const url = linkIn(lastMailTo("new.person@reel.test")!.text, "/auth/verify");
+    const raw = url.searchParams.get("token")!;
+    const rows = await t.deps.db.selectFrom("loginTokens").select("tokenHash").execute();
+    expect(rows.some((r) => r.tokenHash === raw)).toBe(false);
+    const again = await follow(url);
+    expect(again.headers.get("location")).toBe("/sign-in?error=link");
+  });
+
+  it("defaults to the studio and refuses expired or bogus tokens", async () => {
+    const res = await emailSignIn("a@reel.test");
+    expect(res.headers.get("location")).toBe("/studio/");
+    expect((await follow(new URL("http://x/auth/verify?token=not-a-real-token-at-all"))).headers.get("location")).toBe(
+      "/sign-in?error=link",
+    );
+    await t.request("POST", "/auth/email", { body: { email: "b@reel.test" } });
+    await t.deps.db
+      .updateTable("loginTokens")
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where("email", "=", "b@reel.test")
+      .execute();
+    const url = linkIn(lastMailTo("b@reel.test")!.text, "/auth/verify");
+    expect((await follow(url)).headers.get("location")).toBe("/sign-in?error=link");
+  });
+
+  it("rejects bad emails and rate-limits per email", async () => {
+    expect((await t.request("POST", "/auth/email", { body: { email: "nope" } })).status).toBe(400);
+    for (let i = 0; i < 5; i++) expect((await t.request("POST", "/auth/email", { body: { email: "spam@reel.test" } })).status).toBe(200);
+    expect((await t.request("POST", "/auth/email", { body: { email: "spam@reel.test" } })).status).toBe(429);
+  });
+
+  it("signs out", async () => {
+    const cookie = await t.signIn("a@reel.test");
+    expect((await t.request("POST", "/auth/sign-out", { cookie })).status).toBe(200);
+    expect((await t.request("GET", "/api/account", { cookie })).status).toBe(401);
+  });
+});
+
+describe("next= open-redirect protection", () => {
+  const evil = [
+    "https://evil.example",
+    "//evil.example",
+    "/\\evil.example",
+    "\\\\evil.example",
+    "javascript:alert(1)",
+    "/\tevil",
+    "evil.example/path",
+    "",
+  ];
+  it("safeNext keeps only same-site paths", () => {
+    for (const n of evil) expect(safeNext(n, "http://localhost:3299")).toBe("/studio/");
+    expect(safeNext("/", "http://localhost:3299")).toBe("/studio/");
+    expect(safeNext("/billing?paid=1", "http://localhost:3299")).toBe("/billing?paid=1");
+    expect(safeNext("/invite/abc", "http://localhost:3299")).toBe("/invite/abc");
+  });
+  it("the email link never redirects off-site", async () => {
+    for (const [i, n] of ["https://evil.example/x", "//evil.example", "/\\evil.example"].entries()) {
+      const res = await emailSignIn(`r${i}@reel.test`, n);
+      expect(res.headers.get("location")).toBe("/studio/");
+    }
+  });
+  it("the sign-in page sanitises next", async () => {
+    const get = pages();
+    const html = await (await get("/sign-in?next=%2F%2Fevil.example")).text();
+    expect(html).not.toContain("evil.example");
+    expect(html).toContain('value="/studio/"');
+    const cookie = await t.signIn("a@reel.test");
+    expect((await get("/sign-in?next=https%3A%2F%2Fevil.example", cookie)).headers.get("location")).toBe("/studio/");
+  });
+});
+
+describe("workspaces and invites", () => {
+  it("an invited user joins and both see the same projects", async () => {
+    const a = await t.signIn("a@reel.test");
+    let b = await t.signIn("b@reel.test");
+    const created = await t.request("POST", "/api/projects", { cookie: a, body: { name: "Shared film" } });
+    expect(created.status).toBe(201);
+    const before = (await (await t.request("GET", "/api/projects", { cookie: b })).json()) as { name: string }[];
+    expect(before.map((p) => p.name)).not.toContain("Shared film");
+
+    const token = await invite(a, "b@reel.test");
+    const pending = (await (await t.request("GET", "/api/account/invites", { cookie: a })).json()) as { email: string }[];
+    expect(pending.map((p) => p.email)).toEqual(["b@reel.test"]);
+
+    // The invite page asks a signed-out visitor to sign in first.
+    const get = pages();
+    expect(await (await get(`/invite/${token}`)).text()).toContain(`/sign-in?next=${encodeURIComponent(`/invite/${token}`)}`);
+
+    // Someone else can't use it.
+    const c = await t.signIn("c@reel.test");
+    expect((await t.request("POST", "/api/account/invites/accept", { cookie: c, body: { token } })).status).toBe(403);
+
+    const accepted = await t.request("POST", "/api/account/invites/accept", { cookie: b, body: { token } });
+    expect(accepted.status).toBe(200);
+    b = withCookies(b, accepted);
+    const after = (await (await t.request("GET", "/api/projects", { cookie: b })).json()) as { name: string }[];
+    expect(after.map((p) => p.name)).toContain("Shared film");
+    expect(await t.workspaceOf(b)).toBe(await t.workspaceOf(a));
+
+    // Used once only.
+    expect((await t.request("POST", "/api/account/invites/accept", { cookie: b, body: { token } })).status).toBe(404);
+    const state = (await (await t.request("GET", "/api/account", { cookie: a })).json()) as { members: { email: string; role: string }[] };
+    expect(state.members.map((m) => [m.email, m.role])).toEqual([
+      ["a@reel.test", "owner"],
+      ["b@reel.test", "member"],
+    ]);
+  });
+
+  it("non-owners can't invite, rename or remove others", async () => {
+    const a = await t.signIn("a@reel.test");
+    let b = await t.signIn("b@reel.test");
+    const token = await invite(a, "b@reel.test");
+    b = withCookies(b, await t.request("POST", "/api/account/invites/accept", { cookie: b, body: { token } }));
+    const aId = ((await (await t.request("GET", "/api/account", { cookie: a })).json()) as { user: { id: string } }).user.id;
+    expect((await t.request("POST", "/api/account/invites", { cookie: b, body: { email: "x@reel.test" } })).status).toBe(403);
+    expect((await t.request("GET", "/api/account/invites", { cookie: b })).status).toBe(403);
+    expect((await t.request("PATCH", "/api/account/workspace", { cookie: b, body: { name: "Mine now" } })).status).toBe(403);
+    expect((await t.request("DELETE", `/api/account/members/${aId}`, { cookie: b })).status).toBe(403);
+    expect((await t.request("PATCH", `/api/account/members/${aId}`, { cookie: b, body: { role: "member" } })).status).toBe(403);
+    expect((await t.request("PATCH", "/api/account/workspace", { cookie: a, body: { name: "Team" } })).status).toBe(200);
+  });
+
+  it("the last owner can't leave; a member can", async () => {
+    const a = await t.signIn("a@reel.test");
+    let b = await t.signIn("b@reel.test");
+    const token = await invite(a, "b@reel.test");
+    b = withCookies(b, await t.request("POST", "/api/account/invites/accept", { cookie: b, body: { token } }));
+    const ids = (await (await t.request("GET", "/api/account", { cookie: a })).json()) as {
+      user: { id: string };
+      members: { userId: string; email: string }[];
+    };
+    const aId = ids.user.id;
+    const bId = ids.members.find((m) => m.email === "b@reel.test")!.userId;
+
+    const leave = await t.request("DELETE", `/api/account/members/${aId}`, { cookie: a });
+    expect(leave.status).toBe(400);
+    expect((await t.request("PATCH", `/api/account/members/${aId}`, { cookie: a, body: { role: "member" } })).status).toBe(400);
+
+    expect((await t.request("DELETE", `/api/account/members/${bId}`, { cookie: b })).status).toBe(200);
+    expect((await t.request("DELETE", `/api/account/members/${bId}`, { cookie: a })).status).toBe(404);
+    expect((await t.request("DELETE", "/api/account/members/not-a-uuid", { cookie: a })).status).toBe(404);
+  });
+
+  it("can't switch into a workspace you're not in", async () => {
+    const a = await t.signIn("a@reel.test");
+    const c = await t.signIn("c@reel.test");
+    const cWs = await t.workspaceOf(c);
+    await t.request("POST", "/api/projects", { cookie: c, body: { name: "C's secret" } });
+    expect((await t.request("POST", "/api/account/switch", { cookie: a, body: { workspaceId: cWs } })).status).toBe(404);
+    // A forged workspace cookie falls back to A's own workspace.
+    const forged = `${a}; reel_ws=${cWs}`;
+    expect(await t.workspaceOf(forged)).not.toBe(cWs);
+    const list = (await (await t.request("GET", "/api/projects", { cookie: forged })).json()) as { name: string }[];
+    expect(list.map((p) => p.name)).not.toContain("C's secret");
+  });
+
+  it("creates another workspace and switches between them", async () => {
+    let a = await t.signIn("a@reel.test");
+    const first = await t.workspaceOf(a);
+    const res = await t.request("POST", "/api/account/workspaces", { cookie: a, body: { name: "Second" } });
+    expect(res.status).toBe(201);
+    a = withCookies(a, res);
+    const { workspaceId } = (await res.json()) as { workspaceId: string };
+    expect(await t.workspaceOf(a)).toBe(workspaceId);
+    a = withCookies(a, await t.request("POST", "/api/account/switch", { cookie: a, body: { workspaceId: first } }));
+    expect(await t.workspaceOf(a)).toBe(first);
+  });
+});
+
+describe("pages", () => {
+  it("render for a signed-in user and redirect otherwise", async () => {
+    const get = pages();
+    expect((await get("/account")).headers.get("location")).toBe("/sign-in?next=%2Faccount");
+    expect((await get("/billing?paid=1")).headers.get("location")).toBe(`/sign-in?next=${encodeURIComponent("/billing?paid=1")}`);
+    const signIn = await (await get("/sign-in")).text();
+    expect(signIn).toContain("Email me a sign-in link");
+    expect(signIn).not.toContain("Continue with Google");
+    const a = await t.signIn("a@reel.test");
+    await t.fund(await t.workspaceOf(a), 25);
+    const account = await (await get("/account", a)).text();
+    expect(account).toContain("Members are free");
+    expect(account).toContain("Send invite");
+    const billing = await (await get("/billing?paid=1", a)).text();
+    expect(billing).toContain("$25.00");
+    expect(billing).toContain("Payment received; it appears here within a minute.");
+    expect(billing).toContain("Credit never expires.");
+    expect(billing).toContain("test credit");
+    for (const html of [signIn, account, billing]) expect(html).not.toContain("\u2014");
+  });
+});

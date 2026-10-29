@@ -1,0 +1,38 @@
+{
+  "name": "@reel/hosted",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "migrate": "tsx --env-file-if-exists=.env src/cli/migrate.ts"
+  },
+  "dependencies": {
+    "@fal-ai/client": "^1.10.1",
+    "@hono/node-server": "^2.1.5",
+    "@reel/core": "workspace:*",
+    "@reel/money": "workspace:*",
+    "@reel/studio": "workspace:*",
+    "arctic": "^3.7.0",
+    "aws4fetch": "^1.0.20",
+    "fflate": "^0.8.3",
+    "ffmpeg-static": "^5.3.0",
+    "hono": "^4.13.14",
+    "kysely": "^0.29.6",
+    "nodemailer": "^10.1.1",
+    "pg": "^8.23.1",
+    "stripe": "^23.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15"
+  }
+}

@@ -1,0 +1,344 @@
+/** @jsxImportSource hono/jsx */
+/** The account and billing pages (server-rendered; actions go through the JSON APIs). */
+import { balanceLastsDays, formatUsd } from "@reel/money";
+import { Hono } from "hono";
+import { requireUser } from "../auth/session";
+import { currentWorkspace } from "../auth/workspace";
+import { projectedDaily } from "../billing/routes";
+import { walletState } from "../billing/wallet";
+import type { AppEnv, Ctx } from "../context";
+import { num } from "../db";
+import { accountState, pendingInvites } from "./service";
+import { fmtDate, fmtDateTime, render } from "./render";
+
+const signInFirst = (c: Ctx) => c.redirect(`/sign-in?next=${encodeURIComponent(c.req.path + (new URL(c.req.url).search || ""))}`);
+
+const Err = () => <p class="err" data-error="" />;
+
+export const accountPages = new Hono<AppEnv>();
+
+accountPages.get("/account", async (c) => {
+  if (!c.get("user")) return signInFirst(c);
+  const s = await accountState(c);
+  const ws = s.workspace;
+  const owner = ws?.role === "owner";
+  const owners = s.members.filter((m) => m.role === "owner").length;
+  const invites = owner ? await pendingInvites(c) : [];
+  return render(
+    c,
+    "Account",
+    <div class="stack">
+      <h1>Account</h1>
+      <div class="card row" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+        <div>
+          Signed in as <strong>{s.user.name}</strong> <span class="muted">({s.user.email})</span>
+        </div>
+        <form class="row" data-api="/auth/sign-out" data-next="/">
+          <button class="secondary" type="submit">
+            Sign out
+          </button>
+        </form>
+      </div>
+
+      <h2>Your workspaces</h2>
+      <p class="muted small">A workspace holds projects and one balance. Everyone in it shares both.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Workspace</th>
+            <th>Your role</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {s.memberships.map((m) => (
+            <tr>
+              <td>
+                {m.name} {m.frozen ? <span class="tag">frozen</span> : null}
+              </td>
+              <td>{m.role}</td>
+              <td class="num">
+                {ws && m.workspaceId === ws.workspaceId ? (
+                  <span class="tag">current</span>
+                ) : (
+                  <form class="inline" data-api="/api/account/switch" data-next="/account">
+                    <input type="hidden" name="workspaceId" value={m.workspaceId} />
+                    <button class="secondary" type="submit">
+                      Switch
+                    </button>
+                  </form>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <form class="row" data-api="/api/account/workspaces" data-next="/account">
+        <input class="wide-input" name="name" required maxlength={80} placeholder="New workspace name" aria-label="New workspace name" />
+        <button type="submit">Create workspace</button>
+        <Err />
+      </form>
+
+      {ws ? (
+        <>
+          <h2>{ws.name}</h2>
+          {owner ? (
+            <form class="row" data-api="/api/account/workspace" data-method="PATCH">
+              <input class="wide-input" name="name" required maxlength={80} value={ws.name} aria-label="Workspace name" />
+              <button class="secondary" type="submit">
+                Rename
+              </button>
+              <Err />
+            </form>
+          ) : null}
+          <p>
+            <strong>Members are free.</strong> <span class="muted">Invite as many people as you like. There are no seats.</span>
+          </p>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Joined</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {s.members.map((m) => {
+                  const me = m.userId === s.user.id;
+                  const lastOwner = m.role === "owner" && owners <= 1;
+                  return (
+                    <tr>
+                      <td>
+                        {m.name} {me ? <span class="tag">you</span> : null}
+                      </td>
+                      <td>{m.email}</td>
+                      <td>{m.role}</td>
+                      <td>{fmtDate(m.joinedAt)}</td>
+                      <td class="num">
+                        {owner && !lastOwner ? (
+                          <form class="inline" data-api={`/api/account/members/${m.userId}`} data-method="PATCH" data-next="/account">
+                            <input type="hidden" name="role" value={m.role === "owner" ? "member" : "owner"} />
+                            <button class="secondary" type="submit">
+                              {m.role === "owner" ? "Make member" : "Make owner"}
+                            </button>
+                          </form>
+                        ) : null}{" "}
+                        {me && !lastOwner ? (
+                          <form
+                            class="inline"
+                            data-api={`/api/account/members/${m.userId}`}
+                            data-method="DELETE"
+                            data-next="/account"
+                            data-confirm={`Leave ${ws.name}?`}
+                          >
+                            <button class="secondary" type="submit">
+                              Leave
+                            </button>
+                          </form>
+                        ) : null}
+                        {!me && owner && !lastOwner ? (
+                          <form
+                            class="inline"
+                            data-api={`/api/account/members/${m.userId}`}
+                            data-method="DELETE"
+                            data-next="/account"
+                            data-confirm={`Remove ${m.email}?`}
+                          >
+                            <button class="secondary" type="submit">
+                              Remove
+                            </button>
+                          </form>
+                        ) : null}
+                        {me && lastOwner ? <span class="muted small">Make someone else an owner to leave</span> : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {owner ? (
+            <>
+              <h2>Invite someone</h2>
+              <form class="row" data-api="/api/account/invites" data-next="/account">
+                <input
+                  class="wide-input"
+                  type="email"
+                  name="email"
+                  required
+                  maxlength={254}
+                  placeholder="name@example.com"
+                  aria-label="Email to invite"
+                />
+                <button type="submit">Send invite</button>
+                <Err />
+              </form>
+              <p class="muted small">They get an email link. It works for 7 days and only for that email address.</p>
+              {invites.length ? (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Invited</th>
+                      <th>Sent</th>
+                      <th>Expires</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invites.map((i) => (
+                      <tr>
+                        <td>{i.email}</td>
+                        <td>{fmtDate(i.createdAt)}</td>
+                        <td>{fmtDate(i.expiresAt)}</td>
+                        <td class="num">
+                          <form class="inline" data-api={`/api/account/invites/${i.id}`} data-method="DELETE" data-next="/account">
+                            <button class="secondary" type="submit">
+                              Cancel
+                            </button>
+                          </form>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
+            </>
+          ) : (
+            <p class="muted small">Only owners can invite or remove people.</p>
+          )}
+        </>
+      ) : (
+        <p class="notice">You're not in a workspace. Create one above.</p>
+      )}
+    </div>,
+  );
+});
+
+const KIND: Record<string, string> = {
+  topup: "Top-up",
+  generation: "Generation",
+  daily: "Daily charge",
+  adjustment: "Adjustment",
+  stripe_refund: "Refund to card",
+};
+
+accountPages.get("/billing", async (c) => {
+  if (!c.get("user")) return signInFirst(c);
+  requireUser(c);
+  const deps = c.get("deps");
+  const ws = await currentWorkspace(c);
+  const w = await walletState(deps.db, ws.workspaceId);
+  const daily = await projectedDaily(deps, ws.workspaceId);
+  const lasts = balanceLastsDays(w.balanceMicro, daily);
+  const ledger = await deps.db
+    .selectFrom("ledger")
+    .select(["at", "kind", "amountMicro", "model", "note"])
+    .where("workspaceId", "=", ws.workspaceId)
+    .orderBy("at", "desc")
+    .orderBy("id", "desc")
+    .limit(200)
+    .execute();
+  const { minTopupUsd: min, maxTopupUsd: max } = deps.platform;
+  const canTopUp = deps.config.BILLING_ENABLED && !!deps.payments && !ws.frozen;
+  return render(
+    c,
+    "Billing",
+    <div class="stack">
+      <h1>Billing</h1>
+      <p class="muted">
+        Workspace: <strong>{ws.name}</strong>. <a href="/account">Switch</a>
+      </p>
+      {c.req.query("paid") === "1" ? <p class="notice">Payment received; it appears here within a minute.</p> : null}
+      {ws.frozen ? <p class="notice">This workspace is frozen while we review it. Top-ups and generations are paused.</p> : null}
+
+      <div class="grid">
+        <div class="card">
+          <div class="muted small">Balance</div>
+          <div class="big">{formatUsd(w.balanceMicro)}</div>
+        </div>
+        <div class="card">
+          <div class="muted small">Held for running generations</div>
+          <div class="big">{formatUsd(w.heldMicro)}</div>
+          <div class="muted small">Available: {formatUsd(w.availableMicro)}</div>
+        </div>
+        <div class="card">
+          <div class="muted small">Daily charge (shared costs + storage)</div>
+          <div class="big">{formatUsd(daily, { precise: true })}</div>
+          <div class="muted small">
+            {lasts === null
+              ? "No daily charge right now."
+              : `Your balance lasts about ${lasts} ${lasts === 1 ? "day" : "days"} at this rate, before generations.`}
+          </div>
+        </div>
+      </div>
+
+      <h2>Add credit</h2>
+      {canTopUp ? (
+        <form class="row" data-api="/api/billing/topup">
+          <label class="row" style="display:flex;gap:8px;align-items:center;margin:0;font-size:15px;color:var(--text)">
+            Amount (USD)
+            <input
+              type="number"
+              name="amountUsd"
+              min={min}
+              max={max}
+              step="1"
+              value={String(Math.max(min, Math.min(max, 20)))}
+              required
+              style="width:120px"
+            />
+          </label>
+          <button type="submit">Pay with card</button>
+          <Err />
+        </form>
+      ) : (
+        <p class="muted">{ws.frozen ? "Top-ups are paused for this workspace." : "Top-ups aren't open yet."}</p>
+      )}
+      <p class="muted small">
+        ${min} to ${max} per top-up. You pay on Stripe's page and come back here.
+      </p>
+
+      <h2>How it works</h2>
+      <ul>
+        <li>Generations cost the provider's price + 20%.</li>
+        <li>Failed generations the provider doesn't bill are refunded automatically.</li>
+        <li>Credit never expires.</li>
+        <li>No subscription.</li>
+      </ul>
+
+      <h2>History</h2>
+      {ledger.length ? (
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Kind</th>
+                <th class="num">Amount</th>
+                <th>Model</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.map((l) => (
+                <tr>
+                  <td class="mono small">{fmtDateTime(l.at)}</td>
+                  <td>{KIND[l.kind] ?? l.kind}</td>
+                  <td class="num">{formatUsd(num(l.amountMicro), { precise: true })}</td>
+                  <td class="mono small">{l.model ?? ""}</td>
+                  <td>{l.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p class="muted">Nothing yet.</p>
+      )}
+    </div>,
+  );
+});

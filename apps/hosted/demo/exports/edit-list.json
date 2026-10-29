@@ -1,0 +1,66 @@
+{
+  "project": "The Letter",
+  "episode": "Episode 1: The Letter",
+  "aspect": "9:16",
+  "fps": 30,
+  "resolution": "1080x1920",
+  "source": "final",
+  "shots": [
+    {
+      "index": 1,
+      "shotId": "shot_g4lROQKP",
+      "takeId": "take_GhtqZGhE",
+      "tier": "final",
+      "file": "shots/01_shot_g4lROQKP.mp4",
+      "startS": 0,
+      "durationS": 5
+    },
+    {
+      "index": 2,
+      "shotId": "shot_Ju57QHOH",
+      "takeId": "take_ExfMxyXL",
+      "tier": "final",
+      "file": "shots/02_shot_Ju57QHOH.mp4",
+      "startS": 5,
+      "durationS": 5
+    },
+    {
+      "index": 3,
+      "shotId": "shot_hooNK3W3",
+      "takeId": "take_ZFC_bxjW",
+      "tier": "final",
+      "file": "shots/03_shot_hooNK3W3.mp4",
+      "startS": 10,
+      "durationS": 5
+    },
+    {
+      "index": 4,
+      "shotId": "shot_Rp-ndmyj",
+      "takeId": "take_FOZBfJS4",
+      "tier": "final",
+      "file": "shots/04_shot_Rp-ndmyj.mp4",
+      "startS": 15,
+      "durationS": 5
+    },
+    {
+      "index": 5,
+      "shotId": "shot__PKIHGTD",
+      "takeId": "take_FxbU0K5g",
+      "tier": "final",
+      "file": "shots/05_shot__PKIHGTD.mp4",
+      "startS": 20,
+      "durationS": 5
+    },
+    {
+      "index": 6,
+      "shotId": "shot_Q0OwvOy6",
+      "takeId": "take_h-ZgbdBo",
+      "tier": "final",
+      "file": "shots/06_shot_Q0OwvOy6.mp4",
+      "startS": 25,
+      "durationS": 5
+    }
+  ],
+  "subtitles": "subtitles.srt",
+  "skipped": []
+}
