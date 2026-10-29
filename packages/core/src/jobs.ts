@@ -165,7 +165,7 @@ export class JobRunner {
   async check(jobId: string): Promise<JobRecord> {
     const job = await this.deps.jobs.get(jobId);
     if (!job) throw new Error(`No job ${jobId}`);
-    if (job.state !== "submitted") return TERMINAL.has(job.state) && !job.finalized ? this.complete(jobId) : job;
+    if (job.state !== "submitted") return TERMINAL.has(job.state) && (!job.finalized || job.followedUp === false) ? this.complete(jobId) : job;
     const status = await this.deps.provider.check(job);
     if (status.state === "queued" || status.state === "running") return job;
     return this.complete(jobId, status);
@@ -212,8 +212,20 @@ export class JobRunner {
    * what is already done. With no status, re-runs the steps after the job's
    * recorded terminal state (crash recovery).
    */
-  complete(jobId: string, status?: ProviderStatus): Promise<JobRecord> {
-    return this.serial(jobId, () => this.completeOnce(jobId, status));
+  async complete(jobId: string, status?: ProviderStatus): Promise<JobRecord> {
+    const job = await this.serial(jobId, () => this.completeOnce(jobId, status));
+    return job.applied && job.followedUp === false ? this.followUp(job) : job;
+  }
+
+  /** Step 5b: follow-up work (e.g. start the video once its frame exists). Idempotent; outside the job's lock. */
+  private async followUp(job: JobRecord): Promise<JobRecord> {
+    try {
+      await this.handlers.get(job.purpose)?.after?.(job);
+    } catch (err) {
+      // The follow-up records its own failure (e.g. a blocked video job marks the take failed).
+      this.deps.log?.(`Follow-up for ${job.id} failed`, err);
+    }
+    return this.deps.jobs.update(job.id, { followedUp: true });
   }
 
   /** Runs `fn` after any other work on the same job, so a reopen can't interleave with a close. */
@@ -356,15 +368,9 @@ export class JobRunner {
           handler?.fail?.(p, done, done.error ?? "failed");
         }
       });
-      if (!job.applied) {
-        try {
-          await handler?.after?.(job);
-        } catch (err) {
-          // The follow-up records its own failure (e.g. a blocked video job marks the take failed).
-          this.deps.log?.(`Follow-up for ${job.id} failed`, err);
-        }
-        job = await this.deps.jobs.update(job.id, { applied: true });
-      }
+      // Follow-ups run after the job's lock is released (see `complete`): they start other
+      // jobs, which take locks of their own.
+      if (!job.applied) job = await this.deps.jobs.update(job.id, { applied: true, followedUp: !handler?.after });
     }
     this.deps.onChange?.(job);
     if (!job.costConfirmed) return job;

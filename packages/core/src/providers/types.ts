@@ -96,8 +96,10 @@ export interface JobRecord {
   doneAt?: string;
   /** The provider's real cost is known (or we stopped waiting for it). */
   costConfirmed?: boolean;
-  /** The result has been applied to the project and follow-ups have run. */
+  /** The result has been applied to the project. */
   applied?: boolean;
+  /** false: follow-up work (e.g. starting the video) is still to run. */
+  followedUp?: boolean;
   /** Closed as lost, then found at the provider and reopened. */
   reopened?: boolean;
   /** Last time the provider was asked for the real cost. */

@@ -189,4 +189,4 @@ export class FolderJobs implements JobStore {
 }
 
 export const isUnfinished = (job: JobRecord): boolean =>
-  job.state === "created" || job.state === "submitted" || ((job.state === "done" || job.state === "failed") && !job.finalized);
+  job.state === "created" || job.state === "submitted" || ((job.state === "done" || job.state === "failed") && (!job.finalized || job.followedUp === false));
