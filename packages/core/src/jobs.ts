@@ -124,7 +124,14 @@ export class JobRunner {
       updatedAt: t,
       ...(spec.owner ? { owner: spec.owner } : {}),
     };
-    await this.deps.jobs.create(job);
+    try {
+      await this.deps.jobs.create(job);
+    } catch (err) {
+      // Another runner started the same fixed-id job a moment ago: use that one.
+      const existing = spec.id ? await this.deps.jobs.get(spec.id) : undefined;
+      if (existing) return existing;
+      throw err;
+    }
     await this.deps.projects.mutate(spec.projectId, (p) => {
       p.costLog.push(pendingLine(job));
     });
