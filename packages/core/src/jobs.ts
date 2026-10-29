@@ -76,6 +76,11 @@ export interface RunnerDeps {
   costLookupEveryMs?: number;
   /** A submitted job the provider still can't answer about after this long is closed. */
   maxJobAgeMs?: number;
+  /**
+   * Exclusive access to one job across processes (hosted: a Postgres advisory
+   * lock). Without it, work on a job is only serialised inside this runner.
+   */
+  lock?: <T>(jobId: string, fn: () => Promise<T>) => Promise<T>;
   /** Where to report background errors. */
   log?: (msg: string, err?: unknown) => void;
 }
@@ -214,7 +219,9 @@ export class JobRunner {
   /** Runs `fn` after any other work on the same job, so a reopen can't interleave with a close. */
   private serial<T>(jobId: string, fn: () => Promise<T>): Promise<T> {
     const prev = this.inFlight.get(jobId) ?? Promise.resolve();
-    const run = prev.catch(() => {}).then(fn);
+    // In-process order first; then, across processes and runner instances, the store's lock.
+    const locked = this.deps.lock ? () => this.deps.lock!(jobId, fn) : fn;
+    const run = prev.catch(() => {}).then(locked);
     const tail = run.catch(() => {});
     this.inFlight.set(jobId, tail as Promise<never>);
     void tail.then(() => {
