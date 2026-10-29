@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * npx reel-studio [--dir <projects folder>] [--port 4320] [--no-open] [--mock]
  */
