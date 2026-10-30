@@ -485,7 +485,7 @@ Defaults are chosen on the price/quality frontier, after dropping models that fa
 
 The frontier runs MiniMax H3 → Seedance 2.0 → Seedance 2.5. Kling 3.0 Pro and both Veo models sit well below it. HeyGen Video 1 (Elo 1119, about $0.04/s on HeyGen's own API) may also sit on it; not checked on fal.
 
-**Provisional defaults:** drafts on MiniMax H3 Max Turbo 480p ($0.025/s), finals on MiniMax H3 768p. Same family, so an approved draft predicts the final (the earlier Veo-draft, Kling-final pairing broke that rule). The 1,000-shot drama in section 8 drops to roughly $360 final-only on Reel.
+**Provisional defaults:** drafts on MiniMax H3 Max Turbo 480p ($0.025/s), finals on MiniMax H3 768p. Same family, so an approved draft predicts the final (the earlier Veo-draft, Kling-final pairing broke that rule). The 54-episode drama in section 8 comes to about $397 final-only on Reel ($1,026 on Kling 3.0 Pro).
 
 **What the spike must check before these stay:**
 - **Dialogue.** fal describes H3's audio as a soundtrack, so Reel treats it as silent and voices lines with text-to-speech, laid over the clip without lip sync. H3 also takes `target_audio_url` (a clip to build the soundtrack around). Generating the TTS line first and passing it in may give lip-synced dialogue: test it.
