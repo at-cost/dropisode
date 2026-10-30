@@ -103,7 +103,7 @@ export function workspaceStudio(
           userId,
           stage: "upload",
           texts: [],
-          images: [{ bytes: file.bytes, contentType: file.contentType, name: `upload.${file.contentType.split("/")[1] ?? "bin"}` }],
+          images: [{ bytes: file.bytes, contentType: file.contentType, name: `upload.${file.contentType.split("/")[1] ?? "bin"}`, origin: "upload" }],
         });
         if (!v.ok) throw new BlockedError(v.message, "moderation");
       }

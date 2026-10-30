@@ -5,7 +5,8 @@ export interface ModerationRequest {
   /** What is being checked: "generation", "upload", "cast_name"... */
   stage: string;
   texts: string[];
-  images: { bytes: Uint8Array; contentType: string; name: string }[];
+  /** origin "upload": a photo a person added (may show a real person). */
+  images: { bytes: Uint8Array; contentType: string; name: string; origin?: "upload" | "generated" }[];
 }
 
 export type ModerationVerdict = { ok: true } | { ok: false; reasons: string[]; message: string };

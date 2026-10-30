@@ -10,7 +10,7 @@ const Rule = z.object({
   id: z.string().min(1),
   category: z.string().min(1),
   applies: z.enum(["text", "image", "any"]),
-  when: z.enum(["always", "request_has_image"]).default("always"),
+  when: z.enum(["always", "request_has_image", "request_has_upload"]).default("always"),
   orFlagged: z.boolean().default(true),
   threshold: z.number().min(0).max(1),
 });
@@ -29,6 +29,8 @@ const ModerationFile = z.object({
   }),
   outputFrames: z.number().int().min(1).max(10).default(3),
   rules: z.array(Rule).min(1),
+  /** Refuse prompts naming listed public figures (config/public-figures.json). */
+  publicFigures: z.object({ enabled: z.boolean() }).default({ enabled: true }),
 });
 export type ModerationRules = z.infer<typeof ModerationFile>;
 
@@ -95,10 +97,11 @@ export interface ClassifiedItem {
 }
 
 /** The rule ids that block, given the classifier's results for one request. */
-export function evaluate(rules: Rule[], items: ClassifiedItem[], opts: { requestHasImage: boolean }): string[] {
+export function evaluate(rules: Rule[], items: ClassifiedItem[], opts: { requestHasImage: boolean; requestHasUpload?: boolean }): string[] {
   const hits = new Set<string>();
   for (const rule of rules) {
     if (rule.when === "request_has_image" && !opts.requestHasImage) continue;
+    if (rule.when === "request_has_upload" && !opts.requestHasUpload) continue;
     for (const item of items) {
       if (rule.applies !== "any" && rule.applies !== item.kind) continue;
       const flagged = rule.orFlagged && item.result.categories[rule.category] === true;

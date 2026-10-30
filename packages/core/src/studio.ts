@@ -387,6 +387,7 @@ export class Studio {
         bytes: await this.deps.media.read(project.id, ref),
         contentType: ref.contentType,
         name: `${m.name}.${ref.path.split(".").pop()}`,
+        origin: ref.source === "upload" ? "upload" : "generated",
       });
     }
     return out;

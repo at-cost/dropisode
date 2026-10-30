@@ -15,6 +15,8 @@ export interface MediaInput {
   bytes: Uint8Array;
   contentType: string;
   name: string;
+  /** "upload": a photo a person added (may show a real person); "generated": made by a model. */
+  origin?: "upload" | "generated";
 }
 
 export interface ProviderInput {

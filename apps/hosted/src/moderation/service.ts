@@ -65,7 +65,7 @@ export function defaultClassifier(config: Deps["config"], rules: ModerationRules
 export function createModerationService(deps: ModerationDeps | (() => ModerationDeps), opts: ModerationOptions): Moderation {
   const get = typeof deps === "function" ? deps : () => deps;
   const rules = opts.rules ?? loadRules();
-  const names: NameMatcher = nameMatcher(opts.publicFigures ?? loadPublicFigures());
+  const names: NameMatcher = nameMatcher(opts.publicFigures ?? (rules.publicFigures.enabled ? loadPublicFigures() : []));
   const warn = opts.log ?? ((m: string) => console.warn(`reel moderation: ${m}`));
   const imageRules = rules.rules.filter((r) => r.applies !== "text");
 
@@ -152,7 +152,7 @@ export function createModerationService(deps: ModerationDeps | (() => Moderation
     const reasons = evaluate(
       rules.rules,
       inputs.map((input, k) => ({ kind: input.kind, result: results[k]! })),
-      { requestHasImage: images.length > 0 },
+      { requestHasImage: images.length > 0, requestHasUpload: req.images.some((i) => i.origin === "upload") },
     );
     return reasons.length ? block(reasons) : { ok: true };
   }
@@ -213,7 +213,7 @@ export function createModerationService(deps: ModerationDeps | (() => Moderation
       const reasons = evaluate(
         imageRules,
         results.map((result) => ({ kind: "image" as const, result })),
-        { requestHasImage: true },
+        { requestHasImage: true, requestHasUpload: row.source === "upload" },
       );
       if (reasons.length) {
         await setMediaHidden(db, row.id, { reason: `Content rules: ${reasons.join(", ")}` });

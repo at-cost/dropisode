@@ -10,7 +10,7 @@ import { walletState } from "../src/billing/wallet";
 import type { AppEnv } from "../src/context";
 import { FakeClassifier, openAiClassifier } from "../src/moderation/classifier";
 import { reportRoutes, resetReportRateLimit } from "../src/moderation/report";
-import { nameMatcher, normalise } from "../src/moderation/rules";
+import { loadRules, nameMatcher, normalise } from "../src/moderation/rules";
 import { BLOCKED_MESSAGE, UNAVAILABLE_MESSAGE, createModeration, createModerationService } from "../src/moderation/service";
 import { WorkspaceStores } from "../src/stores";
 import { tickJobs } from "../src/worker";
@@ -18,6 +18,8 @@ import { type TestApp, testApp } from "./harness";
 
 let t: TestApp;
 let fake: FakeClassifier;
+/** The full rule set (public figures, sexual images, threats): exercises every blocking path. The shipped config is narrower (see "default policy"). */
+const STRICT = loadRules(new URL("./fixtures/moderation-strict.json", import.meta.url));
 let cookie: string;
 let ws: string;
 
@@ -116,7 +118,7 @@ async function settleJobs() {
 
 beforeEach(async () => {
   fake = new FakeClassifier();
-  t = await testApp({ deps: { moderation: createModerationService(() => t.deps, { classify: fake.classify }) } });
+  t = await testApp({ deps: { moderation: createModerationService(() => t.deps, { classify: fake.classify, rules: STRICT }) } });
   cookie = await t.signIn("maker@reel.test");
   ws = await t.workspaceOf(cookie);
   await t.fund(ws, 20);
@@ -262,6 +264,7 @@ describe("output review", () => {
     const calls: number[] = [];
     const inner = fake.classify;
     t.deps.moderation = createModerationService(() => t.deps, {
+      rules: STRICT,
       classify: async (inputs) => {
         calls.push(inputs.length);
         return inner(inputs);
@@ -328,10 +331,12 @@ describe("service details", () => {
     expect(m.find("the pope leonardo")).toEqual([]);
   });
 
-  it("development without a key blocks nothing but still refuses public figures", async () => {
+  it("development without a key blocks nothing (public figures are off in the shipped config)", async () => {
     const mod = createModeration({ ...t.deps, config: { ...t.deps.config, NODE_ENV: "development", OPENAI_API_KEY: "" } });
     expect(await mod.check({ workspaceId: ws, stage: "generation", texts: ["[nsfw-minor]"], images: [] })).toEqual({ ok: true });
-    expect((await mod.check({ workspaceId: ws, stage: "generation", texts: ["Kim Kardashian at a party"], images: [] })).ok).toBe(false);
+    expect(await mod.check({ workspaceId: ws, stage: "generation", texts: ["Kim Kardashian at a party"], images: [] })).toEqual({
+      ok: true,
+    });
     expect(await mod.reviewOutputs(10)).toBe(0);
   });
 
@@ -356,7 +361,7 @@ describe("service details", () => {
       timeoutMs: 5000,
       fetch: fetchStub,
     });
-    const mod = createModerationService(t.deps, { classify });
+    const mod = createModerationService(t.deps, { classify, rules: STRICT });
     const v = await mod.check({
       workspaceId: ws,
       stage: "upload",
@@ -379,6 +384,7 @@ describe("service details", () => {
     });
 
     const down = createModerationService(t.deps, {
+      rules: STRICT,
       classify: openAiClassifier({
         apiKey: "k",
         model: "m",
@@ -434,5 +440,34 @@ describe("abuse report form", () => {
     for (let i = 0; i < 4; i++) expect((await post(app, { reason: "other", details: `report ${i}` })).status).toBe(200);
     expect((await post(app, { reason: "other", details: "one too many" })).status).toBe(429);
     expect(Number((await sql<{ n: string }>`SELECT count(*) AS n FROM abuse_reports`.execute(t.deps.db)).rows[0]!.n)).toBe(5);
+  });
+});
+
+describe("default policy (owner 2026-10-30): only illegal content is blocked", () => {
+  const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  const img = (origin: "upload" | "generated") => ({ bytes: png, contentType: "image/png", name: "ref.png", origin });
+  const service = () => createModerationService(t.deps, { classify: new FakeClassifier().classify });
+  const check = (texts: string[], images: ReturnType<typeof img>[] = []) =>
+    service().check({ workspaceId: ws, stage: "generation", texts, images });
+
+  it("blocks sexual content involving minors", async () => {
+    expect((await check(["[nsfw-minor] a scene"])).ok).toBe(false);
+  });
+
+  it("blocks sexualising an uploaded photo, which may show a real person", async () => {
+    expect((await check(["[nsfw] she undresses"], [img("upload")])).ok).toBe(false);
+  });
+
+  it("allows adult fiction with generated characters, threats in a script, and public figures' names", async () => {
+    expect(await check(["[nsfw] she undresses"], [img("generated")])).toEqual({ ok: true });
+    expect(await check(["[threat] I will end you, he says"])).toEqual({ ok: true });
+    expect(await check(["[violent-crime] the heist goes wrong"])).toEqual({ ok: true });
+    expect(await check(["Taylor Swift walks into the bar"])).toEqual({ ok: true });
+  });
+
+  it("the shipped config keeps public figures switched off and the name list in place", () => {
+    const rules = loadRules();
+    expect(rules.publicFigures.enabled).toBe(false);
+    expect(rules.rules.map((r) => r.id).sort()).toEqual(["sexual/minors", "sexual/uploaded-image", "sexual/uploaded-photo"]);
   });
 });
