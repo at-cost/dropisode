@@ -14,13 +14,13 @@ export function financesPage(c: Ctx, f: FinancesSummary) {
   return page(c, {
     title: "Finances",
     description:
-      "Reel's live finances: top-ups, what providers billed, refunds, fixed costs, the reserve and reconciliation with provider invoices.",
+      "Dropisode's live finances: top-ups, what providers billed, refunds, fixed costs, the reserve and reconciliation with provider invoices.",
     cache: "public, max-age=60",
     body: (
       <>
         <h1>Finances</h1>
         <p class="lede">
-          Live figures from Reel's ledger, worked out with the same code that bills you. We charge the provider's price plus {markupPct}%.
+          Live figures from Dropisode's ledger, worked out with the same code that bills you. We charge the provider's price plus {markupPct}%.
           This page shows where that money goes. The same data is at <a href="/finances.json">/finances.json</a>.
         </p>
 

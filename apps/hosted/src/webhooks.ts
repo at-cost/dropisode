@@ -1,5 +1,5 @@
 /**
- * fal → Reel. The URL carries the job id and an HMAC of it, so only URLs we
+ * fal → Dropisode. The URL carries the job id and an HMAC of it, so only URLs we
  * issued are accepted. The payload is used only for its request id: the job's
  * real state is then read back from fal with our own key (a forged or replayed
  * webhook can at most make us ask fal again).

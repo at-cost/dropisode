@@ -101,7 +101,7 @@ billingRoutes.post("/topup", async (c) => {
   return c.json({ url: session.url });
 });
 
-/** Stripe → Reel. Credits the wallet once per paid top-up. */
+/** Stripe → Dropisode. Credits the wallet once per paid top-up. */
 export const stripeWebhook = new Hono<AppEnv>();
 stripeWebhook.post("/", async (c) => {
   const deps = c.get("deps");

@@ -171,7 +171,7 @@ export function pricingPage(c: Ctx) {
 
   return page(c, {
     title: "Pricing",
-    description: `Reel charges the provider's price plus ${markupPct}% per generation. See what an episode costs on every model, with sources for every price.`,
+    description: `Dropisode charges the provider's price plus ${markupPct}% per generation. See what an episode costs on every model, with sources for every price.`,
     body: (
       <>
         <h1>Pricing</h1>
@@ -437,9 +437,9 @@ export function pricingPage(c: Ctx) {
                 <th>Final model</th>
                 <th class="num">fal $/s</th>
                 <th class="num">Final only: fal</th>
-                <th class="num">Final only: Reel</th>
+                <th class="num">Final only: Dropisode</th>
                 <th class="num">Draft then final: fal</th>
-                <th class="num">Draft then final: Reel</th>
+                <th class="num">Draft then final: Dropisode</th>
               </tr>
             </thead>
             <tbody>
@@ -494,15 +494,15 @@ export function pricingPage(c: Ctx) {
           The same {int(COMPARE.scenario.totalSeconds)} seconds, one Nano Banana Pro frame per try, at the Ultra plan's price per credit.
           This assumes every credit bought gets used:
         </p>
-        <TableWrap label="Higgsfield compared with Reel">
+        <TableWrap label="Higgsfield compared with Dropisode">
           <table>
             <thead>
               <tr>
                 <th>Model</th>
                 <th>Higgsfield final only (Ultra monthly / annual)</th>
-                <th>Reel final only</th>
+                <th>Dropisode final only</th>
                 <th>Higgsfield 4 tries per shot (Ultra monthly)</th>
-                <th>Reel draft then final</th>
+                <th>Dropisode draft then final</th>
               </tr>
             </thead>
             <tbody>
@@ -521,12 +521,12 @@ export function pricingPage(c: Ctx) {
         <div class="notice">
           <p style="margin-top:0">
             <strong>Where subscriptions win.</strong> Higgsfield is cheaper per final second on most models, often by a lot. Kling 3.0 on
-            Higgsfield is about a third of Reel's price, and its 7-day unlimited Kling 3.0 window can make Kling drafts nearly free for a
-            week. If you use all your credits every month on Kling or Seedance, a subscription is cheaper than Reel.
+            Higgsfield is about a third of Dropisode's price, and its 7-day unlimited Kling 3.0 window can make Kling drafts nearly free for a
+            week. If you use all your credits every month on Kling or Seedance, a subscription is cheaper than Dropisode.
           </p>
           <p>
-            Reel is about even on Veo 3.1 Fast and Veo 3.1. It is cheaper only where Higgsfield has no cheap tier: drafting on Veo 3.1 Lite
-            or MiniMax H3 Max Turbo. That is why Reel's draft then final beats four tries on the same model for Veo, Seedance 2.0 and Wan,
+            Dropisode is about even on Veo 3.1 Fast and Veo 3.1. It is cheaper only where Higgsfield has no cheap tier: drafting on Veo 3.1 Lite
+            or MiniMax H3 Max Turbo. That is why Dropisode's draft then final beats four tries on the same model for Veo, Seedance 2.0 and Wan,
             but not for Kling.
           </p>
           <p style="margin-bottom:0">
@@ -535,7 +535,7 @@ export function pricingPage(c: Ctx) {
           </p>
         </div>
         <p>
-          Reel's case is not the lowest price per second. It is no subscription, no unused credits at month end, no throttling, the real
+          Dropisode's case is not the lowest price per second. It is no subscription, no unused credits at month end, no throttling, the real
           cost of every job, automatic refunds for unbilled failures, and a studio you can run yourself with your own key.
         </p>
       </>

@@ -280,7 +280,7 @@ describe("a simulated month", () => {
     await t.fund(ws, 0.5);
     for (let day = 1; day <= 12; day++) await runDailyCharges(t.deps, `2026-11-${String(day).padStart(2, "0")}`);
     const sent = t.deps.mailer.sent!.filter((m) => m.to === "maya@reel.test").map((m) => m.subject);
-    expect(sent).toEqual(["Your Reel balance is low", "Your Reel balance has run out"]);
+    expect(sent).toEqual(["Your Dropisode balance is low", "Your Dropisode balance has run out"]);
     // Storage keeps accruing below zero; nothing is deleted.
     expect((await walletState(t.deps.db, ws)).balanceMicro).toBeLessThan(0);
     expect(await stores.exists(someProject.projectId)).toBe(true);
@@ -484,6 +484,6 @@ describe("hosted critic regressions, round 2", () => {
     expect(t.deps.mailer.sent!.length).toBe(0);
     fail = false;
     await runDailyCharges(t.deps, "2026-11-01"); // same day: already charged, email retried
-    expect(t.deps.mailer.sent!.map((m) => m.subject)).toEqual(["Your Reel balance has run out"]);
+    expect(t.deps.mailer.sent!.map((m) => m.subject)).toEqual(["Your Dropisode balance has run out"]);
   });
 });

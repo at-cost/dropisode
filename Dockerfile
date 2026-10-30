@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Reel hosted: API, studio UI, public site and job worker in one image.
+# Dropisode hosted: API, studio UI, public site and job worker in one image.
 FROM node:22-alpine AS build
 WORKDIR /src
 RUN corepack enable

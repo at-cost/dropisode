@@ -1,5 +1,5 @@
 /**
- * The slice of Stripe Reel uses, so tests can use a fake. Shaped after
+ * The slice of Stripe Dropisode uses, so tests can use a fake. Shaped after
  * at-cost/glasstrack's billing gateway (MIT). Radar is on by default for every
  * Stripe payment; 3D Secure is requested on every top-up.
  */
@@ -37,12 +37,12 @@ export interface PaymentGateway {
   }): Promise<{ id: string; url: string }>;
   /** Stripe's fee in cents, once the balance transaction exists. */
   fetchFee(paymentIntentId: string): Promise<number | null>;
-  /** Verifies the signature and returns the completed checkout, or null for events Reel ignores. */
+  /** Verifies the signature and returns the completed checkout, or null for events Dropisode ignores. */
   parseWebhook(rawBody: string, signature: string): Promise<CheckoutCompleted | PaymentReversal | null>;
 }
 
 export function stripeGateway(secretKey: string, webhookSecret: string): PaymentGateway {
-  const stripe = new Stripe(secretKey, { appInfo: { name: "Reel" }, maxNetworkRetries: 2 });
+  const stripe = new Stripe(secretKey, { appInfo: { name: "Dropisode" }, maxNetworkRetries: 2 });
   return {
     async ensureCustomer({ existingId, workspaceId, email, name }) {
       if (existingId) return existingId;
@@ -65,7 +65,7 @@ export function stripeGateway(secretKey: string, webhookSecret: string): Payment
                 currency: "usd",
                 unit_amount: p.amountCents,
                 product_data: {
-                  name: "Reel credit",
+                  name: "Dropisode credit",
                   description: "Prepaid credit. Generations cost the provider's price + 20%. Credit never expires.",
                 },
               },

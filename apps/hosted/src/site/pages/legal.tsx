@@ -35,24 +35,24 @@ export function termsPage(c: Ctx) {
   return legal(
     c,
     "Terms of service",
-    "Reel's terms of service: who can use it, what you may not make, prepaid credit and refunds.",
+    "Dropisode's terms of service: who can use it, what you may not make, prepaid credit and refunds.",
     <>
       <h2>Who we are</h2>
       <p>
-        Reel is run by {OPERATOR} ("we"). You can reach us at {SUPPORT}. These terms cover the hosted service at this website. The
+        Dropisode is run by {OPERATOR} ("we"). You can reach us at {SUPPORT}. These terms cover the hosted service at this website. The
         open-source software you run yourself is covered by its MIT licence instead.
       </p>
 
-      <h2>Who can use Reel</h2>
+      <h2>Who can use Dropisode</h2>
       <ul>
         <li>You must be 18 or over. Our model provider, fal.ai, requires every end user to be an adult.</li>
         <li>You must give a real email address and keep your sign-in secure. You are responsible for what happens in your workspace.</li>
-        <li>If you use Reel for a company, you confirm you may accept these terms for it.</li>
+        <li>If you use Dropisode for a company, you confirm you may accept these terms for it.</li>
       </ul>
 
       <h2>What you may not make</h2>
       <p>
-        You must follow our <a href="/aup">acceptable use policy</a>. In short, you may not use Reel to make, upload or share:
+        You must follow our <a href="/aup">acceptable use policy</a>. In short, you may not use Dropisode to make, upload or share:
       </p>
       <ul>
         <li>Content that impersonates a real person, or presents them as saying or doing something they did not.</li>
@@ -68,7 +68,7 @@ export function termsPage(c: Ctx) {
 
       <h2>AI-generated output</h2>
       <ul>
-        <li>Everything Reel generates is made by AI models. It can be wrong, strange or unlike what you asked for.</li>
+        <li>Everything Dropisode generates is made by AI models. It can be wrong, strange or unlike what you asked for.</li>
         <li>
           You must label output as AI-generated wherever the law requires it, and wherever a platform you publish on requires it. Some model
           providers also require their own label.
@@ -82,7 +82,7 @@ export function termsPage(c: Ctx) {
       <h2>Prices, credit and refunds</h2>
       <ul>
         <li>
-          Reel is prepaid. You top up your balance (minimum ${platform.minTopupUsd}) and generations are paid from it. There is no
+          Dropisode is prepaid. You top up your balance (minimum ${platform.minTopupUsd}) and generations are paid from it. There is no
           subscription and no free tier.
         </li>
         <li>Each generation costs what the provider billed us, plus {markupPct}%. You see the estimate before each one.</li>
@@ -109,13 +109,13 @@ export function termsPage(c: Ctx) {
 
       <h2>Ending your use</h2>
       <p>
-        You can stop using Reel at any time and ask for your unused credit back. We may suspend or close an account that breaks these terms,
+        You can stop using Dropisode at any time and ask for your unused credit back. We may suspend or close an account that breaks these terms,
         after telling you why unless the law or safety prevents it.
       </p>
 
       <h2>Our liability</h2>
       <p>
-        We provide Reel as it is. We do our best to keep it running and your data safe, but we can't promise it will always be available or
+        We provide Dropisode as it is. We do our best to keep it running and your data safe, but we can't promise it will always be available or
         that every generation will succeed. As far as the law allows, our liability to you is limited to the amount you paid us in the 12
         months before the claim. Nothing here limits liability that the law does not allow us to limit.
       </p>
@@ -130,7 +130,7 @@ export function aupPage(c: Ctx) {
   return legal(
     c,
     "Acceptable use policy",
-    "What you may not make or upload with Reel, and what happens if you do.",
+    "What you may not make or upload with Dropisode, and what happens if you do.",
     <>
       <p>
         This policy is part of our <a href="/terms">terms</a>. It applies to prompts, scripts, character names, uploaded images and
@@ -178,7 +178,7 @@ export function aupPage(c: Ctx) {
       <ul>
         <li>No payment fraud, stolen cards, or chargebacks after using credit.</li>
         <li>No attempts to get around moderation, spending limits or another workspace's access.</li>
-        <li>No reselling access to Reel as your own service.</li>
+        <li>No reselling access to Dropisode as your own service.</li>
       </ul>
 
       <h2>What we do</h2>
@@ -191,7 +191,7 @@ export function aupPage(c: Ctx) {
 
       <h2>Reporting</h2>
       <p>
-        Seen something made with Reel that breaks these rules? Use the <a href="/report">abuse report form</a> or write to {SUPPORT}.
+        Seen something made with Dropisode that breaks these rules? Use the <a href="/report">abuse report form</a> or write to {SUPPORT}.
       </p>
     </>,
   );
@@ -201,7 +201,7 @@ export function privacyPage(c: Ctx) {
   return legal(
     c,
     "Privacy notice",
-    "What personal data Reel collects, why, who processes it, and your rights.",
+    "What personal data Dropisode collects, why, who processes it, and your rights.",
     <>
       <h2>Who is responsible</h2>
       <p>
@@ -258,7 +258,7 @@ export function privacyPage(c: Ctx) {
 
       <h2>Local mode</h2>
       <p>
-        If you run Reel on your own computer, we receive nothing. Your projects stay on your disk and your requests go straight to fal.ai
+        If you run Dropisode on your own computer, we receive nothing. Your projects stay on your disk and your requests go straight to fal.ai
         under your own account.
       </p>
     </>,

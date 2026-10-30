@@ -107,8 +107,8 @@ authRoutes.post("/email", async (c) => {
   const url = `${deps.config.APP_URL.replace(/\/$/, "")}/auth/verify?token=${encodeURIComponent(token)}`;
   await deps.mailer.send({
     to: email,
-    subject: "Your Reel sign-in link",
-    text: `Sign in to Reel: ${url}\n\nThe link works once and expires in ${LINK_MINUTES} minutes.\nIf you didn't ask for it, ignore this email.`,
+    subject: "Your Dropisode sign-in link",
+    text: `Sign in to Dropisode: ${url}\n\nThe link works once and expires in ${LINK_MINUTES} minutes.\nIf you didn't ask for it, ignore this email.`,
   });
   if (isForm(c)) return c.redirect("/sign-in?sent=1");
   return c.json({ ok: true });
@@ -122,7 +122,7 @@ authRoutes.get("/verify", (c) => {
   const token = c.req.query("token") ?? "";
   if (token.length < 10 || token.length > 200) return c.redirect("/sign-in?error=link");
   return c.html(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in | Reel</title><style>${CSS}</style></head><body><main><div class="card" style="max-width:420px;margin:40px auto"><h1>Sign in to Reel</h1><form method="post" action="/auth/verify"><input type="hidden" name="token" value="${token.replace(/[^A-Za-z0-9_-]/g, "")}"><button type="submit">Continue</button></form></div></main></body></html>`,
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in | Dropisode</title><style>${CSS}</style></head><body><main><div class="card" style="max-width:420px;margin:40px auto"><h1>Sign in to Dropisode</h1><form method="post" action="/auth/verify"><input type="hidden" name="token" value="${token.replace(/[^A-Za-z0-9_-]/g, "")}"><button type="submit">Continue</button></form></div></main></body></html>`,
   );
 });
 

@@ -1,4 +1,4 @@
-# Reel hosted on one small server: cp apps/hosted/.env.example .env, fill it in, then `docker compose up -d`.
+# Dropisode hosted on one small server: cp apps/hosted/.env.example .env, fill it in, then `docker compose up -d`.
 # Postgres is the only stateful service; media lives in Cloudflare R2.
 x-logging: &logging
   driver: json-file

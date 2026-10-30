@@ -206,10 +206,10 @@ export async function lowBalanceEmails(deps: Deps, workspaceId: string, dailyTot
   const url = `${deps.config.APP_URL.replace(/\/$/, "")}/billing`;
   const text =
     kind === "zero"
-      ? `Your Reel balance is ${formatUsd(w.balanceMicro)}. New generations are paused until you top up. Nothing has been deleted: your projects and files are safe, and storage keeps accruing at a few cents a day.\n\nTop up: ${url}\n\nWe will email you before any data is ever removed.`
-      : `Your Reel balance is ${formatUsd(w.balanceMicro)}, about ${left} days of storage and fixed charges. Generations are charged separately when you make them.\n\nTop up: ${url}`;
+      ? `Your Dropisode balance is ${formatUsd(w.balanceMicro)}. New generations are paused until you top up. Nothing has been deleted: your projects and files are safe, and storage keeps accruing at a few cents a day.\n\nTop up: ${url}\n\nWe will email you before any data is ever removed.`
+      : `Your Dropisode balance is ${formatUsd(w.balanceMicro)}, about ${left} days of storage and fixed charges. Generations are charged separately when you make them.\n\nTop up: ${url}`;
   for (const o of owners)
-    await deps.mailer.send({ to: o.email, subject: kind === "zero" ? "Your Reel balance has run out" : "Your Reel balance is low", text });
+    await deps.mailer.send({ to: o.email, subject: kind === "zero" ? "Your Dropisode balance has run out" : "Your Dropisode balance is low", text });
   // Logged only once sent, so a mail failure is retried on the next run.
   await deps.db
     .insertInto("emailLog")

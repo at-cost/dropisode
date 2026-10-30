@@ -1,5 +1,5 @@
 /**
- * Moderation for hosted Reel.
+ * Moderation for hosted Dropisode.
  *
  * check() runs before any money is spent: public-figure names (local list),
  * then OpenAI omni-moderation on every text and image, then the rules in

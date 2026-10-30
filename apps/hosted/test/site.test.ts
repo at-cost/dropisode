@@ -35,7 +35,7 @@ describe("public pages", () => {
       [
         "See the price before every shot",
         "plus 20%",
-        "npx reel-studio",
+        "npx dropisode",
         "/pricing#compare",
         'href="/sign-in"',
         'href="/demo"',
@@ -48,7 +48,7 @@ describe("public pages", () => {
       "/docs",
       ["Getting started", "Drafts and finals", "Approving shots", "subtitles.srt", "edit-list.edl", "What V1 doesn&#39;t do", "Lip sync"],
     ],
-    ["/docs/local", ["npx reel-studio", "Node.js 22", "--mock", "config.json", "no moderation layer of ours"]],
+    ["/docs/local", ["npx dropisode", "Node.js 22", "--mock", "config.json", "no moderation layer of ours"]],
     [
       "/terms",
       [

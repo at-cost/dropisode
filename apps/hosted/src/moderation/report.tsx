@@ -92,10 +92,10 @@ export const reportRoutes = new Hono<AppEnv>();
 
 reportRoutes.get("/report", (c) =>
   c.html(
-    <Layout title="Report abuse" user={c.get("user")} description="Report content made with Reel that breaks our rules.">
+    <Layout title="Report abuse" user={c.get("user")} description="Report content made with Dropisode that breaks our rules.">
       <h1>Report abuse</h1>
       <p class="muted">
-        Tell us about content made with Reel that impersonates someone, sexualises a real person, involves a minor, harasses, or is illegal.
+        Tell us about content made with Dropisode that impersonates someone, sexualises a real person, involves a minor, harasses, or is illegal.
         We read every report.
       </p>
       <p class="muted small">If someone is in danger, contact the police first.</p>
@@ -122,7 +122,7 @@ reportRoutes.post("/report", async (c) => {
         <h1>Thank you</h1>
         <p>We got your report and will look at it. If you left an email, we may write to you.</p>
         <p>
-          <a href="/">Back to Reel</a>
+          <a href="/">Back to Dropisode</a>
         </p>
       </>,
     );

@@ -10,5 +10,5 @@ if (config.MIGRATE_ON_BOOT) await migrateToLatest(db);
 const deps = createDeps(config, db);
 if (config.WORKER_MODE !== "off") startWorker(deps);
 if (config.WORKER_MODE !== "only") {
-  serve({ fetch: createApp(deps).fetch, port: config.PORT }, () => console.log(`Reel hosted on :${config.PORT}`));
+  serve({ fetch: createApp(deps).fetch, port: config.PORT }, () => console.log(`Dropisode hosted on :${config.PORT}`));
 }

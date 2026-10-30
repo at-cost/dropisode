@@ -1,7 +1,7 @@
 import { type Kysely, sql } from "kysely";
 
 /**
- * Reel hosted schema. Money is integer micro-USD (bigint). Every table that
+ * Dropisode hosted schema. Money is integer micro-USD (bigint). Every table that
  * holds customer data carries workspace_id, and every query is scoped by it
  * (see stores.ts and the isolation tests).
  */

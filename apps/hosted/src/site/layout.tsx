@@ -58,14 +58,14 @@ export function Layout(props: { title: string; user?: SessionUser | null; childr
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{props.title === "Reel" ? "Reel" : `${props.title} | Reel`}</title>
+        <title>{props.title === "Dropisode" ? "Dropisode" : `${props.title} | Dropisode`}</title>
         {props.description ? <meta name="description" content={props.description} /> : null}
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
       </head>
       <body>
         <header class="top">
           <a class="brand" href="/">
-            Reel
+            Dropisode
           </a>
           <nav>
             <a href="/pricing">Pricing</a>
@@ -85,7 +85,7 @@ export function Layout(props: { title: string; user?: SessionUser | null; childr
         </header>
         <main>{props.children}</main>
         <footer>
-          Reel is open source (MIT). Prices are the provider's price plus 20%, shown before every generation.
+          Dropisode is open source (MIT). Prices are the provider's price plus 20%, shown before every generation.
           <nav>
             <a href="/pricing">Pricing</a>
             <a href="/finances">Finances</a>

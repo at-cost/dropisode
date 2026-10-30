@@ -32,7 +32,7 @@ const schema = z.object({
   MEDIA_URL_TTL: z.coerce.number().int().min(30).max(3600).default(300),
 
   SMTP_URL: z.string().default(""),
-  EMAIL_FROM: z.string().default("Reel <no-reply@localhost>"),
+  EMAIL_FROM: z.string().default("Dropisode <no-reply@localhost>"),
   GOOGLE_CLIENT_ID: z.string().default(""),
   GOOGLE_CLIENT_SECRET: z.string().default(""),
   GITHUB_CLIENT_ID: z.string().default(""),

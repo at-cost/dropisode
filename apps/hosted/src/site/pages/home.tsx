@@ -13,14 +13,14 @@ export function homePage(c: Ctx) {
   const example = episodeCost(catalog, platform, { ...EXAMPLE_PLAN, image: d.final.image, finalVideo: final.id, draftVideo: draft.id });
   const markupPct = Math.round(platform.markup * 100);
   return page(c, {
-    title: "Reel",
-    description: `Reel is an open-source AI short-drama studio. Write a script, cast it, storyboard it, draft cheaply, render finals. The provider's price plus ${markupPct}%, shown before every shot.`,
+    title: "Dropisode",
+    description: `Dropisode is an open-source AI short-drama studio. Write a script, cast it, storyboard it, draft cheaply, render finals. The provider's price plus ${markupPct}%, shown before every shot.`,
     body: (
       <>
         <section class="hero">
           <h1>Make short dramas with AI. See the price before every shot.</h1>
           <p class="lede">
-            Reel is an open-source studio for vertical short dramas. You pay the model provider's real price plus {markupPct}%, from prepaid
+            Dropisode is an open-source studio for vertical short dramas. You pay the model provider's real price plus {markupPct}%, from prepaid
             credit. No subscription, no credits that expire, no throttling.
           </p>
           <div class="actions">
@@ -59,7 +59,7 @@ export function homePage(c: Ctx) {
             those go to a premium model.
           </li>
           <li>
-            <strong>Get the episode.</strong> Reel joins the approved finals into a vertical MP4 with subtitles. You also get every shot
+            <strong>Get the episode.</strong> Dropisode joins the approved finals into a vertical MP4 with subtitles. You also get every shot
             file and an edit list for another editor.
           </li>
         </ol>
@@ -99,7 +99,7 @@ export function homePage(c: Ctx) {
           <div class="card">
             <strong>Free to run yourself.</strong>
             <p class="muted">
-              <code>npx reel-studio</code> runs the same studio on your computer with your own fal.ai key, at fal's price.{" "}
+              <code>npx dropisode</code> runs the same studio on your computer with your own fal.ai key, at fal's price.{" "}
               <a href="/docs/local">How</a>.
             </p>
           </div>
@@ -109,19 +109,19 @@ export function homePage(c: Ctx) {
           <p style="margin-top:0">
             <strong>An example episode:</strong> {EXAMPLE_PLAN.shots} shots of {EXAMPLE_PLAN.shotSeconds} seconds,{" "}
             {EXAMPLE_PLAN.draftsPerShot} drafts on {draft.label} and {EXAMPLE_PLAN.finalsPerShot} final on {final.label} per shot, costs{" "}
-            <strong>{usd(example.chargeMicro)}</strong> on Reel ({usd(example.providerMicro)} at fal's price).
+            <strong>{usd(example.chargeMicro)}</strong> on Dropisode ({usd(example.providerMicro)} at fal's price).
           </p>
           <a href="/pricing">See every model in the calculator</a>
         </div>
 
         <h2>Is it the cheapest?</h2>
         <p>
-          Not always. Heavy users who spend every credit on some subscriptions pay less per second, especially on Kling and Seedance. Reel
+          Not always. Heavy users who spend every credit on some subscriptions pay less per second, especially on Kling and Seedance. Dropisode
           is about even on Veo, and cheaper when you draft on a cheap model first. We publish the{" "}
           <a href="/pricing#compare">full comparison with its sources</a>, including where subscriptions win.
         </p>
         <p>
-          What Reel offers instead: the price before every shot, credit that never expires, no throttling, automatic refunds for failures
+          What Dropisode offers instead: the price before every shot, credit that never expires, no throttling, automatic refunds for failures
           the provider didn't bill, cheap drafts before premium renders, and a studio you can run yourself for free.
         </p>
       </>

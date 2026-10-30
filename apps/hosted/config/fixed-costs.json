@@ -1,11 +1,11 @@
 {
-  "_readme": "Reel's fixed monthly costs, shared by active workspaces (capped per workspace). Each item has a source. Amounts marked status 'assumed' are placeholders until the owner picks the host and tools. Shown line by line on /finances.",
+  "_readme": "Dropisode's fixed monthly costs, shared by active workspaces (capped per workspace). Each item has a source. Amounts marked status 'assumed' are placeholders until the owner picks the host and tools. Shown line by line on /finances.",
   "items": [
     { "name": "Server (host not chosen yet)", "monthlyUsd": 40, "source": "https://aws.amazon.com/ec2/pricing/on-demand/", "status": "assumed", "notes": "Placeholder at Glasstrack's EC2 t3.medium + EBS + IPv4 level. Owner decision: host." },
     { "name": "Database backups", "monthlyUsd": 2, "source": "https://developers.cloudflare.com/r2/pricing/", "status": "assumed", "notes": "Nightly pg_dump to R2." },
     { "name": "Domain", "monthlyUsd": 1.02, "source": "https://www.cloudflare.com/products/registrar/", "status": "assumed", "notes": "About $12.20 a year; domain not chosen yet." },
     { "name": "Email (Amazon SES)", "monthlyUsd": 1, "source": "https://aws.amazon.com/ses/pricing/", "status": "assumed", "notes": "$0.10 per 1,000 emails." },
     { "name": "Moderation API (OpenAI omni-moderation)", "monthlyUsd": 0, "source": "https://developers.openai.com/api/docs/guides/moderation", "status": "verified", "notes": "Free." },
-    { "name": "AI maintainer subscription (share)", "monthlyUsd": 0, "source": "https://www.anthropic.com/pricing", "status": "assumed", "notes": "Owner to decide the share charged to Reel, as was done for Glasstrack and Hosted." }
+    { "name": "AI maintainer subscription (share)", "monthlyUsd": 0, "source": "https://www.anthropic.com/pricing", "status": "assumed", "notes": "Owner to decide the share charged to Dropisode, as was done for Glasstrack and Hosted." }
   ]
 }

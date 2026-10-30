@@ -35,7 +35,7 @@ export function demoPage(c: Ctx, demo: Demo | null) {
   if (!demo) {
     return page(c, {
       title: "Demo",
-      description: "A finished example Reel project.",
+      description: "A finished example Dropisode project.",
       body: (
         <>
           <h1>Demo</h1>
@@ -76,7 +76,7 @@ export function demoPage(c: Ctx, demo: Demo | null) {
   return page(c, {
     title: "Demo",
     description:
-      "Walk through a finished Reel project: the script, the cast, the storyboard, the cost log with its total, and the final episode.",
+      "Walk through a finished Dropisode project: the script, the cast, the storyboard, the cost log with its total, and the final episode.",
     cache: "public, max-age=600",
     body: (
       <>
@@ -84,7 +84,7 @@ export function demoPage(c: Ctx, demo: Demo | null) {
         {demo.meta.placeholder ? (
           <div class="notice strong" id="placeholder-notice" role="note">
             <p style="margin:0">
-              <strong>This example uses placeholder clips.</strong> They were made on our own computer with Reel's mock provider, so nothing
+              <strong>This example uses placeholder clips.</strong> They were made on our own computer with Dropisode's mock provider, so nothing
               was spent and the pictures are test patterns. The cost log is priced at fal.ai's real list prices, so the totals are what the
               same jobs would cost. After our first paid test run, the real example, with its real fal.ai cost, replaces this one.
             </p>
@@ -96,7 +96,7 @@ export function demoPage(c: Ctx, demo: Demo | null) {
           shots.
         </p>
         <p>
-          Total for this project: <strong data-k="demo-total">{usd(totalCharge)}</strong> on Reel, or {usd(totalProvider)} at fal's price.
+          Total for this project: <strong data-k="demo-total">{usd(totalCharge)}</strong> on Dropisode, or {usd(totalProvider)} at fal's price.
         </p>
         <div class="toc">
           <a href="#script">Script</a>
@@ -115,7 +115,7 @@ export function demoPage(c: Ctx, demo: Demo | null) {
 
         <h2 id="cast">2. The cast</h2>
         <p class="muted">
-          Each character, location and prop has a description and reference images. Reel uses them in every shot they appear in.
+          Each character, location and prop has a description and reference images. Dropisode uses them in every shot they appear in.
         </p>
         <div class="media-grid">
           {p.cast.map((m) => {
@@ -137,7 +137,7 @@ export function demoPage(c: Ctx, demo: Demo | null) {
         <h2 id="storyboard">3. The storyboard</h2>
         <p class="muted">
           The scene became {shots.length} shot cards. Each shot was drafted on a cheap model first, approved, then rendered once on a
-          premium model. Prices are what you would pay on Reel.
+          premium model. Prices are what you would pay on Dropisode.
         </p>
         <div class="media-grid">
           {shots.map((s, i) => {

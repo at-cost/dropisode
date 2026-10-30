@@ -11,7 +11,7 @@ export function docsPage(c: Ctx) {
   const tts = catalog.get(d.tts);
   return page(c, {
     title: "Docs",
-    description: "How to use Reel: getting started, prices, drafts and finals, approving shots, audio, export, and what V1 doesn't do.",
+    description: "How to use Dropisode: getting started, prices, drafts and finals, approving shots, audio, export, and what V1 doesn't do.",
     body: (
       <>
         <h1>Docs</h1>
@@ -41,9 +41,9 @@ export function docsPage(c: Ctx) {
           <li>
             Open the <a href="/studio/">Studio</a> and create a project. Pick vertical 9:16 (the default) or wide 16:9.
           </li>
-          <li>Write or paste a script, or give a one-line idea and let the script model draft one. Reel splits it into scenes.</li>
+          <li>Write or paste a script, or give a one-line idea and let the script model draft one. Dropisode splits it into scenes.</li>
           <li>
-            Check the cast. Reel picks out characters, locations and props. Give each a description and reference images: generate them, or
+            Check the cast. Dropisode picks out characters, locations and props. Give each a description and reference images: generate them, or
             upload your own. Uploading a photo of a real person needs that person's consent, and you confirm it when you upload.
           </li>
           <li>Storyboard each scene. Each shot is a card you can edit, reorder, split or merge.</li>
@@ -58,7 +58,7 @@ export function docsPage(c: Ctx) {
           <li>
             Every generate button shows the price of that job before you press it, worked out from the provider's published unit price.
           </li>
-          <li>When you press it, Reel holds that amount from your balance. If the balance can't cover it, nothing starts.</li>
+          <li>When you press it, Dropisode holds that amount from your balance. If the balance can't cover it, nothing starts.</li>
           <li>When the job finishes you pay what fal.ai actually billed, plus {markupPct}%. The rest of the hold comes back.</li>
           <li>If the job fails and fal doesn't bill it, the hold comes back in full and the cost log shows a refund line.</li>
           <li>Every try is in the project's cost log: the model, provider, units, price, and any refund.</li>
@@ -95,11 +95,11 @@ export function docsPage(c: Ctx) {
         <h2 id="audio">Audio</h2>
         <ul>
           <li>
-            <strong>Native:</strong> some video models make their own dialogue and sound. Reel sends the shot's lines in the prompt. The
+            <strong>Native:</strong> some video models make their own dialogue and sound. Dropisode sends the shot's lines in the prompt. The
             pricing page marks these models.
           </li>
           <li>
-            <strong>Text to speech:</strong> for models without native audio, or when you choose it, Reel voices each line with a
+            <strong>Text to speech:</strong> for models without native audio, or when you choose it, Dropisode voices each line with a
             text-to-speech model ({tts.label} by default) and mixes it into the shot.
           </li>
           <li>
@@ -151,14 +151,14 @@ export function docsPage(c: Ctx) {
 
 export function docsLocalPage(c: Ctx) {
   return page(c, {
-    title: "Run Reel locally",
-    description: "Run the Reel studio on your own computer with one command and your own fal.ai key. Free, at fal's price.",
+    title: "Run Dropisode locally",
+    description: "Run the Dropisode studio on your own computer with one command and your own fal.ai key. Free, at fal's price.",
     body: (
       <>
         <p class="small">
           <a href="/docs">Docs</a>
         </p>
-        <h1>Run Reel locally</h1>
+        <h1>Run Dropisode locally</h1>
         <p class="lede">
           The same studio runs on your computer for free. You use your own fal.ai key and pay fal directly, at fal's price. No account, no
           markup.
@@ -171,19 +171,19 @@ export function docsLocalPage(c: Ctx) {
             A fal.ai key, from your fal.ai dashboard. Not needed for <code>--mock</code>.
           </li>
           <li>
-            ffmpeg. Reel uses yours if it can burn in subtitles, and otherwise the copy bundled with the package. If neither works, it tells
+            ffmpeg. Dropisode uses yours if it can burn in subtitles, and otherwise the copy bundled with the package. If neither works, it tells
             you how to install it. You can point it at a specific ffmpeg with <code>REEL_FFMPEG</code>.
           </li>
         </ul>
 
         <h2>Start it</h2>
         <pre>
-          <code>npx reel-studio</code>
+          <code>npx dropisode</code>
         </pre>
         <p>This starts the studio on 127.0.0.1 and opens it in your browser. Add your fal.ai key on the Settings page. Options:</p>
         <ul>
           <li>
-            <code>--dir &lt;path&gt;</code>: where projects are kept (default <code>~/Reel</code>).
+            <code>--dir &lt;path&gt;</code>: where projects are kept (default <code>~/Dropisode</code>).
           </li>
           <li>
             <code>--port &lt;n&gt;</code>: the port (default 4320).
@@ -203,12 +203,12 @@ export function docsLocalPage(c: Ctx) {
             <code>jobs/</code> folder and <code>exports/</code>. No database server.
           </li>
           <li>
-            Your fal.ai key is saved in <code>~/.config/reel/config.json</code> (or <code>$XDG_CONFIG_HOME/reel/config.json</code>, or the
+            Your fal.ai key is saved in <code>~/.config/dropisode/config.json</code> (or <code>$XDG_CONFIG_HOME/reel/config.json</code>, or the
             path in <code>REEL_CONFIG</code>), readable only by you. It is never sent to the browser. You can also set <code>FAL_KEY</code>{" "}
             in the environment.
           </li>
           <li>
-            Optionally add a fal key with billing access, so Reel can record what fal actually billed for each request instead of the
+            Optionally add a fal key with billing access, so Dropisode can record what fal actually billed for each request instead of the
             published price.
           </li>
         </ul>
@@ -221,7 +221,7 @@ export function docsLocalPage(c: Ctx) {
 
         <h2>Moderation in local mode</h2>
         <p>
-          Local mode has no moderation layer of ours: nothing is checked by Reel before it is sent. fal.ai's and the model providers' own
+          Local mode has no moderation layer of ours: nothing is checked by Dropisode before it is sent. fal.ai's and the model providers' own
           filters still apply, and their terms still bind you. fal.ai requires end users to be 18 or over.
         </p>
       </>

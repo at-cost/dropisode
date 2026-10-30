@@ -114,8 +114,8 @@ export async function createInvite(c: Ctx, email: string): Promise<{ id: string;
   const url = `${deps.config.APP_URL.replace(/\/$/, "")}/invite/${token}`;
   await deps.mailer.send({
     to: email,
-    subject: `${user.name} invited you to ${ws.name} on Reel`,
-    text: `${user.name} (${user.email}) invited you to join "${ws.name}" on Reel.\n\nJoin here: ${url}\n\nSign in with this email address (${email}). The link expires in ${INVITE_DAYS} days.\nIf you don't know them, ignore this email.`,
+    subject: `${user.name} invited you to ${ws.name} on Dropisode`,
+    text: `${user.name} (${user.email}) invited you to join "${ws.name}" on Dropisode.\n\nJoin here: ${url}\n\nSign in with this email address (${email}). The link expires in ${INVITE_DAYS} days.\nIf you don't know them, ignore this email.`,
   });
   return { id, token, url };
 }

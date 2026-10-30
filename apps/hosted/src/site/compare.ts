@@ -1,6 +1,6 @@
 /**
  * The 54-episode comparison from docs/PRICING_NOTES.md section 8, as published
- * research. These figures are not used for billing: every price Reel charges
+ * research. These figures are not used for billing: every price Dropisode charges
  * comes from packages/core/config/prices.json. Update this file when the notes
  * are redone.
  */

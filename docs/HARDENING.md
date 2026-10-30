@@ -63,7 +63,7 @@ What was tested, how, and what is known not to be covered. Run the suites with `
 
 - Deleting a project hides it at once and stops its storage charges (media and exports of deleted projects aren't counted). The files stay in storage until a retention job removes them.
 - That job isn't built. Deleting customer data needs the owner's OK, and the retention period is an open decision (Hosted uses 30 days with warnings on days 1, 14 and 25).
-- Until then, Reel pays for those bytes itself, and the finances page shows that as part of storage.
+- Until then, Dropisode pays for those bytes itself, and the finances page shows that as part of storage.
 
 ## Payments after the fact
 
