@@ -1,0 +1,17 @@
+# Production: Caddy in front with HTTPS; the app port is not published on the host.
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+services:
+  app:
+    ports: !reset []
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [app]
+volumes:
+  caddydata:

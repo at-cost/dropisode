@@ -1,0 +1,18 @@
+# Dropisode behind Cloudflare (proxied DNS). Caddy gets a Let's Encrypt
+# certificate over HTTP-01 through the proxy; Cloudflare then runs in
+# "Full (strict)". Ports 80/443 only accept Cloudflare's ranges (AWS security
+# group), which is what makes CF-Connecting-IP trustworthy.
+{$DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 1100MB
+	}
+	reverse_proxy app:3200 {
+		# The visitor's real IP, for rate limits and logs
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+	}
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

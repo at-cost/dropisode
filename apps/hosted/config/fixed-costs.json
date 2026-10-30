@@ -2,32 +2,39 @@
   "_readme": "Dropisode's fixed monthly costs, shared by active workspaces (capped per workspace). Each item has a source. Amounts marked status 'assumed' are placeholders until the owner picks the host and tools. Shown line by line on /finances.",
   "items": [
     {
-      "name": "Server (host not chosen yet)",
-      "monthlyUsd": 40,
+      "name": "Server (AWS EC2 t4g.medium, London)",
+      "monthlyUsd": 27.45,
       "source": "https://aws.amazon.com/ec2/pricing/on-demand/",
-      "status": "assumed",
-      "notes": "Placeholder at Glasstrack's EC2 t3.medium + EBS + IPv4 level. Owner decision: host."
+      "status": "verified",
+      "notes": "$0.0376 an hour x 730 hours (AWS Price List API, read 2026-10-30)."
     },
     {
-      "name": "Database backups",
-      "monthlyUsd": 2,
-      "source": "https://developers.cloudflare.com/r2/pricing/",
-      "status": "assumed",
-      "notes": "Nightly pg_dump to R2."
+      "name": "Server disk (40 GB gp3)",
+      "monthlyUsd": 3.71,
+      "source": "https://aws.amazon.com/ebs/pricing/",
+      "status": "verified",
+      "notes": "$0.0928 per GB-month in London."
     },
     {
-      "name": "Domain",
-      "monthlyUsd": 1.02,
+      "name": "Public IPv4 address",
+      "monthlyUsd": 3.65,
+      "source": "https://aws.amazon.com/vpc/pricing/",
+      "status": "verified",
+      "notes": "$0.005 an hour."
+    },
+    {
+      "name": "Domain (dropisode.com)",
+      "monthlyUsd": 0.87,
       "source": "https://www.cloudflare.com/products/registrar/",
       "status": "assumed",
-      "notes": "About $12.20 a year; domain not chosen yet."
+      "notes": "Cloudflare Registrar sells .com at cost, about $10.44 a year."
     },
     {
       "name": "Email (Amazon SES)",
-      "monthlyUsd": 1,
+      "monthlyUsd": 0.1,
       "source": "https://aws.amazon.com/ses/pricing/",
       "status": "assumed",
-      "notes": "$0.10 per 1,000 emails."
+      "notes": "$0.10 per 1,000 emails; sign-in links and balance warnings only."
     },
     {
       "name": "Moderation API (OpenAI omni-moderation)",
@@ -41,7 +48,7 @@
       "monthlyUsd": 0,
       "source": "https://www.anthropic.com/pricing",
       "status": "assumed",
-      "notes": "Owner to decide the share charged to Dropisode, as was done for Glasstrack and Hosted."
+      "notes": "Owner to decide the share charged to Dropisode."
     }
   ]
 }
