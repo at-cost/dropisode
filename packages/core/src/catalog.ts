@@ -33,7 +33,7 @@ export const Price = z.object({
 });
 export type Price = z.infer<typeof Price>;
 
-/** How Reel's request maps onto the endpoint's input fields. */
+/** How Dropisode's request maps onto the endpoint's input fields. */
 export const InputMap = z.object({
   prompt: z.string().default("prompt"),
   /** Single first-frame image (image-to-video). */
@@ -75,7 +75,7 @@ export const ModelKind = z.enum(["video", "image", "tts", "llm"]);
 export type ModelKind = z.infer<typeof ModelKind>;
 
 export const CatalogModel = z.object({
-  /** Reel's own short key, stable across providers. */
+  /** Dropisode's own short key, stable across providers. */
   id: z.string(),
   kind: ModelKind,
   label: z.string(),

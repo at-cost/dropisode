@@ -1,5 +1,5 @@
 // CI guard: packages/core is the engine and stays free of apps, billing and servers.
-// Fails if any file in packages/core imports from apps/*, another Reel package, or a
+// Fails if any file in packages/core imports from apps/*, another Dropisode package, or a
 // hosting/billing library.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";

@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter reel-studio dev",
+    "dev": "pnpm --filter dropisode dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "biome lint . && node scripts/check-boundaries.mjs",

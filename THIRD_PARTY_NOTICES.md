@@ -21,5 +21,5 @@ Not used, by licence: huobao-drama (CC BY-NC-SA), BigBanana AI Director (non-com
 
 ## Runtime dependencies worth knowing about
 
-- **ffmpeg-static** (npm package, GPL-3.0-or-later): installs a prebuilt ffmpeg binary (GPL build with libx264 and libass) on your machine. Reel calls it as a separate program and does not include or link ffmpeg's code. If you have your own ffmpeg with libass, Reel uses that instead.
+- **ffmpeg-static** (npm package, GPL-3.0-or-later): installs a prebuilt ffmpeg binary (GPL build with libx264 and libass) on your machine. Dropisode calls it as a separate program and does not include or link ffmpeg's code. If you have your own ffmpeg with libass, Dropisode uses that instead.
 - **@fal-ai/client** (MIT), **hono** (MIT), **zod** (MIT), **fflate** (MIT), **react** (MIT), **kysely** (MIT), **stripe** (MIT), **arctic** (MIT), **aws4fetch** (MIT), **nodemailer** (MIT-0), **pg** (MIT).

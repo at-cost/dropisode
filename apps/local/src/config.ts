@@ -6,12 +6,12 @@ import { writeAtomic } from "@reel/core";
 
 export interface LocalConfig {
   falKey?: string | undefined;
-  /** Optional: a fal key with the BILLING preset, so Reel can record each request's real cost. */
+  /** Optional: a fal key with the BILLING preset, so Dropisode can record each request's real cost. */
   falBillingKey?: string | undefined;
 }
 
 export const defaultConfigPath = (): string =>
-  process.env.REEL_CONFIG ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "reel", "config.json");
+  process.env.REEL_CONFIG ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "dropisode", "config.json");
 
 export function loadConfig(path: string): LocalConfig {
   const fromEnv: LocalConfig = {
