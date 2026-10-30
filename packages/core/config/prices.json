@@ -8,9 +8,15 @@
       "label": "Veo 3.1 Lite (720p)",
       "provider": "fal",
       "endpoint": "fal-ai/veo3.1/lite/image-to-video",
-      "tiers": ["draft"],
+      "tiers": [
+        "draft"
+      ],
       "nativeAudio": true,
-      "durations": [4, 6, 8],
+      "durations": [
+        4,
+        6,
+        8
+      ],
       "price": {
         "unit": "second",
         "usd": 0.03,
@@ -34,6 +40,12 @@
       },
       "output": {
         "url": "video.url"
+      },
+      "quality": {
+        "elo": 928,
+        "board": "AA-Video-I2V v2.1 (with audio)",
+        "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
+        "verifiedOn": "2026-10-30"
       }
     },
     {
@@ -42,9 +54,15 @@
       "label": "Veo 3.1 Fast (1080p)",
       "provider": "fal",
       "endpoint": "fal-ai/veo3.1/fast/image-to-video",
-      "tiers": ["final"],
+      "tiers": [
+        "final"
+      ],
       "nativeAudio": true,
-      "durations": [4, 6, 8],
+      "durations": [
+        4,
+        6,
+        8
+      ],
       "price": {
         "unit": "second",
         "usd": 0.1,
@@ -68,6 +86,12 @@
       },
       "output": {
         "url": "video.url"
+      },
+      "quality": {
+        "elo": 934,
+        "board": "AA-Video-I2V v2.1 (with audio)",
+        "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
+        "verifiedOn": "2026-10-30"
       }
     },
     {
@@ -76,9 +100,26 @@
       "label": "Kling 3.0 Standard",
       "provider": "fal",
       "endpoint": "fal-ai/kling-video/v3/standard/image-to-video",
-      "tiers": ["draft", "final"],
+      "tiers": [
+        "draft",
+        "final"
+      ],
       "nativeAudio": true,
-      "durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "durations": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
       "price": {
         "unit": "second",
         "usd": 0.084,
@@ -107,9 +148,25 @@
       "label": "Kling 3.0 Pro",
       "provider": "fal",
       "endpoint": "fal-ai/kling-video/v3/pro/image-to-video",
-      "tiers": ["final"],
+      "tiers": [
+        "final"
+      ],
       "nativeAudio": true,
-      "durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "durations": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
       "price": {
         "unit": "second",
         "usd": 0.112,
@@ -130,6 +187,13 @@
       },
       "output": {
         "url": "video.url"
+      },
+      "quality": {
+        "elo": 1000,
+        "board": "AA-Video-I2V v2.1 (with audio)",
+        "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
+        "verifiedOn": "2026-10-30",
+        "notes": "The board's anchor (1080p Pro)."
       }
     },
     {
@@ -138,9 +202,14 @@
       "label": "Kling 2.5 Turbo Standard (silent)",
       "provider": "fal",
       "endpoint": "fal-ai/kling-video/v2.5-turbo/standard/image-to-video",
-      "tiers": ["draft"],
+      "tiers": [
+        "draft"
+      ],
       "nativeAudio": false,
-      "durations": [5, 10],
+      "durations": [
+        5,
+        10
+      ],
       "price": {
         "unit": "second",
         "usd": 0.042,
@@ -166,9 +235,24 @@
       "label": "Seedance 2.0 Mini (480p)",
       "provider": "fal",
       "endpoint": "bytedance/seedance-2.0/mini/image-to-video",
-      "tiers": ["draft"],
+      "tiers": [
+        "draft"
+      ],
       "nativeAudio": true,
-      "durations": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
       "price": {
         "unit": "second",
         "usd": 0.0721,
@@ -199,9 +283,24 @@
       "label": "Seedance 2.0 (720p)",
       "provider": "fal",
       "endpoint": "bytedance/seedance-2.0/image-to-video",
-      "tiers": ["final"],
+      "tiers": [
+        "final"
+      ],
       "nativeAudio": true,
-      "durations": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
       "price": {
         "unit": "second",
         "usd": 0.3024,
@@ -224,24 +323,50 @@
       },
       "output": {
         "url": "video.url"
+      },
+      "quality": {
+        "elo": 1135,
+        "board": "AA-Video-I2V v2.1 (with audio)",
+        "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
+        "verifiedOn": "2026-10-30",
+        "notes": "Benchmarked at 1080p; Reel's entry is 720p. Realistic faces reportedly blocked as inputs (unverified)."
       }
     },
     {
-      "id": "minimax-h3-max-turbo",
+      "id": "minimax-h3",
       "kind": "video",
-      "label": "MiniMax H3 Max Turbo (768p)",
+      "label": "MiniMax H3 (768p)",
       "provider": "fal",
-      "endpoint": "minimax/h3-max-turbo/image-to-video",
-      "tiers": ["draft"],
+      "endpoint": "minimax/h3/image-to-video",
+      "tiers": [
+        "final"
+      ],
       "nativeAudio": false,
-      "durations": [4, 5, 6, 8, 10],
+      "durations": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "aspects": [
+        "9:16",
+        "16:9"
+      ],
+      "maxRefImages": 0,
       "price": {
         "unit": "second",
-        "usd": 0.04,
-        "source": "https://fal.ai/models/minimax/h3-max-turbo/image-to-video",
+        "usd": 0.06,
+        "source": "https://fal.ai/models/minimax/h3/image-to-video",
         "verifiedOn": "2026-10-29",
         "status": "verified",
-        "notes": "Post-promotion list price (promotion ends 2026-10-31). Makes a soundtrack, not dialogue, so Reel treats it as silent. Aspect follows the first frame."
+        "notes": "768P is a native mode; the endpoint defaults to 2K (an upscale, $0.13/s), so resolution is set explicitly. Makes a soundtrack; whether it speaks dialogue is unverified, so Reel treats it as silent and voices lines with text-to-speech. It also accepts target_audio_url (a clip to build the soundtrack around): a candidate for lip-synced dialogue, to test in the spike. Aspect follows the first frame."
       },
       "input": {
         "prompt": "prompt",
@@ -255,6 +380,53 @@
       },
       "output": {
         "url": "video.url"
+      },
+      "quality": {
+        "elo": 1128,
+        "board": "AA-Video-I2V v2.1 (with audio)",
+        "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
+        "verifiedOn": "2026-10-30",
+        "notes": "Benchmarked at 768p."
+      }
+    },
+    {
+      "id": "minimax-h3-max-turbo",
+      "kind": "video",
+      "label": "MiniMax H3 Max Turbo (480p)",
+      "provider": "fal",
+      "endpoint": "minimax/h3-max-turbo/image-to-video",
+      "tiers": [
+        "draft"
+      ],
+      "nativeAudio": false,
+      "durations": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "price": {
+        "unit": "second",
+        "usd": 0.025,
+        "source": "https://fal.ai/models/minimax/h3-max-turbo/image-to-video",
+        "verifiedOn": "2026-10-29",
+        "status": "verified",
+        "notes": "480P, post-promotion list price (the promotion ends 2026-10-31). Draft tier for MiniMax H3 finals: same family, so an approved draft predicts the final. Not on the arena board. Soundtrack only."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "number",
+        "extra": {
+          "resolution": "480P",
+          "prompt_expansion_mode": "disabled"
+        }
+      },
+      "output": {
+        "url": "video.url"
       }
     },
     {
@@ -263,9 +435,17 @@
       "label": "MiniMax H3 Max (1080p)",
       "provider": "fal",
       "endpoint": "minimax/h3-max/image-to-video",
-      "tiers": ["final"],
+      "tiers": [
+        "final"
+      ],
       "nativeAudio": false,
-      "durations": [4, 5, 6, 8, 10],
+      "durations": [
+        4,
+        5,
+        6,
+        8,
+        10
+      ],
       "price": {
         "unit": "second",
         "usd": 0.16,
@@ -286,6 +466,13 @@
       },
       "output": {
         "url": "video.url"
+      },
+      "quality": {
+        "elo": 1115,
+        "board": "AA-Video-I2V v2.1 (with audio)",
+        "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
+        "verifiedOn": "2026-10-30",
+        "notes": "Benchmarked at 1080p."
       }
     },
     {
@@ -294,9 +481,17 @@
       "label": "Wan 3.0 (480p)",
       "provider": "fal",
       "endpoint": "alibaba/wan-3.0/image-to-video",
-      "tiers": ["draft"],
+      "tiers": [
+        "draft"
+      ],
       "nativeAudio": true,
-      "durations": [4, 5, 6, 8, 10],
+      "durations": [
+        4,
+        5,
+        6,
+        8,
+        10
+      ],
       "price": {
         "unit": "second",
         "usd": 0.05,
@@ -327,9 +522,17 @@
       "label": "Wan 3.0 (1080p)",
       "provider": "fal",
       "endpoint": "alibaba/wan-3.0/image-to-video",
-      "tiers": ["final"],
+      "tiers": [
+        "final"
+      ],
       "nativeAudio": true,
-      "durations": [4, 5, 6, 8, 10],
+      "durations": [
+        4,
+        5,
+        6,
+        8,
+        10
+      ],
       "price": {
         "unit": "second",
         "usd": 0.2,
@@ -352,6 +555,12 @@
       },
       "output": {
         "url": "video.url"
+      },
+      "quality": {
+        "elo": 1111,
+        "board": "AA-Video-I2V v2.1 (with audio)",
+        "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
+        "verifiedOn": "2026-10-30"
       }
     },
     {
@@ -361,7 +570,10 @@
       "provider": "fal",
       "endpoint": "fal-ai/bytedance/seedream/v4.5/edit",
       "textEndpoint": "fal-ai/bytedance/seedream/v4.5/text-to-image",
-      "tiers": ["draft", "final"],
+      "tiers": [
+        "draft",
+        "final"
+      ],
       "maxRefImages": 10,
       "price": {
         "unit": "image",
@@ -394,7 +606,9 @@
       "provider": "fal",
       "endpoint": "google/nano-banana-2.1/edit",
       "textEndpoint": "google/nano-banana-2.1",
-      "tiers": ["final"],
+      "tiers": [
+        "final"
+      ],
       "maxRefImages": 6,
       "price": {
         "unit": "image",
@@ -602,11 +816,11 @@
   "defaults": {
     "draft": {
       "image": "seedream-4.5",
-      "video": "veo-3.1-lite"
+      "video": "minimax-h3-max-turbo"
     },
     "final": {
       "image": "seedream-4.5",
-      "video": "kling-3-pro"
+      "video": "minimax-h3"
     },
     "castImage": "seedream-4.5",
     "tts": "minimax-speech-2.8-turbo",
@@ -667,5 +881,6 @@
       "status": "secondary",
       "notes": "20p fixed fee converted to USD (approximate)."
     }
-  }
+  },
+  "_defaultsWhy": "Provisional (2026-10-30), until the fal spike checks dialogue, faces and consistency. Final: MiniMax H3 768p is on the price/quality frontier (arena Elo 1128 at $0.06/s; Seedance 2.0 scores 1135 at $0.30/s, Kling 3.0 Pro 1000 at $0.168/s). Draft: H3 Max Turbo 480p, same family, $0.025/s. Fallback final: Seedance 2.0 if realistic faces pass. See docs/PRICING_NOTES.md, 'Choosing the default models'."
 }

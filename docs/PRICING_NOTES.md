@@ -466,6 +466,34 @@ Honest reading:
   exportable local studio with the creator's own key. Price per second is not
   the case for Kling or Seedance, and the README must say so.
 
+## Choosing the default models (added 2026-10-30)
+
+Defaults are chosen on the price/quality frontier, after dropping models that fail drama needs (9:16, shot-length durations, dialogue, realistic faces). Quality is Artificial Analysis's image-to-video arena, with audio ([leaderboard](https://artificialanalysis.ai/video/leaderboard/image-to-video), read 2026-10-30). Elo is human preference votes; a 7-point gap is close to a coin flip. Prices are Reel's fal prices (section 1), with audio where the model has it.
+
+| Model | Arena Elo | fal $/s | Example episode on Reel* |
+|---|---|---|---|
+| Seedance 2.5 | 1152 | 0.473 | not in the catalog |
+| Seedance 2.0 (720p) | 1135 | 0.3024 | $73.69 |
+| **MiniMax H3 (768p)** | 1128 | 0.06 | **$30.06** |
+| MiniMax H3 Max (1080p) | 1115 | 0.16 | $48.06 |
+| Wan 3.0 (1080p) | 1111 | 0.20 | $55.26 |
+| Kling 3.0 Pro | 1000 | 0.168 | $49.50 |
+| Veo 3.1 Fast | 934 | 0.15 | $51.66 |
+| Veo 3.1 Lite | 928 | 0.05 | draft only |
+
+*30 shots of 5 s, 3 drafts on the default draft model + 1 final, first frames included, × 1.2.
+
+The frontier runs MiniMax H3 → Seedance 2.0 → Seedance 2.5. Kling 3.0 Pro and both Veo models sit well below it. HeyGen Video 1 (Elo 1119, about $0.04/s on HeyGen's own API) may also sit on it; not checked on fal.
+
+**Provisional defaults:** drafts on MiniMax H3 Max Turbo 480p ($0.025/s), finals on MiniMax H3 768p. Same family, so an approved draft predicts the final (the earlier Veo-draft, Kling-final pairing broke that rule). The 1,000-shot drama in section 8 drops to roughly $360 final-only on Reel.
+
+**What the spike must check before these stay:**
+- **Dialogue.** fal describes H3's audio as a soundtrack, so Reel treats it as silent and voices lines with text-to-speech, laid over the clip without lip sync. H3 also takes `target_audio_url` (a clip to build the soundtrack around). Generating the TTS line first and passing it in may give lip-synced dialogue: test it.
+- **Faces and consistency** across six shots of one character.
+- **Fallback:** Seedance 2.0 as the final if H3 can't carry dialogue, provided realistic faces pass its input filter.
+
+The Elo scores are stored next to each price in `packages/core/config/prices.json` (`quality`, with source and date).
+
 ## 9. Open decisions for the owner
 
 1. **Default models.** Suggested: drafts on Veo 3.1 Lite 720p or H3 Max Turbo
