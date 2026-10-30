@@ -110,7 +110,7 @@ export function App() {
     <AppCtx.Provider value={state}>
       <header className="topbar">
         <a className="brand" href="#/">
-          <Icon name="film" size={16} /> Reel
+          <Icon name="film" size={16} /> Dropisode
         </a>
         <nav>
           <a href="#/" className={route.page === "projects" ? "active" : ""}>

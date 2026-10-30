@@ -1,11 +1,11 @@
 {
-  "name": "reel-studio",
+  "name": "dropisode",
   "version": "0.1.0",
-  "description": "Reel: an open-source AI drama studio. Runs locally with your own fal.ai key. Exact price before every shot.",
+  "description": "Dropisode: an open-source AI drama studio. Runs locally with your own fal.ai key. Exact price before every shot.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "reel-studio": "dist/cli.js"
+    "dropisode": "dist/cli.js"
   },
   "files": [
     "dist"

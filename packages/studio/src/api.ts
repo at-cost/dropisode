@@ -229,7 +229,7 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         .replace(/[^A-Za-z0-9 _-]+/g, "")
         .trim()
         .replace(/\s+/g, "-") || "project"
-    }.reel.zip`;
+    }.dropisode.zip`;
     return new Response(zip as BodyInit, {
       headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="${name}"` },
     });

@@ -1,7 +1,7 @@
 {
   "name": "@reel/core",
   "version": "0.1.0",
-  "description": "Reel's drama engine: projects, script, cast, storyboard, shots, generation jobs, assembly, provider adapters and price estimates. No accounts, billing or servers.",
+  "description": "Dropisode's drama engine: projects, script, cast, storyboard, shots, generation jobs, assembly, provider adapters and price estimates. No accounts, billing or servers.",
   "license": "MIT",
   "type": "module",
   "exports": {

@@ -1,5 +1,5 @@
 /**
- * npx reel-studio [--dir <projects folder>] [--port 4320] [--no-open] [--mock]
+ * npx dropisode [--dir <projects folder>] [--port 4320] [--no-open] [--mock]
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -17,11 +17,11 @@ const flag = (n: string) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 if (args.includes("--help") || args.includes("-h")) {
-  console.log(`Reel studio (local)
+  console.log(`Dropisode studio (local)
 
-  npx reel-studio [options]
+  npx dropisode [options]
 
-  --dir <path>   where projects are kept (default ~/Reel)
+  --dir <path>   where projects are kept (default ~/Dropisode)
   --port <n>     port on 127.0.0.1 (default 4320)
   --no-open      don't open the browser
   --mock         no fal.ai key, no cost: placeholder clips, for trying the workflow
@@ -35,19 +35,19 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webCandidates = [join(here, "web"), resolve(here, "../../../packages/studio/dist/web")];
 const webDir = webCandidates.find((d) => existsSync(join(d, "index.html")));
 const port = Number(flag("port") ?? process.env.PORT ?? 4320);
-const projectsDir = resolve(flag("dir") ?? process.env.REEL_DIR ?? join(homedir(), "Reel"));
+const projectsDir = resolve(flag("dir") ?? process.env.REEL_DIR ?? join(homedir(), "Dropisode"));
 
 const ff = findFfmpeg();
 if (!ff) console.warn(`\n  ${FFMPEG_MISSING}\n  You can still write, storyboard and generate; assembling an episode needs ffmpeg.\n`);
 else if (!ff.subtitles) console.warn("  Your ffmpeg can't burn in subtitles (no libass); episodes will come with a separate .srt file.");
 
 const mock = args.includes("--mock");
-const configPath = resolve(flag("config") ?? (mock ? join(projectsDir, ".reel-mock-config.json") : defaultConfigPath()));
+const configPath = resolve(flag("config") ?? (mock ? join(projectsDir, ".dropisode-mock-config.json") : defaultConfigPath()));
 const local = createLocalApp({ projectsDir, configPath, webDir, provider: mock ? "mock" : "fal", port });
 serve({ fetch: local.app.fetch, hostname: "127.0.0.1", port }, () => {
   const url = `http://localhost:${port}`;
   console.log(
-    `\n  Reel is running at ${url}\n  Projects: ${projectsDir}${args.includes("--mock") ? "\n  Mock mode: placeholder clips, nothing is spent." : ""}\n  Stop with Ctrl+C.\n`,
+    `\n  Dropisode is running at ${url}\n  Projects: ${projectsDir}${args.includes("--mock") ? "\n  Mock mode: placeholder clips, nothing is spent." : ""}\n  Stop with Ctrl+C.\n`,
   );
   if (!args.includes("--no-open")) {
     const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";

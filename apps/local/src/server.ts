@@ -165,7 +165,7 @@ export function createLocalApp(opts: LocalOptions) {
   // Only this machine, only this page: blocks DNS rebinding and cross-site requests.
   app.use("*", async (c, next) => {
     const host = (c.req.header("host") ?? "").replace(/:\d+$/, "");
-    if (!["localhost", "127.0.0.1", "[::1]"].includes(host)) return c.text("Reel only answers on localhost", 403);
+    if (!["localhost", "127.0.0.1", "[::1]"].includes(host)) return c.text("Dropisode only answers on localhost", 403);
     if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method)) {
       const origin = c.req.header("origin");
       if (origin && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)) return c.text("Cross-site request refused", 403);

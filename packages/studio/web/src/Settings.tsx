@@ -3,7 +3,7 @@ import { api } from "./api";
 import { Spinner, useApp, useBusy } from "./ui";
 
 const FFMPEG_FIX =
-  "ffmpeg was not found. Install it (macOS: brew install ffmpeg; Windows: winget install ffmpeg; Linux: your package manager), or set REEL_FFMPEG to its path, then restart Reel.";
+  "ffmpeg was not found. Install it (macOS: brew install ffmpeg; Windows: winget install ffmpeg; Linux: your package manager), or set REEL_FFMPEG to its path, then restart Dropisode.";
 
 export function Settings() {
   const app = useApp();
@@ -72,7 +72,7 @@ export function Settings() {
         </form>
 
         <h3>Billing key (optional)</h3>
-        <p className="muted">An admin key lets Reel read what fal actually billed, instead of the published price.</p>
+        <p className="muted">An admin key lets Dropisode read what fal actually billed, instead of the published price.</p>
         <p>Status: {s.hasBillingKey ? <strong className="ok-text">Saved</strong> : <span className="muted">Not set</span>}</p>
         <form
           className="form"
@@ -108,7 +108,7 @@ export function Settings() {
           <dt>Projects folder</dt>
           <dd>
             <code>{s.projectsDir}</code>
-            <div className="muted small-text">Start Reel with --dir to use another folder.</div>
+            <div className="muted small-text">Start Dropisode with --dir to use another folder.</div>
           </dd>
           <dt>ffmpeg</dt>
           <dd>

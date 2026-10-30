@@ -1,5 +1,5 @@
 /**
- * Reel's at-cost billing formula. The one place a charge is worked out: holds,
+ * Dropisode's at-cost billing formula. The one place a charge is worked out: holds,
  * settlement, the daily charge, the public calculator and the finances page all
  * call these functions, so they can never disagree. Pure functions, no I/O.
  *

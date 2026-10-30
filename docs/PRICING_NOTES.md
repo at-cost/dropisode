@@ -52,7 +52,7 @@ None is a blocker:
 5. **Terms to confirm with fal in writing** (see section 6): end users must be
    18+, we must not expose fal's API directly to end users, and fal's ToS has a
    no-resale clause next to an explicit allowance for "Customer Solutions".
-   Reel is a Customer Solution, but an "at-cost resale" framing should be
+   Dropisode is a Customer Solution, but an "at-cost resale" framing should be
    cleared with fal before launch.
 
 Also worth knowing before choosing models: realistic human faces are
@@ -279,7 +279,7 @@ record. Tag requests with `X-Fal-Tags` if tagged reporting can be enabled.
 |---|---|---|
 | Age | Users must be 18+; a Customer with a Customer Solution must ensure its End Users are 18+ | [ToS](https://fal.ai/legal/terms-of-service), last updated 2026-09-08 (verified) |
 | Platforms are allowed | Customer may "allow End Users to access and use the Services through the Customer Solution" | ToS s.4, [API Services terms](https://fal.ai/legal/api-services) (verified) |
-| No direct exposure | "Client will not expose any of the Services APIs directly to any End Users." Hosted Reel must proxy all calls; never hand our key or raw fal URLs for submission to the browser | same (verified) |
+| No direct exposure | "Client will not expose any of the Services APIs directly to any End Users." Hosted Dropisode must proxy all calls; never hand our key or raw fal URLs for submission to the browser | same (verified) |
 | No resale | ToS forbids to "resell ... or use the Services on a timesharing, service bureau, or similar arrangement ... or to provide the Services for the benefit of any third party" | ToS (verified). How this squares with the Customer Solution allowance is a legal reading; **confirm with fal in writing** |
 | End-user terms | Must have enforceable end-user terms "as protective" as fal's; we are liable for end users' acts | API Services terms (verified) |
 | AUP | Bans CSAM, NCII ("likeness of an individual in a sexual or pornographic manner without their consent"), "identity theft, impersonation, or deepfakes, including using another person's name, image, voice, or other likeness without their consent", processing biometric data, privacy and publicity violations | [AUP](https://fal.ai/legal/acceptable-use-policy) (verified) |
@@ -373,7 +373,7 @@ should decide, not price.
 Scenario: 54 episodes x 90 s = **4,860 s** of final video = **972 shots of
 5 s**. First frames at $0.04 each (Seedream 4.5 edit). LLM and TTS excluded
 (a few dollars, see above). Storage excluded (under $1 a month). "x1.2" is
-Reel's markup. All unit prices come from `pricing-research.json`.
+Dropisode's markup. All unit prices come from `pricing-research.json`.
 
 - **Final only** = 972 shots x 1 try + 1 first frame per shot.
 - **Draft then final** = per shot, 3 drafts on **Veo 3.1 Lite 720p with
@@ -440,7 +440,7 @@ per image. The page does not say whether these include audio (uncertain).
 Same 4,860 s, one Nano Banana Pro frame per try, priced at Ultra's per-credit
 rate (this assumes every credit bought gets used):
 
-| Model | Higgsfield final only (Ultra monthly / annual) | Reel final only (x1.2) | Higgsfield 4 tries per shot (Ultra monthly) | Reel draft then final (x1.2) |
+| Model | Higgsfield final only (Ultra monthly / annual) | Dropisode final only (x1.2) | Higgsfield 4 tries per shot (Ultra monthly) | Dropisode draft then final (x1.2) |
 |---|---|---|---|---|
 | Kling 3.0 720p / Pro | $376 / $289 | $1,026 (Pro, audio) | $1,505 | $2,041 (Veo Lite drafts), $2,636 (Kling Std drafts) |
 | Seedance 2.0 720p | $1,003 / $770 | $1,810 | $4,012 | $2,825 |
@@ -452,25 +452,25 @@ rate (this assumes every credit bought gets used):
 
 Honest reading:
 - **Higgsfield is cheaper per final second on most models**, often by a lot.
-  Kling 3.0 on Higgsfield is about a third of Reel's price, and its 7-day
+  Kling 3.0 on Higgsfield is about a third of Dropisode's price, and its 7-day
   unlimited Kling 3.0 window can make Kling drafts nearly free for a week.
   For a creator who uses all their credits each month on Kling or Seedance, a
   subscription wins.
-- Reel is about even on Veo 3.1 Fast and Veo 3.1, and wins only where
+- Dropisode is about even on Veo 3.1 Fast and Veo 3.1, and wins only where
   Higgsfield has no cheap tier: drafting on Veo 3.1 Lite or MiniMax H3 Max
-  Turbo, which Higgsfield does not list. That is why Reel's draft then final
+  Turbo, which Higgsfield does not list. That is why Dropisode's draft then final
   beats Higgsfield's "4 tries on the same model" for Veo, Seedance 2.0 and
   Wan, but not for Kling.
-- Reel's case is no subscription, no unused credits, no expiry at month end,
+- Dropisode's case is no subscription, no unused credits, no expiry at month end,
   no "unlimited" speed throttling, each job's real cost shown, and an
   exportable local studio with the creator's own key. Price per second is not
   the case for Kling or Seedance, and the README must say so.
 
 ## Choosing the default models (added 2026-10-30)
 
-Defaults are chosen on the price/quality frontier, after dropping models that fail drama needs (9:16, shot-length durations, dialogue, realistic faces). Quality is Artificial Analysis's image-to-video arena, with audio ([leaderboard](https://artificialanalysis.ai/video/leaderboard/image-to-video), read 2026-10-30). Elo is human preference votes; a 7-point gap is close to a coin flip. Prices are Reel's fal prices (section 1), with audio where the model has it.
+Defaults are chosen on the price/quality frontier, after dropping models that fail drama needs (9:16, shot-length durations, dialogue, realistic faces). Quality is Artificial Analysis's image-to-video arena, with audio ([leaderboard](https://artificialanalysis.ai/video/leaderboard/image-to-video), read 2026-10-30). Elo is human preference votes; a 7-point gap is close to a coin flip. Prices are Dropisode's fal prices (section 1), with audio where the model has it.
 
-| Model | Arena Elo | fal $/s | Example episode on Reel* |
+| Model | Arena Elo | fal $/s | Example episode on Dropisode* |
 |---|---|---|---|
 | Seedance 2.5 | 1152 | 0.473 | not in the catalog |
 | Seedance 2.0 (720p) | 1135 | 0.3024 | $73.69 |
@@ -485,10 +485,10 @@ Defaults are chosen on the price/quality frontier, after dropping models that fa
 
 The frontier runs MiniMax H3 → Seedance 2.0 → Seedance 2.5. Kling 3.0 Pro and both Veo models sit well below it. HeyGen Video 1 (Elo 1119, about $0.04/s on HeyGen's own API) may also sit on it; not checked on fal.
 
-**Provisional defaults:** drafts on MiniMax H3 Max Turbo 480p ($0.025/s), finals on MiniMax H3 768p. Same family, so an approved draft predicts the final (the earlier Veo-draft, Kling-final pairing broke that rule). The 54-episode drama in section 8 comes to about $397 final-only on Reel ($1,026 on Kling 3.0 Pro).
+**Provisional defaults:** drafts on MiniMax H3 Max Turbo 480p ($0.025/s), finals on MiniMax H3 768p. Same family, so an approved draft predicts the final (the earlier Veo-draft, Kling-final pairing broke that rule). The 54-episode drama in section 8 comes to about $397 final-only on Dropisode ($1,026 on Kling 3.0 Pro).
 
 **What the spike must check before these stay:**
-- **Dialogue.** fal describes H3's audio as a soundtrack, so Reel treats it as silent and voices lines with text-to-speech, laid over the clip without lip sync. H3 also takes `target_audio_url` (a clip to build the soundtrack around). Generating the TTS line first and passing it in may give lip-synced dialogue: test it.
+- **Dialogue.** fal describes H3's audio as a soundtrack, so Dropisode treats it as silent and voices lines with text-to-speech, laid over the clip without lip sync. H3 also takes `target_audio_url` (a clip to build the soundtrack around). Generating the TTS line first and passing it in may give lip-synced dialogue: test it.
 - **Faces and consistency** across six shots of one character.
 - **Fallback:** Seedance 2.0 as the final if H3 can't carry dialogue, provided realistic faces pass its input filter.
 

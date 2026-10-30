@@ -1,6 +1,6 @@
 {
   "verifiedOn": "2026-10-29",
-  "_readme": "Every provider price Reel uses. Each has a source and the date it was read. Change prices here, never in code. See docs/PRICING_NOTES.md.",
+  "_readme": "Every provider price Dropisode uses. Each has a source and the date it was read. Change prices here, never in code. See docs/PRICING_NOTES.md.",
   "models": [
     {
       "id": "veo-3.1-lite",
@@ -329,7 +329,7 @@
         "board": "AA-Video-I2V v2.1 (with audio)",
         "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
         "verifiedOn": "2026-10-30",
-        "notes": "Benchmarked at 1080p; Reel's entry is 720p. Realistic faces reportedly blocked as inputs (unverified)."
+        "notes": "Benchmarked at 1080p; Dropisode's entry is 720p. Realistic faces reportedly blocked as inputs (unverified)."
       }
     },
     {
@@ -366,7 +366,7 @@
         "source": "https://fal.ai/models/minimax/h3/image-to-video",
         "verifiedOn": "2026-10-29",
         "status": "verified",
-        "notes": "768P is a native mode; the endpoint defaults to 2K (an upscale, $0.13/s), so resolution is set explicitly. Makes a soundtrack; whether it speaks dialogue is unverified, so Reel treats it as silent and voices lines with text-to-speech. It also accepts target_audio_url (a clip to build the soundtrack around): a candidate for lip-synced dialogue, to test in the spike. Aspect follows the first frame."
+        "notes": "768P is a native mode; the endpoint defaults to 2K (an upscale, $0.13/s), so resolution is set explicitly. Makes a soundtrack; whether it speaks dialogue is unverified, so Dropisode treats it as silent and voices lines with text-to-speech. It also accepts target_audio_url (a clip to build the soundtrack around): a candidate for lip-synced dialogue, to test in the spike. Aspect follows the first frame."
       },
       "input": {
         "prompt": "prompt",
@@ -694,7 +694,7 @@
         "source": "https://openrouter.ai/api/v1/models",
         "verifiedOn": "2026-10-29",
         "status": "verified",
-        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Reel records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
+        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Dropisode records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
       },
       "input": {
         "prompt": "prompt",
@@ -727,7 +727,7 @@
         "source": "https://openrouter.ai/api/v1/models",
         "verifiedOn": "2026-10-29",
         "status": "verified",
-        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Reel records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
+        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Dropisode records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
       },
       "input": {
         "prompt": "prompt",
@@ -760,7 +760,7 @@
         "source": "https://openrouter.ai/api/v1/models",
         "verifiedOn": "2026-10-29",
         "status": "verified",
-        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Reel records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
+        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Dropisode records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
       },
       "input": {
         "prompt": "prompt",
@@ -793,7 +793,7 @@
         "source": "https://openrouter.ai/api/v1/models",
         "verifiedOn": "2026-10-29",
         "status": "verified",
-        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Reel records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
+        "notes": "OpenRouter list price via fal's openrouter/router endpoint; the response reports usage.cost, which Dropisode records as the real cost. Whether fal adds anything on top is not stated (uncertain)."
       },
       "input": {
         "prompt": "prompt",

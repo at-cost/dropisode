@@ -138,7 +138,7 @@ export class FalProvider implements Provider {
     return costFromBillingEvents(await res.json(), job.requestId);
   }
 
-  /** Maps Reel's request onto the endpoint's own field names (from the catalog). */
+  /** Maps Dropisode's request onto the endpoint's own field names (from the catalog). */
   async buildInput(input: ProviderInput): Promise<Record<string, unknown>> {
     const map = input.model.input;
     const out: Record<string, unknown> = structuredClone(map.extra);
