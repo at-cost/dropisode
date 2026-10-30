@@ -16,7 +16,8 @@ What Reel does offer:
 - the exact price before every shot, and a cost log of every try, with its model, provider, price and refund
 - no subscription, no credits that expire, no slowdowns at busy times
 - automatic refunds when the provider doesn't bill a failure
-- cheap drafts (from about $0.03 a second) before premium finals, so bad tries cost little
+- cheap drafts (from $0.025 a second) before finals, so bad tries cost little
+- default models picked on the price/quality frontier (arena scores in `prices.json`, reasoning in [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md#choosing-the-default-models-added-2026-10-30))
 - the whole studio running on your machine with your own key, free
 
 ## Run it locally

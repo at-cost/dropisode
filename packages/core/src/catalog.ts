@@ -96,6 +96,17 @@ export const CatalogModel = z.object({
   input: InputMap,
   output: OutputMap,
   hidden: z.boolean().default(false),
+  /** Measured quality, for choosing defaults on the price/quality frontier. */
+  quality: z
+    .object({
+      /** Arena Elo (human preference votes); comparable only within one board. */
+      elo: z.number(),
+      board: z.string(),
+      source: z.string().url(),
+      verifiedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      notes: z.string().optional(),
+    })
+    .optional(),
 });
 export type CatalogModel = z.infer<typeof CatalogModel>;
 
