@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { type Episode, type View, api } from "./api";
 import { useProject } from "./ProjectView";
-import { Icon, Spinner, Ticket, Why, money, plural } from "./ui";
+import { PLACEHOLDER_NAME } from "./progress";
+import { Icon, Spinner, Ticket, Why, money, plural, useApp } from "./ui";
 
 export function ScriptTab() {
   const { pid, view, estimates, act, isBusy } = useProject();
@@ -28,6 +29,12 @@ export function ScriptTab() {
     };
   }, [pid, seconds]);
 
+  // A project started from the home idea box is renamed after the script's title.
+  const adoptTitle = (r: View & { episodeId: string }) => {
+    const t = r.project.episodes.find((e) => e.id === r.episodeId)?.title.trim();
+    if (r.project.name === PLACEHOLDER_NAME && t && !/^Episode \d+$/i.test(t))
+      void act("rename", () => api.patch<View>(`/projects/${pid}`, { name: t }));
+  };
   const writing = isBusy("write");
   const pasting = isBusy("paste");
   const hasEpisodes = p.episodes.length > 0;
@@ -81,6 +88,7 @@ export function ScriptTab() {
                     if (r) {
                       setTitle("");
                       setAdding(false);
+                      adoptTitle(r);
                     }
                   });
                 }}
@@ -141,6 +149,7 @@ export function ScriptTab() {
                       setPaste("");
                       setPasteTitle("");
                       setAdding(false);
+                      adoptTitle(r);
                     }
                   });
                 }}
@@ -174,6 +183,7 @@ export function ScriptTab() {
 }
 
 function EpisodeEditor({ ep, n }: { ep: Episode; n: number }) {
+  const app = useApp();
   const { pid, act, isBusy, view } = useProject();
   const [text, setText] = useState(ep.script);
   const [base, setBase] = useState(ep.script);
@@ -190,14 +200,17 @@ function EpisodeEditor({ ep, n }: { ep: Episode; n: number }) {
   const parse = async () => {
     if (
       ep.scenes.length > 0 &&
-      !window.confirm(`Re-reading replaces this episode's ${ep.scenes.length} scenes and ${shots} shots, including their takes. Continue?`)
+      !(await app.confirm(`Re-reading replaces this episode's ${ep.scenes.length} scenes and ${shots} shots, including their takes.`, {
+        ok: "Re-read",
+        danger: true,
+      }))
     )
       return;
     if (dirty && !(await save())) return;
     await act(`parse-${ep.id}`, () => api.post<View>(`/projects/${pid}/episodes/${ep.id}/parse`));
   };
-  const remove = () => {
-    if (!window.confirm(`Delete "${ep.title}" with its scenes and shots?`)) return;
+  const remove = async () => {
+    if (!(await app.confirm(`Delete "${ep.title}" with its scenes and shots?`, { ok: "Delete episode", danger: true }))) return;
     void act(`del-${ep.id}`, () => api.del<View>(`/projects/${pid}/episodes/${ep.id}`));
   };
   const parsing = isBusy(`parse-${ep.id}`);
@@ -259,8 +272,8 @@ function EpisodeEditor({ ep, n }: { ep: Episode; n: number }) {
           <Icon name="trash" /> Delete episode
         </button>
         {!noScenes && (
-          <a className={`btn ${dirty ? "" : "primary"} next-btn`} href={`#/p/${pid}/storyboard`}>
-            Next: storyboard <span aria-hidden="true">→</span>
+          <a className={`btn ${dirty ? "" : "primary"} next-btn`} href={`#/p/${pid}/cast`}>
+            Next: cast <span aria-hidden="true">→</span>
           </a>
         )}
       </div>

@@ -1,11 +1,14 @@
 import type { Project, Shot } from "./api";
 
+/** New projects from the idea box start with this name; the script's title replaces it. */
+export const PLACEHOLDER_NAME = "Untitled episode";
+
 export type Step = "script" | "cast" | "storyboard" | "episode";
 
 const allShots = (p: Project): Shot[] => p.episodes.flatMap((e) => e.scenes.flatMap((s) => s.shots));
 const hasDoneTake = (s: Shot) => s.takes.some((t) => t.status === "done" && t.videoMediaId);
 
-/** Which steps of making an episode are finished. */
+/** Which steps of making an episode are finished. `exports` counts final episodes. */
 export function stepsDone(p: Project, exports: number): Record<Step, boolean> {
   const shots = allShots(p);
   return {
@@ -16,16 +19,20 @@ export function stepsDone(p: Project, exports: number): Record<Step, boolean> {
   };
 }
 
-/** A short status for a project card, and how far along it is (0 to 1). */
-export function projectStatus(p: Project, exports: number): { label: string; tone: string; progress: number } {
-  const done = stepsDone(p, exports);
-  const progress = Object.values(done).filter(Boolean).length / 4;
+/** A short status for a project card, and how many shots have a final take. `finalExports` counts final episodes only. */
+export function projectStatus(
+  p: Project,
+  finalExports: number,
+): { label: string; tone: string; finals: number; shots: number; progress: number } {
   const shots = allShots(p);
-  if (done.episode) return { label: "Episode ready", tone: "ok", progress };
-  if (shots.some((s) => s.takes.length > 0)) return { label: "In production", tone: "live", progress };
-  if (shots.length > 0) return { label: "Storyboarding", tone: "plain", progress };
-  if (done.script) return { label: "Script ready", tone: "plain", progress };
-  return { label: "New", tone: "plain", progress };
+  const finals = shots.filter((s) => shotStage(s) === "final").length;
+  const progress = shots.length ? finals / shots.length : 0;
+  const base = { finals, shots: shots.length, progress };
+  if (finalExports > 0) return { label: "Episode ready", tone: "ok", ...base };
+  if (shots.some((s) => s.takes.length > 0)) return { label: "In production", tone: "live", ...base };
+  if (shots.length > 0) return { label: "Storyboarding", tone: "plain", ...base };
+  if (p.episodes.some((e) => e.script.trim())) return { label: "Script ready", tone: "plain", ...base };
+  return { label: "New", tone: "plain", ...base };
 }
 
 /** Where a shot is in the pipeline, for the board and the status label. */

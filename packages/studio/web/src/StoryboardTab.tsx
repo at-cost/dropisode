@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type CSSProperties, useState } from "react";
 import { type DialogueLine, type Episode, type Project, type Scene, type Shot, type Take, type View, api, mediaUrl } from "./api";
 import { useProject } from "./ProjectView";
 import { type Stage, shotStage, shotStatus } from "./progress";
@@ -95,7 +95,7 @@ export function StoryboardTab() {
             </Empty>
           )}
           {ep.scenes.map((sc, i) => (
-            <SceneBlock key={sc.id} ep={ep} scene={sc} n={i + 1} mode={mode} tiles={docked || mode === "board"} sel={sel} />
+            <SceneBlock key={sc.id} ep={ep} scene={sc} n={i + 1} mode={mode} sel={sel} />
           ))}
         </div>
         {docked && (
@@ -103,7 +103,7 @@ export function StoryboardTab() {
             {found ? <Inspector key={found.shot.id} ep={ep} {...found} onClose={() => setSelected(null)} /> : <EpisodeSummary ep={ep} />}
           </aside>
         )}
-        {!docked && found && mode === "board" && (
+        {!docked && found && (
           <>
             <button
               type="button"
@@ -162,21 +162,8 @@ function EpisodeSummary({ ep }: { ep: Episode }) {
   );
 }
 
-function SceneBlock({
-  ep,
-  scene,
-  n,
-  mode,
-  tiles,
-  sel,
-}: {
-  ep: Episode;
-  scene: Scene;
-  n: number;
-  mode: ViewMode;
-  tiles: boolean;
-  sel: Selection;
-}) {
+function SceneBlock({ ep, scene, n, mode, sel }: { ep: Episode; scene: Scene; n: number; mode: ViewMode; sel: Selection }) {
+  const app = useApp();
   const { pid, view, estimates, act, isBusy } = useProject();
   const locations = view.project.cast.filter((c) => c.kind === "location");
   const boarding = isBusy(`board-${scene.id}`);
@@ -197,10 +184,13 @@ function SceneBlock({
       { kick: true },
     );
 
-  const board = () => {
+  const board = async () => {
     if (
       scene.shots.length > 0 &&
-      !window.confirm(`Storyboarding again replaces this scene's ${scene.shots.length} shots and their takes. Continue?`)
+      !(await app.confirm(`Storyboarding again replaces this scene's ${scene.shots.length} shots and their takes.`, {
+        ok: "Storyboard again",
+        danger: true,
+      }))
     )
       return;
     void act(`board-${scene.id}`, () => api.post<View>(`/projects/${pid}/scenes/${scene.id}/storyboard`));
@@ -233,21 +223,24 @@ function SceneBlock({
               void act(`sc-${scene.id}`, () => api.patch<View>(`/projects/${pid}/scenes/${scene.id}`, { heading: v }));
           }}
         />
-        <select
-          value={scene.locationId ?? ""}
-          aria-label="Location"
-          onChange={(e) =>
-            void act(`sc-${scene.id}`, () => api.patch<View>(`/projects/${pid}/scenes/${scene.id}`, { locationId: e.target.value || null }))
-          }
-        >
-          <option value="">No location</option>
-          {locations.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-            </option>
-          ))}
-        </select>
+
         <div className="scene-actions">
+          <select
+            value={scene.locationId ?? ""}
+            aria-label="Location"
+            onChange={(e) =>
+              void act(`sc-${scene.id}`, () =>
+                api.patch<View>(`/projects/${pid}/scenes/${scene.id}`, { locationId: e.target.value || null }),
+              )
+            }
+          >
+            <option value="">No location</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
           {running && !boarding && <Why>Wait for running takes</Why>}
           {untried.length > 0 && untriedTotal !== undefined && (
             <button type="button" className="primary" disabled={draftingAll || boarding} onClick={draftAll}>
@@ -301,14 +294,10 @@ function SceneBlock({
         </>
       ) : (
         <>
-          <div className={tiles ? "tile-grid" : "shot-grid"}>
-            {scene.shots.map((s, i) =>
-              tiles ? (
-                <ShotTile key={s.id} ep={ep} scene={scene} shot={s} index={i} variant="list" sel={sel} />
-              ) : (
-                <ShotCard key={s.id} ep={ep} scene={scene} shot={s} index={i} />
-              ),
-            )}
+          <div className="tile-grid">
+            {scene.shots.map((s, i) => (
+              <ShotTile key={s.id} ep={ep} scene={scene} shot={s} index={i} variant="list" sel={sel} />
+            ))}
           </div>
           {addShot}
         </>
@@ -506,6 +495,7 @@ function GenButtons({
 }
 
 function ShotMenu({ shot, c }: { shot: Shot; c: ShotCtl }) {
+  const app = useApp();
   return (
     <MoreMenu label={`More for shot ${c.label}`}>
       <button type="button" role="menuitem" disabled={!c.canUp} onClick={() => c.move(-1)}>
@@ -534,8 +524,8 @@ function ShotMenu({ shot, c }: { shot: Shot; c: ShotCtl }) {
         type="button"
         role="menuitem"
         className="danger-item"
-        onClick={() => {
-          if (window.confirm(`Delete shot ${c.label} and its ${shot.takes.length} takes?`))
+        onClick={async () => {
+          if (await app.confirm(`Delete shot ${c.label} and its ${shot.takes.length} takes?`, { ok: "Delete shot", danger: true }))
             void c.act(`del-${shot.id}`, () => api.del<View>(c.path));
         }}
       >
@@ -555,7 +545,7 @@ function Takes({ shot, c, small }: { shot: Shot; c: ShotCtl; small?: boolean }) 
           key={t.id}
           type="button"
           className={`take${t.id === c.take?.id ? " selected" : ""} ${t.status}`}
-          aria-label={`${t.tier === "final" ? "Final" : "Draft"} take ${i + 1}`}
+          aria-label={`Take ${i + 1}, ${t.tier === "final" ? "final" : "draft"}`}
           title={
             t.error ??
             `${t.tier === "final" ? "Final" : "Draft"} take ${i + 1}, ${t.status}. ${modelLabel(app.config, t.imageModel)}, then ${modelLabel(app.config, t.videoModel)}`
@@ -578,7 +568,8 @@ function Takes({ shot, c, small }: { shot: Shot; c: ShotCtl; small?: boolean }) 
   );
 }
 
-const setupLine = (shot: Shot) => `${cap(shot.camera.trim()) || "No camera set"} · ${round(shot.durationS)} s`;
+const setupLine = (shot: Shot) =>
+  `${cap(shot.camera.trim()) || "No camera set"} · ${round(shot.durationS)} s · ${AUDIO[shot.audio] ?? shot.audio}`;
 
 /** A compact shot for the wide list and the board; editing happens in the inspector. */
 function ShotTile({
@@ -611,7 +602,10 @@ function ShotTile({
         <ShotMenu shot={shot} c={c} />
       </div>
       <div className="tile-body">
-        <div className="tile-frame">
+        <div
+          className="tile-frame"
+          style={c.take?.frameMediaId ? ({ "--frame-bg": `url("${mediaUrl(c.pid, c.take.frameMediaId)}")` } as CSSProperties) : undefined}
+        >
           <Preview pid={c.pid} take={c.take} aspect={c.p.aspect} />
         </div>
         <div className="tile-info">
@@ -771,114 +765,6 @@ function ShotCosts({ lines, config }: { lines: ShotCtl["lines"]; config: ReturnT
       <summary>{plural(lines.length, "charge")}</summary>
       <ShotCostsTable lines={lines} config={config} />
     </details>
-  );
-}
-
-/** The full inline editor, for narrower screens. */
-function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot: Shot; index: number }) {
-  const app = useApp();
-  const c = useShot(ep, scene, shot, index);
-  const a = useApproval(shot, c);
-  const [setup, setSetup] = useState(false);
-
-  return (
-    <article className={`card shot-card${a.approved ? " approved" : ""}`}>
-      <div className="shot-top">
-        <strong className="shot-n">Shot {c.label}</strong>
-        <div className="spacer" />
-        <ApproveToggle shot={shot} a={a} variant="pill" />
-        <div className="tools">
-          <ShotMenu shot={shot} c={c} />
-        </div>
-      </div>
-
-      <div className="shot-body">
-        <div className="shot-media">
-          <Preview pid={c.pid} take={c.take} aspect={c.p.aspect} />
-          <Takes shot={shot} c={c} />
-        </div>
-        <div className="shot-fields">
-          <textarea
-            key={shot.description}
-            defaultValue={shot.description}
-            rows={3}
-            maxLength={4000}
-            aria-label="Description"
-            placeholder="What we see"
-            onBlur={(e) => {
-              if (e.target.value !== shot.description) void c.patch({ description: e.target.value });
-            }}
-          />
-          <CastChips shot={shot} c={c} />
-          {setup ? (
-            <div className="setup">
-              <input
-                key={shot.camera}
-                list="camera-presets"
-                defaultValue={shot.camera}
-                maxLength={500}
-                aria-label="Camera"
-                placeholder="Camera"
-                onBlur={(e) => {
-                  if (e.target.value !== shot.camera) void c.patch({ camera: e.target.value });
-                }}
-              />
-              <div className="row tight">
-                <label className="inline-label">
-                  Seconds
-                  <input
-                    key={shot.durationS}
-                    type="number"
-                    className="w-num"
-                    min={1}
-                    max={30}
-                    step={0.5}
-                    defaultValue={shot.durationS}
-                    onBlur={(e) => {
-                      const v = Number(e.target.value);
-                      if (v > 0 && v <= 30 && v !== shot.durationS) void c.patch({ durationS: v });
-                      else e.target.value = String(shot.durationS);
-                    }}
-                  />
-                </label>
-                <select value={shot.audio} aria-label="Audio" onChange={(e) => void c.patch({ audio: e.target.value })}>
-                  <option value="native">Native audio</option>
-                  <option value="tts">Text to speech</option>
-                  <option value="none">No audio</option>
-                </select>
-              </div>
-              <button type="button" className="link small-text" onClick={() => setSetup(false)}>
-                Done
-              </button>
-            </div>
-          ) : (
-            <button type="button" className="setup-line" title="Edit camera, length and audio" onClick={() => setSetup(true)}>
-              {setupLine(shot)} · {AUDIO[shot.audio] ?? shot.audio}
-            </button>
-          )}
-          <Dialogue shot={shot} onSave={(dialogue) => void c.patch({ dialogue })} />
-
-          <div className="row tight">
-            <GenButtons shot={shot} c={c} approved={a.approved} approving={a.approving !== null} />
-            {c.generating ? (
-              <span className="muted small-text">
-                <Spinner /> Generating
-              </span>
-            ) : (
-              !a.approved && shot.takes.length > 0 && <Why>Approve the shot first</Why>
-            )}
-          </div>
-          <FailNote shot={shot} />
-        </div>
-      </div>
-
-      {c.lines.length > 0 && (
-        <details className="shot-costs">
-          <summary>Spent on this shot: {money(c.spent)}</summary>
-          <ShotCostsTable lines={c.lines} config={app.config} />
-        </details>
-      )}
-    </article>
   );
 }
 

@@ -94,8 +94,9 @@ export function Projects() {
       go(`#/p/${p.id}/script`);
     });
 
-  const remove = (p: ProjectSummary) => {
-    if (!window.confirm(`Delete "${p.name}"? Its media and exports are deleted for good.`)) return;
+  const remove = async (p: ProjectSummary) => {
+    if (!(await app.confirm(`Delete "${p.name}"? Its media and exports are deleted for good.`, { ok: "Delete project", danger: true })))
+      return;
     void run(`del-${p.id}`, async () => {
       await api.del(`/projects/${p.id}`);
       await load();

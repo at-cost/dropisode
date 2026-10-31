@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { type CastKind, type CastMember, type View, api, mediaUrl } from "./api";
 import { useProject } from "./ProjectView";
-import { Empty, Icon, Spinner, Ticket } from "./ui";
+import { Empty, Icon, Spinner, Ticket, Why, useApp } from "./ui";
 
 const KINDS: [CastKind, string, string][] = [
   ["character", "Characters", "Wardrobe, age, features, style"],
@@ -9,10 +9,14 @@ const KINDS: [CastKind, string, string][] = [
   ["prop", "Props", "What it looks like, material, size"],
 ];
 
+const KIND_LABEL: Record<CastKind, string> = { character: "Character", location: "Location", prop: "Prop" };
+
 export function CastTab() {
   const { pid, view, act, isBusy } = useProject();
   const [kind, setKind] = useState<CastKind>("character");
   const [name, setName] = useState("");
+  const cast = view.project.cast;
+  const ready = cast.length > 0 && cast.every((c) => c.refImageIds.length > 0);
 
   return (
     <div className="cast-tab">
@@ -30,34 +34,28 @@ export function CastTab() {
           <option value="prop">Prop</option>
         </select>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" maxLength={120} aria-label="Name" />
-        <button type="submit" className="primary" disabled={!name.trim() || isBusy("add-cast")}>
+        <button type="submit" disabled={!name.trim() || isBusy("add-cast")}>
           <Icon name="plus" /> Add
         </button>
+        <div className="spacer" />
+        {!ready && cast.length > 0 && <Why>Give everyone an image first</Why>}
+        <a className={`btn next-btn${ready ? " primary" : ""}`} href={`#/p/${pid}/storyboard`}>
+          Next: storyboard <span aria-hidden="true">→</span>
+        </a>
       </form>
-      {KINDS.map(([k, label, hint]) => {
-        const members = view.project.cast.filter((c) => c.kind === k);
-        return (
-          <section key={k}>
-            <h2 className="section-title">
-              {label} <span className="count">{members.length}</span>
-            </h2>
-            {members.length === 0 ? (
-              <Empty>None yet.</Empty>
-            ) : (
-              <div className="cast-grid">
-                {members.map((c) => (
-                  <CastCard key={c.id} c={c} hint={hint} />
-                ))}
-              </div>
-            )}
-          </section>
-        );
-      })}
+      {cast.length === 0 ? (
+        <Empty>No cast yet. Writing a script lists the cast for you, or add someone above.</Empty>
+      ) : (
+        <div className="cast-grid">
+          {KINDS.flatMap(([k, , hint]) => cast.filter((c) => c.kind === k).map((c) => <CastCard key={c.id} c={c} hint={hint} />))}
+        </div>
+      )}
     </div>
   );
 }
 
 function CastCard({ c, hint }: { c: CastMember; hint: string }) {
+  const app = useApp();
   const { pid, view, estimates, act, isBusy } = useProject();
   // Consent is asked for each upload, then reset.
   const [asking, setAsking] = useState(false);
@@ -86,6 +84,7 @@ function CastCard({ c, hint }: { c: CastMember; hint: string }) {
 
   return (
     <div className={`card cast-card ${c.kind}`}>
+      <span className="kind-chip">{KIND_LABEL[c.kind]}</span>
       <div className="cast-head">
         <input
           key={c.name}
@@ -103,8 +102,8 @@ function CastCard({ c, hint }: { c: CastMember; hint: string }) {
           className="icon-btn"
           title="Delete"
           aria-label={`Delete ${c.name}`}
-          onClick={() => {
-            if (window.confirm(`Delete ${c.name}? Shots that feature them lose the link.`))
+          onClick={async () => {
+            if (await app.confirm(`Delete ${c.name}? Shots that feature them lose the link.`, { ok: "Delete", danger: true }))
               void act(`del-${c.id}`, () => api.del<View>(path));
           }}
         >
@@ -168,11 +167,12 @@ function CastCard({ c, hint }: { c: CastMember; hint: string }) {
       <div className="row wrap">
         <button
           type="button"
-          className="primary"
+          className={c.refImageIds.length > 0 ? "" : "primary"}
           disabled={generating}
           onClick={() => void act(`gen-${c.id}`, () => api.post<View>(`${path}/generate`), { kick: true })}
         >
-          {generating ? <Spinner /> : <Icon name="image" />} {generating ? "Generating" : "Generate"}
+          {generating ? <Spinner /> : <Icon name="image" />}{" "}
+          {generating ? "Generating" : c.refImageIds.length > 0 ? "Regenerate" : "Generate"}
           {!generating && <Ticket micro={estimates?.castImage} />}
         </button>
         <input

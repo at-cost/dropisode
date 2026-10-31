@@ -62,8 +62,9 @@ export function Settings() {
                 type="button"
                 className="danger-text"
                 disabled={busy === "rmkey"}
-                onClick={() => {
-                  if (window.confirm("Remove your fal.ai key from this computer?")) void save("rmkey", { falKey: null }, "Key removed");
+                onClick={async () => {
+                  if (await app.confirm("Remove your fal.ai key from this computer?", { ok: "Remove key", danger: true }))
+                    void save("rmkey", { falKey: null }, "Key removed");
                 }}
               >
                 Remove

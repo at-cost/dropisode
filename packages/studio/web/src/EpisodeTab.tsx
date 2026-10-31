@@ -6,7 +6,7 @@ import { Empty, Icon, Spinner, When, Why, bytes, plural, useApp, useBusy } from 
 
 export function EpisodeTab() {
   const app = useApp();
-  const { pid, view } = useProject();
+  const { pid, view, refreshExports } = useProject();
   const [ep, pick] = useEpisodeChoice();
   const [exports, setExports] = useState<ExportInfo[] | null>(null);
   const { busy, run } = useBusy();
@@ -28,12 +28,14 @@ export function EpisodeTab() {
   const shots = ep.scenes.flatMap((s) => s.shots);
   const finals = shots.filter((s) => s.approved && s.takes.some((t) => t.tier === "final" && t.status === "done" && t.videoMediaId)).length;
   const drafts = shots.filter((s) => s.takes.some((t) => t.status === "done" && t.videoMediaId)).length;
+  const allFinal = shots.length > 0 && finals === shots.length;
   const ffmpegMissing = app.config.mode === "local" && app.settings && !app.settings.ffmpeg;
 
   const assemble = (source: "rough" | "final") =>
     run(source, async () => {
       await api.post<ExportInfo>(`/projects/${pid}/episodes/${ep.id}/assemble`, { source });
       await load();
+      refreshExports();
     });
 
   const mine = (exports ?? []).filter((x) => x.episodeId === ep.id);
@@ -53,7 +55,7 @@ export function EpisodeTab() {
             <strong>{drafts}</strong> with video
           </span>
           <span>
-            <strong>{finals}</strong> approved finals
+            <strong>{finals}</strong> final
           </span>
         </div>
         {ffmpegMissing && (
@@ -64,21 +66,30 @@ export function EpisodeTab() {
         <div className="row">
           <button
             type="button"
-            className="primary"
+            className={allFinal ? "" : "primary"}
             disabled={!!busy || drafts === 0 || !!ffmpegMissing}
             onClick={() => void assemble("rough")}
           >
             {busy === "rough" && <Spinner />} Rough cut from drafts
           </button>
-          <button type="button" disabled={!!busy || finals === 0 || !!ffmpegMissing} onClick={() => void assemble("final")}>
+          <button
+            type="button"
+            className={allFinal ? "primary" : ""}
+            disabled={!!busy || !allFinal || !!ffmpegMissing}
+            onClick={() => void assemble("final")}
+          >
             {busy === "final" && <Spinner />} Make final episode
           </button>
-          {!busy && !ffmpegMissing && (drafts === 0 || finals === 0) && (
-            <Why>{drafts === 0 ? "Make a draft of a shot first" : "Final needs an approved shot with a final take"}</Why>
+          {!busy && !ffmpegMissing && !allFinal && (
+            <Why>
+              {drafts === 0
+                ? "Make a draft of a shot first"
+                : `${finals} of ${plural(shots.length, "shot")} ${finals === 1 ? "is" : "are"} final. Try a rough cut meanwhile.`}
+            </Why>
           )}
         </div>
         {busy && <p className="muted small-text">Joining shots. About a minute.</p>}
-        <p className="muted small-text">Assembling is free. The final uses approved final takes only.</p>
+        <p className="muted small-text">Assembling is free. The final episode needs a final take of every shot.</p>
       </section>
 
       {exports !== null && mine.length === 0 && (

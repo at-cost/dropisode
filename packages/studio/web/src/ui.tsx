@@ -147,6 +147,8 @@ export interface AppState {
   /** Activity, month spend and running jobs across the workspace. */
   dash: Dashboard | null;
   refreshDash(): Promise<void>;
+  /** An in-page confirmation (no browser dialogs). */
+  confirm(message: string, opts?: { ok?: string; danger?: boolean }): Promise<boolean>;
   /** The last part of the page header breadcrumb, set by the page. */
   setCrumb(crumb: ReactNode): void;
 }

@@ -4115,3 +4115,218 @@ button.approve.toggle:disabled {
     height: 100dvh;
   }
 }
+
+/* ---------- Critic round 5 ---------- */
+/* Approve toggle: readable in both themes */
+button.approve.toggle.on,
+:root[data-theme="dark"] button.approve.toggle.on,
+button.approve.toggle.on:hover:not(:disabled) {
+  color: var(--ok);
+  font-weight: 600;
+}
+/* Board tiles: Draft and Final stack instead of overlapping */
+.tile.v-board .gen-row {
+  grid-auto-flow: row;
+}
+.tile.v-board .tile-info {
+  min-width: 0;
+}
+
+/* Frame area filled: a soft blurred copy of the frame behind it */
+.tile-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0;
+}
+.tile.v-list .tile-frame {
+  padding: 14px;
+}
+.tile-frame::before {
+  content: "";
+  position: absolute;
+  inset: -20px;
+  background-image: var(--frame-bg, none);
+  background-size: cover;
+  background-position: center;
+  filter: blur(18px) brightness(0.55) saturate(1.1);
+  pointer-events: none;
+}
+.tile.v-board .tile-frame::before {
+  display: none;
+}
+.tile-frame > .preview {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.tile.v-list .tile-frame .preview.tall {
+  width: auto;
+  height: 250px;
+  aspect-ratio: 9 / 16;
+}
+
+/* Scene header: title left, controls in one right-aligned row */
+.storyboard .scene-head {
+  flex-wrap: wrap;
+}
+.scene-actions {
+  flex-wrap: nowrap;
+}
+.scene-actions select {
+  max-width: 200px;
+}
+@media (max-width: 900px) {
+  .scene-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+}
+
+/* Inspector: slide-over from 700 to 1279, bottom sheet on phones */
+@media (max-width: 699px) {
+  .inspector.floating {
+    top: auto;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 86vh;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -20px 40px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* Phone drawer: nothing shows when closed */
+@media (max-width: 699px) {
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: none;
+    visibility: hidden;
+    transition:
+      transform 0.2s ease,
+      visibility 0s linear 0.2s;
+  }
+  .drawer-open .sidebar {
+    transform: none;
+    visibility: visible;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+    transition: transform 0.2s ease;
+  }
+}
+
+/* Account menu stays inside the sidebar (or beside the rail) */
+.sidebar .profile .menu {
+  left: 0;
+  right: 0;
+  min-width: 0;
+  width: auto;
+  z-index: 70;
+}
+.sidebar .profile .who span {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1099px) and (min-width: 700px) {
+  .sidebar {
+    overflow: visible;
+  }
+  .sidebar .profile .menu {
+    left: calc(100% + 10px);
+    right: auto;
+    bottom: 0;
+    width: 250px;
+  }
+}
+
+/* Home: tighter usage card, finals line */
+.continue-finals {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.dash-pair {
+  align-items: start;
+}
+.usage-body {
+  margin: 4px 0 8px;
+}
+.usage .muted.small-text {
+  margin: 0;
+}
+
+/* Cast: kind label, next step */
+.kind-chip {
+  order: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: -4px;
+}
+.add-cast {
+  max-width: none;
+  flex-wrap: wrap;
+}
+.add-cast input {
+  flex: 0 1 280px;
+}
+.cast-tab .cast-grid {
+  margin-top: 16px;
+}
+
+/* Script editor: full card width */
+.script-text {
+  max-width: none;
+  width: 100%;
+}
+
+/* In-page confirm */
+.modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: rgba(10, 4, 16, 0.6);
+}
+.modal-backdrop:hover:not(:disabled) {
+  background: rgba(10, 4, 16, 0.6);
+}
+.modal {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 22px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.modal p {
+  margin: 0 0 18px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+button.danger-solid {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+:root[data-theme="dark"] button.danger-solid {
+  background: #c43a3a;
+  border-color: #c43a3a;
+}

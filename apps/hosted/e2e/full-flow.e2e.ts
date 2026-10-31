@@ -157,7 +157,7 @@ describe("full customer journey (mocked providers)", () => {
 
     await step("write the script", async () => {
       await page.getByRole("button", { name: /Write script/ }).click();
-      await pw(page.getByText(/Next: storyboard/)).toBeVisible({ timeout: 30_000 });
+      await pw(page.getByText(/Next: cast/)).toBeVisible({ timeout: 30_000 });
     });
 
     await step("cast portraits", async () => {
@@ -194,8 +194,18 @@ describe("full customer journey (mocked providers)", () => {
     });
 
     await step("render finals", async () => {
-      for (const b of await page.getByRole("button", { name: /^Final/ }).all()) if (await b.isEnabled()) await b.click();
+      // The final episode needs a final take of every shot, so keep going until each shot says "Final ready".
+      const notFinal = () => page.locator(".tile").filter({ hasNotText: "Final ready" });
+      const ready = () =>
+        notFinal()
+          .getByRole("button", { name: /^Final/ })
+          .and(page.locator("button:enabled"));
+      for (let i = 0; i < 60 && (await notFinal().count()) > 0; i++) {
+        if (await ready().count()) await ready().first().click();
+        else await page.waitForTimeout(1000);
+      }
       await pw.poll(async () => (await balance()).heldMicro, { timeout: 60_000 }).toBe(0);
+      await pw(notFinal()).toHaveCount(0, { timeout: 30_000 });
     });
 
     await step("assemble the episode", async () => {

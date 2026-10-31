@@ -2,21 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { type ExportInfo, type Project, type ProjectSummary, type View, api } from "./api";
 import { go } from "./App";
 import { Poster, WelcomeSteps, firstName } from "./Projects";
-import { projectStatus } from "./progress";
+import { PLACEHOLDER_NAME, projectStatus } from "./progress";
 import { Icon, Spinner, Ticket, Why, ago, money, plural, useApp, useBusy, when } from "./ui";
-
-/** "A courier finds a letter..." becomes "A courier finds a letter". */
-export function nameFromIdea(idea: string): string {
-  const words = idea
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .slice(0, 5)
-    .join(" ")
-    .replace(/[\s.,;:!?"'()-]+$/, "");
-  const name = words.charAt(0).toUpperCase() + words.slice(1);
-  return name.slice(0, 80) || "Untitled episode";
-}
 
 interface Recent {
   summary: ProjectSummary;
@@ -55,7 +42,7 @@ export function Home() {
             api.get<View>(`/projects/${summary.id}`).catch(() => null),
             api.get<ExportInfo[]>(`/projects/${summary.id}/exports`).catch(() => []),
           ]);
-          return { summary, project: v?.project ?? null, exports: x.length };
+          return { summary, project: v?.project ?? null, exports: x.filter((e) => e.source === "final" && e.skipped.length === 0).length };
         }),
       );
       setRecent(rows);
@@ -71,7 +58,7 @@ export function Home() {
 
   const create = () =>
     run("create", async () => {
-      const p = await api.post<Project>("/projects", { name: nameFromIdea(idea), idea: idea.trim(), aspect: "9:16" });
+      const p = await api.post<Project>("/projects", { name: PLACEHOLDER_NAME, idea: idea.trim(), aspect: "9:16" });
       go(`#/p/${p.id}/script`);
     });
 
@@ -178,7 +165,7 @@ export function Home() {
                 <strong className="fig">{dash ? money(dash.month.totalMicro) : "…"}</strong>
               </div>
             </div>
-            {dash && <MonthChart month={dash.month} />}
+            {dash && dash.month.days.filter((d) => d.paidMicro > 0).length >= 3 && <MonthChart month={dash.month} />}
           </div>
           {wallet && <p className="muted small-text">Pay as you create. No subscription.</p>}
         </section>
@@ -238,15 +225,20 @@ function ContinueCard({ r }: { r: Recent }) {
           {plural(s.episodes, "episode")} · {plural(s.shots, "shot")}
         </p>
         <p className="continue-spent">{money(s.paidMicro)} spent</p>
+        {status && status.shots > 0 && (
+          <p className="continue-finals">
+            {status.finals} of {plural(status.shots, "shot")} final
+          </p>
+        )}
         <div
           className="progress"
           role="progressbar"
-          aria-label="Progress"
+          aria-label="Shots with a final take"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round((status?.progress ?? 0) * 100)}
         >
-          <span style={{ width: `${Math.max(4, (status?.progress ?? 0) * 100)}%` }} />
+          <span style={{ width: `${(status?.progress ?? 0) * 100}%` }} />
         </div>
         <p className="continue-when" title={when(s.updatedAt)}>
           Edited {ago(s.updatedAt)}

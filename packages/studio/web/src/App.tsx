@@ -108,6 +108,44 @@ interface Toast {
   msg: string;
 }
 
+interface Ask {
+  message: string;
+  ok: string;
+  danger: boolean;
+  resolve(v: boolean): void;
+}
+
+/** A small in-page confirmation, instead of the browser's dialog. */
+function ConfirmDialog({ ask, done }: { ask: Ask; done(v: boolean): void }) {
+  const okRef = useRef<HTMLButtonElement>(null);
+  const doneRef = useRef(done);
+  doneRef.current = done;
+  useEffect(() => {
+    okRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") doneRef.current(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+  return (
+    <div className="modal-layer">
+      <button type="button" className="modal-backdrop" aria-label="Cancel" tabIndex={-1} onClick={() => done(false)} />
+      <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-msg">
+        <p id="confirm-msg">{ask.message}</p>
+        <div className="modal-actions">
+          <button type="button" onClick={() => done(false)}>
+            Cancel
+          </button>
+          <button type="button" ref={okRef} className={ask.danger ? "danger-solid" : "primary"} onClick={() => done(true)}>
+            {ask.ok}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** One sidebar link; an icon with a label that hides on the rail. */
 function NavItem({
   href,
@@ -141,6 +179,7 @@ export function App() {
   const [crumb, setCrumb] = useState<ReactNode>(null);
   const [drawer, setDrawer] = useState(false);
   const [theme, setTheme] = useState(currentTheme);
+  const [ask, setAsk] = useState<Ask | null>(null);
   const nextId = useRef(1);
 
   useEffect(() => {
@@ -227,9 +266,15 @@ export function App() {
     [toast, config?.mode, refreshConfig],
   );
 
+  const confirm = useCallback(
+    (message: string, opts?: { ok?: string; danger?: boolean }) =>
+      new Promise<boolean>((resolve) => setAsk({ message, ok: opts?.ok ?? "OK", danger: !!opts?.danger, resolve })),
+    [],
+  );
+
   const state = useMemo<AppState | null>(
-    () => (config ? { config, settings, refreshSettings, refreshConfig, fail, toast, dash, refreshDash, setCrumb } : null),
-    [config, settings, refreshSettings, refreshConfig, fail, toast, dash, refreshDash],
+    () => (config ? { config, settings, refreshSettings, refreshConfig, fail, toast, dash, refreshDash, setCrumb, confirm } : null),
+    [config, settings, refreshSettings, refreshConfig, fail, toast, dash, refreshDash, confirm],
   );
 
   if (!state || !config) {
@@ -283,7 +328,6 @@ export function App() {
                 <strong>{account.workspace}</strong>
                 <span>Workspace</span>
               </span>
-              <Icon name="chevron" size={14} />
             </a>
           )}
           <nav className="side-nav">
@@ -395,6 +439,16 @@ export function App() {
           </main>
         </div>
       </div>
+
+      {ask && (
+        <ConfirmDialog
+          ask={ask}
+          done={(v) => {
+            ask.resolve(v);
+            setAsk(null);
+          }}
+        />
+      )}
 
       <div className="toasts" aria-live="polite">
         {toasts.map((t) => (

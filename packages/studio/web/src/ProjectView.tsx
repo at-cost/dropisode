@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { type Estimates, type Project, type View, api } from "./api";
+import { type Estimates, type ExportInfo, type Project, type View, api } from "./api";
 import { CastTab } from "./CastTab";
 import { CostsTab } from "./CostsTab";
 import { EpisodeTab } from "./EpisodeTab";
@@ -16,6 +16,8 @@ export interface ProjectState {
   act<T extends View>(key: string, fn: () => Promise<T>, opts?: { kick?: boolean }): Promise<T | undefined>;
   isBusy(key: string): boolean;
   apply(v: View): void;
+  /** Re-reads the exports after assembling, for the stepper. */
+  refreshExports(): void;
 }
 
 const ProjectCtx = createContext<ProjectState | null>(null);
@@ -65,6 +67,9 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
   const kickUntil = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
+  // The app context changes on every dashboard refresh; read it through a ref so that doesn't reload the project.
+  const appRef = useRef(app);
+  appRef.current = app;
 
   const apply = useCallback((v: View) => {
     if (alive.current)
@@ -76,9 +81,9 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
       apply(await api.get<View>(`/projects/${pid}`));
     } catch (err) {
       if ((err as { status?: number }).status === 404) setMissing("This project doesn't exist any more.");
-      else app.fail(err);
+      else appRef.current.fail(err);
     }
-  }, [pid, apply, app]);
+  }, [pid, apply]);
 
   useEffect(() => {
     alive.current = true;
@@ -98,15 +103,38 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
     }
   }, [view, load]);
 
-  // Whether an episode has been exported, for the stepper's last tick.
+  // Whether a final episode has been exported, for the stepper's last tick.
   const [exportCount, setExportCount] = useState(0);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch when the tab changes
-  useEffect(() => {
+  const refreshExports = useCallback(() => {
     api
-      .get<unknown[]>(`/projects/${pid}/exports`)
-      .then((x) => setExportCount(x.length))
+      .get<ExportInfo[]>(`/projects/${pid}/exports`)
+      // A complete final episode: nothing was skipped.
+      .then((x) => setExportCount(x.filter((e) => e.source === "final" && e.skipped.length === 0).length))
       .catch(() => {});
-  }, [pid, tab]);
+  }, [pid]);
+  useEffect(() => {
+    refreshExports();
+  }, [refreshExports]);
+
+  // When generation starts or finishes, the credit, the dashboard and the running pill change too.
+  const activity = view
+    ? [
+        view.openJobs.map((j) => j.id).join(","),
+        view.costLog.length,
+        view.costLog.filter((l) => l.status === "pending").length,
+        view.project.episodes.flatMap((e) => e.scenes.flatMap((s) => s.shots.flatMap((sh) => sh.takes.filter((t) => t.status === "done"))))
+          .length,
+      ].join("|")
+    : "";
+  const lastActivity = useRef("");
+  useEffect(() => {
+    if (!activity) return;
+    if (lastActivity.current && lastActivity.current !== activity) {
+      void appRef.current.refreshDash();
+      if (appRef.current.config.wallet) void appRef.current.refreshConfig();
+    }
+    lastActivity.current = activity;
+  }, [activity]);
   const name = view?.project.name;
   useEffect(() => {
     app.setCrumb(name ?? null);
@@ -121,11 +149,11 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
       .then((e) => {
         if (!stale) setEstimates(e);
       })
-      .catch((err) => app.fail(err));
+      .catch((err) => appRef.current.fail(err));
     return () => {
       stale = true;
     };
-  }, [sig, pid, app]);
+  }, [sig, pid]);
 
   const act = useCallback(
     async <T extends View>(key: string, fn: () => Promise<T>, opts?: { kick?: boolean }): Promise<T | undefined> => {
@@ -136,7 +164,7 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
         apply(v);
         return v;
       } catch (err) {
-        app.fail(err);
+        appRef.current.fail(err);
         // The server may have changed something before failing (a refund, a failed take).
         void load();
         return undefined;
@@ -148,12 +176,12 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
         });
       }
     },
-    [apply, app, load],
+    [apply, load],
   );
 
   const state = useMemo<ProjectState | null>(
-    () => (view ? { pid, view, estimates, act, isBusy: (k: string) => busy.has(k), apply } : null),
-    [pid, view, estimates, act, busy, apply],
+    () => (view ? { pid, view, estimates, act, isBusy: (k: string) => busy.has(k), apply, refreshExports } : null),
+    [pid, view, estimates, act, busy, apply, refreshExports],
   );
 
   if (missing)
