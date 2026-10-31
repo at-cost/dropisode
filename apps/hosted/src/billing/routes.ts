@@ -63,7 +63,8 @@ billingRoutes.post("/topup", async (c) => {
   const user = requireUser(c);
   const ws = await currentWorkspace(c);
   if (!deps.config.BILLING_ENABLED || !deps.payments) throw new HttpError(503, "Top-ups aren't open yet");
-  const b = z.object({ amountUsd: z.number() }).parse(await c.req.json());
+  // Accept "10" as well as 10: the preset buttons post their amount from a hidden field.
+  const b = z.object({ amountUsd: z.coerce.number().finite() }).parse(await c.req.json());
   if (!topupAllowed(deps.platform, b.amountUsd))
     throw new HttpError(400, `Top-ups are $${deps.platform.minTopupUsd} to $${deps.platform.maxTopupUsd}`);
   const u = await deps.db.selectFrom("users").select(["emailVerifiedAt"]).where("id", "=", user.id).executeTakeFirstOrThrow();

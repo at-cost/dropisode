@@ -11,12 +11,12 @@ document.addEventListener("submit", async (e) => {
   if (!(f instanceof HTMLFormElement) || !f.dataset.api) return;
   e.preventDefault();
   if (f.dataset.confirm && !confirm(f.dataset.confirm)) return;
-  const out = f.querySelector("[data-error]");
+  const out = f.querySelector("[data-error]") || f.closest("[data-errors]")?.querySelector("[data-error]");
   if (out) out.textContent = "";
   const body = {};
   for (const el of f.elements) {
     if (!el.name || el.disabled) continue;
-    body[el.name] = el.type === "number" ? Number(el.value) : el.value;
+    body[el.name] = el.type === "number" || "number" in el.dataset ? Number(el.value) : el.value;
   }
   const btn = f.querySelector("button");
   if (btn) btn.disabled = true;

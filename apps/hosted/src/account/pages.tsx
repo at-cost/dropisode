@@ -292,13 +292,13 @@ accountPages.get("/billing", async (c) => {
 
       <h2>Add credit</h2>
       {canTopUp ? (
-        <div class="card topup">
+        <div class="card topup" data-errors="">
           <div class="presets">
             {[10, 20, 50]
               .filter((v) => v >= min && v <= max)
               .map((v) => (
                 <form data-api="/api/billing/topup">
-                  <input type="hidden" name="amountUsd" value={String(v)} />
+                  <input type="hidden" name="amountUsd" value={String(v)} data-number="" />
                   <button type="submit" class="preset">
                     ${v}
                   </button>

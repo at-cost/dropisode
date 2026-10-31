@@ -517,3 +517,15 @@ describe("Stripe event order", () => {
     expect(res.status).toBe(500);
   });
 });
+
+describe("top-up presets", () => {
+  it("accepts the amount as text (the $10/$20/$50 buttons post a hidden field)", async () => {
+    t = await testApp();
+    const cookie = await t.signIn("preset@reel.test");
+    const res = await t.request("POST", "/api/billing/topup", { cookie, body: { amountUsd: "10" } });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { url: string }).url).toBeTruthy();
+    expect(t.stripe.sessions.at(-1)!.amountCents).toBe(1000);
+    expect((await t.request("POST", "/api/billing/topup", { cookie, body: { amountUsd: "ten" } })).status).toBe(400);
+  });
+});
