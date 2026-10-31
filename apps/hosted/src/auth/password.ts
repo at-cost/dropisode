@@ -9,14 +9,13 @@ const KEYLEN = 64;
 
 function scrypt(password: string, salt: Buffer, n: number, r: number, p: number): Promise<Buffer> {
   return new Promise((resolve, reject) =>
-    scryptCb(password.normalize("NFKC"), salt, KEYLEN, { N: n, r, p, maxmem: 64 * 1024 * 1024 }, (err, key) => (err ? reject(err) : resolve(key))),
+    scryptCb(password.normalize("NFKC"), salt, KEYLEN, { N: n, r, p, maxmem: 64 * 1024 * 1024 }, (err, key) =>
+      err ? reject(err) : resolve(key),
+    ),
   );
 }
 
-export const passwordField = z
-  .string()
-  .min(10, "Use at least 10 characters")
-  .max(200, "Use at most 200 characters");
+export const passwordField = z.string().min(10, "Use at least 10 characters").max(200, "Use at most 200 characters");
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);

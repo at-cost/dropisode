@@ -30,10 +30,7 @@ const calcRow = (body: string, model: string) => {
 
 describe("public pages", () => {
   const pages: [string, string[]][] = [
-    [
-      "/",
-      ["Know what every shot costs", "plus 20%", "npx dropisode", "/pricing#compare", 'href="/sign-in"', 'href="/demo"', "Not always"],
-    ],
+    ["/", ["Know what every shot costs", "plus 20%", "npx dropisode", "/pricing#compare", 'href="/sign-in"', 'href="/demo"', "Not always"]],
     ["/pricing", ['id="calculator"', 'id="units"', 'id="daily"', 'id="compare"', "Higgsfield", "Where subscriptions win", "verified on"]],
     ["/finances", ["Fixed costs", "assumed", "Reconciliation", "Reserve", "/finances.json"]],
     [

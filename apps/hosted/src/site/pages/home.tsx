@@ -150,8 +150,8 @@ export function homePage(c: Ctx) {
             <div>
               <h1 class="h-title">Make the next episode. Know what every shot costs.</h1>
               <p class="h-lede">
-                Dropisode is a studio for vertical short dramas. Write the script, cast your characters, storyboard each scene, try every shot as a
-                cheap draft, then render the ones you approve. Every button shows its exact price before you press it.
+                Dropisode is a studio for vertical short dramas. Write the script, cast your characters, storyboard each scene, try every
+                shot as a cheap draft, then render the ones you approve. Every button shows its exact price before you press it.
               </p>
               <div class="h-cta">
                 <a class="h-btn primary" href={user ? "/studio/" : "/sign-up"}>
@@ -196,8 +196,8 @@ export function homePage(c: Ctx) {
             <div class="h-strip-in">
               <h2>The whole storyboard, priced</h2>
               <p class="sub">
-                Every shot of the demo episode with what a draft and a final cost on Dropisode today, worked out from each model's published price.
-                Drafts use {draft.label}; finals use {final.label}.
+                Every shot of the demo episode with what a draft and a final cost on Dropisode today, worked out from each model's published
+                price. Drafts use {draft.label}; finals use {final.label}.
               </p>
               <div class="h-reel">
                 {priced.map(({ shot, prices }, i) => (
@@ -252,8 +252,8 @@ export function homePage(c: Ctx) {
           <div>
             <p class="h-big">{usd(example.chargeMicro)}</p>
             <p class="h-big-cap">
-              A {EXAMPLE_PLAN.shots}-shot episode, every shot drafted {EXAMPLE_PLAN.draftsPerShot} times and finished once, on today's default models.{" "}
-              <a href="/pricing">Price it on any model</a>.
+              A {EXAMPLE_PLAN.shots}-shot episode, every shot drafted {EXAMPLE_PLAN.draftsPerShot} times and finished once, on today's
+              default models. <a href="/pricing">Price it on any model</a>.
             </p>
           </div>
           <ul>
@@ -288,8 +288,8 @@ export function homePage(c: Ctx) {
             <div>
               <h2>Or run it on your own computer</h2>
               <p>
-                The same studio, free, with your own fal.ai key. You pay fal directly and nothing is added. Projects are plain folders, and they
-                move between your computer and dropisode.com. <a href="/docs/local">How to run it</a>.
+                The same studio, free, with your own fal.ai key. You pay fal directly and nothing is added. Projects are plain folders, and
+                they move between your computer and dropisode.com. <a href="/docs/local">How to run it</a>.
               </p>
             </div>
             <div class="h-term" aria-label="Terminal">

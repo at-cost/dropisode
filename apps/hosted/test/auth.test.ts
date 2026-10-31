@@ -31,11 +31,12 @@ function withCookies(cookie: string, res: Response): string {
 
 const lastMailTo = (to: string) => [...(t.deps.mailer.sent ?? [])].reverse().find((m) => m.to === to);
 /** Opens the emailed link (the confirm page) and presses Continue. */
-async function follow(url: URL): Promise<Response> {
-  const page = await t.request("GET", `${url.pathname}${url.search}`);
+async function follow(url: URL, cookie?: string): Promise<Response> {
+  const page = await t.request("GET", `${url.pathname}${url.search}`, { cookie });
   if (page.status !== 200) return page;
   const token = url.searchParams.get("token") ?? "";
   return t.request("POST", "/auth/verify", {
+    cookie,
     body: `token=${encodeURIComponent(token)}`,
     headers: { "content-type": "application/x-www-form-urlencoded" },
   });
@@ -291,20 +292,29 @@ describe("pages", () => {
   });
 });
 
-
 describe("email and password accounts", () => {
   const PW = "correct horse battery";
   const signUp = (email: string, password = PW, next?: string) => t.request("POST", "/auth/sign-up", { body: { email, password, next } });
-  const signInPw = (email: string, password: string) => t.request("POST", "/auth/sign-in", { body: { email, password } });
+  const signInPw = (email: string, password: string, ip = "203.0.113.1") =>
+    t.request("POST", "/auth/sign-in", { body: { email, password }, headers: { "x-forwarded-for": ip } });
+  /** Signs up and confirms in the same browser (with the sign-up cookie). */
+  async function signUpAndConfirm(email: string, password = PW, next?: string): Promise<Response> {
+    const browser = withCookies("", await signUp(email, password, next));
+    return follow(linkIn(lastMailTo(email.toLowerCase())!.text, "/auth/verify"), browser);
+  }
   const users = () => t.deps.db.selectFrom("users").select(["email", "passwordHash"]).execute();
   const sessionOk = async (cookie: string) => (await t.request("GET", "/api/account", { cookie })).status === 200;
 
   it("sign-up creates the account only when the email link is used, then the password works", async () => {
-    expect((await signUp("New@Reel.test", PW, "/billing")).status).toBe(200);
+    const up = await signUp("New@Reel.test", PW, "/billing");
+    expect(up.status).toBe(200);
     expect(await users()).toHaveLength(0);
     const mail = lastMailTo("new@reel.test")!;
     expect(mail.subject).toBe("Confirm your Dropisode account");
-    const res = await follow(linkIn(mail.text, "/auth/verify"));
+    const url = linkIn(mail.text, "/auth/verify");
+    const page = await (await t.request("GET", `${url.pathname}${url.search}`)).text();
+    expect(page).toContain("Create an account for <strong>new@reel.test</strong>");
+    const res = await follow(url, withCookies("", up));
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/billing");
     expect(await sessionOk(withCookies("", res))).toBe(true);
@@ -332,7 +342,7 @@ describe("email and password accounts", () => {
   it("an unconfirmed sign-up for an admin email gets no session and no account", async () => {
     const admin = t.deps.config.adminEmails[0] ?? "admin@reel.test";
     const res = await signUp(admin);
-    expect(res.headers.getSetCookie()).toHaveLength(0);
+    expect(res.headers.getSetCookie().filter((c) => c.includes("_session="))).toHaveLength(0);
     expect(await users()).toHaveLength(0);
     expect((await signInPw(admin, PW)).status).toBe(400);
   });
@@ -354,8 +364,7 @@ describe("email and password accounts", () => {
   });
 
   it("password reset: new password works, old fails, other sessions end, link works once", async () => {
-    await signUp("r@reel.test");
-    await follow(linkIn(lastMailTo("r@reel.test")!.text, "/auth/verify"));
+    await signUpAndConfirm("r@reel.test");
     const other = withCookies("", await signInPw("r@reel.test", PW));
     expect(await sessionOk(other)).toBe(true);
 
@@ -365,7 +374,9 @@ describe("email and password accounts", () => {
     const url = linkIn(lastMailTo("r@reel.test")!.text, "/reset");
     const token = url.searchParams.get("token")!;
     // A reset link can't be used as a sign-in link.
-    expect((await follow(new URL(`${t.deps.config.APP_URL}/auth/verify?token=${token}`))).headers.get("location")).toBe("/sign-in?error=link");
+    expect((await follow(new URL(`${t.deps.config.APP_URL}/auth/verify?token=${token}`))).headers.get("location")).toBe(
+      "/sign-in?error=link",
+    );
 
     const res = await t.request("POST", "/auth/reset", { body: { token, password: "a brand new password" } });
     expect(res.status).toBe(200);
@@ -384,24 +395,85 @@ describe("email and password accounts", () => {
   });
 
   it("limits wrong-password guesses per account", async () => {
-    await signUp("g@reel.test");
-    await follow(linkIn(lastMailTo("g@reel.test")!.text, "/auth/verify"));
+    await signUpAndConfirm("g@reel.test");
     const codes: number[] = [];
-    for (let i = 0; i < 11; i++) codes.push((await signInPw("g@reel.test", `guess number ${i}`)).status);
+    for (let i = 0; i < 11; i++) codes.push((await signInPw("g@reel.test", `guess number ${i}`, "198.51.100.7")).status);
     expect(codes.slice(0, 10).every((c) => c === 400)).toBe(true);
     expect(codes[10]).toBe(429);
-    // Locked for now even with the right password.
-    expect((await signInPw("g@reel.test", PW)).status).toBe(429);
+    // Locked for the guessing IP even with the right password...
+    expect((await signInPw("g@reel.test", PW, "198.51.100.7")).status).toBe(429);
+    // ...but the owner elsewhere still gets in, and right passwords never count.
+    for (let i = 0; i < 15; i++) expect((await signInPw("g@reel.test", PW)).status).toBe(200);
   });
 
   it("plain HTML forms work without JavaScript", async () => {
     const form = (path: string, body: string) =>
       t.request("POST", path, { body, headers: { "content-type": "application/x-www-form-urlencoded" } });
     expect((await form("/auth/sign-up", "email=f%40reel.test&password=short")).headers.get("location")).toBe("/sign-up?error=input");
-    expect((await form("/auth/sign-up", `email=f%40reel.test&password=${encodeURIComponent(PW)}`)).headers.get("location")).toBe("/sign-up?sent=1");
-    await follow(linkIn(lastMailTo("f@reel.test")!.text, "/auth/verify"));
+    const up = await form("/auth/sign-up", `email=f%40reel.test&password=${encodeURIComponent(PW)}`);
+    expect(up.headers.get("location")).toBe("/sign-up?sent=1");
+    await follow(linkIn(lastMailTo("f@reel.test")!.text, "/auth/verify"), withCookies("", up));
     expect((await form("/auth/sign-in", "email=f%40reel.test&password=nope")).headers.get("location")).toBe("/sign-in?error=password");
     const ok = await form("/auth/sign-in", `email=f%40reel.test&password=${encodeURIComponent(PW)}&next=%2Fbilling`);
     expect(ok.headers.get("location")).toBe("/billing");
+  });
+});
+
+describe("sign-up takeover attempts", () => {
+  const PW = "correct horse battery";
+  const signInPw = (email: string, password: string) => t.request("POST", "/auth/sign-in", { body: { email, password } });
+
+  it("a sign-up confirmed in another browser doesn't keep the password chosen at sign-up", async () => {
+    // The attacker signs up with the victim's email in the attacker's browser.
+    const attacker = withCookies(
+      "",
+      await t.request("POST", "/auth/sign-up", { body: { email: "victim@reel.test", password: "attacker password" } }),
+    );
+    expect(attacker).toContain("reel_signup=");
+    // The victim clicks the email in their own browser.
+    const res = await follow(linkIn(lastMailTo("victim@reel.test")!.text, "/auth/verify"));
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toMatch(/^\/reset\?token=[A-Za-z0-9_-]+&new=1$/);
+    expect((await signInPw("victim@reel.test", "attacker password")).status).toBe(400);
+    // The victim is signed in and can choose their own password.
+    const victim = withCookies("", res);
+    expect((await t.request("GET", "/api/account", { cookie: victim })).status).toBe(200);
+    const token = new URL(res.headers.get("location")!, t.deps.config.APP_URL).searchParams.get("token")!;
+    expect((await t.request("POST", "/auth/reset", { body: { token, password: "victim's own password" } })).status).toBe(200);
+    expect((await signInPw("victim@reel.test", "victim's own password")).status).toBe(200);
+  });
+
+  it("confirming one sign-up voids the others, and never replaces an existing password", async () => {
+    const mine = withCookies("", await t.request("POST", "/auth/sign-up", { body: { email: "v2@reel.test", password: PW } }));
+    const myLink = linkIn(lastMailTo("v2@reel.test")!.text, "/auth/verify");
+    const theirs = withCookies(
+      "",
+      await t.request("POST", "/auth/sign-up", { body: { email: "v2@reel.test", password: "attacker password" } }),
+    );
+    const theirLink = linkIn(lastMailTo("v2@reel.test")!.text, "/auth/verify");
+    expect((await follow(myLink, mine)).headers.get("location")).toBe("/studio/");
+    // Even in the attacker's own browser, their link is dead now.
+    expect((await follow(theirLink, theirs)).headers.get("location")).toBe("/sign-in?error=link");
+    expect((await signInPw("v2@reel.test", PW)).status).toBe(200);
+    expect((await signInPw("v2@reel.test", "attacker password")).status).toBe(400);
+  });
+
+  it("a password reset voids every other emailed link", async () => {
+    const browser = withCookies("", await t.request("POST", "/auth/sign-up", { body: { email: "v3@reel.test", password: PW } }));
+    await follow(linkIn(lastMailTo("v3@reel.test")!.text, "/auth/verify"), browser);
+    await t.request("POST", "/auth/email", { body: { email: "v3@reel.test" } });
+    const signinLink = linkIn(lastMailTo("v3@reel.test")!.text, "/auth/verify");
+    await t.request("POST", "/auth/forgot", { body: { email: "v3@reel.test" } });
+    const token = linkIn(lastMailTo("v3@reel.test")!.text, "/reset").searchParams.get("token")!;
+    expect((await t.request("POST", "/auth/reset", { body: { token, password: "a brand new password" } })).status).toBe(200);
+    expect((await follow(signinLink)).headers.get("location")).toBe("/sign-in?error=link");
+  });
+
+  it("a too-short new password returns to the reset page with the link intact", async () => {
+    const res = await t.request("POST", "/auth/reset", {
+      body: "token=abcdefghijklmnop&password=short",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+    });
+    expect(res.headers.get("location")).toBe("/reset?token=abcdefghijklmnop&error=input");
   });
 });

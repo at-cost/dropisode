@@ -8,7 +8,13 @@ export const APP_HOME = "/studio/";
 /** Only same-site relative paths, to avoid open redirects. Anything else becomes the studio. */
 export function safeNext(next: string | null | undefined, appUrl = "http://localhost"): string {
   if (!next || next.length > 500) return APP_HOME;
-  if (!next.startsWith("/") || next.startsWith("//") || next.includes("\\") || [...next].some((ch) => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127)) return APP_HOME;
+  if (
+    !next.startsWith("/") ||
+    next.startsWith("//") ||
+    next.includes("\\") ||
+    [...next].some((ch) => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127)
+  )
+    return APP_HOME;
   try {
     const base = new URL(appUrl);
     const u = new URL(next, base);
@@ -34,6 +40,12 @@ class Limiter {
     private readonly max: number,
     private readonly windowMs: number,
   ) {}
+  /** Seconds to wait if the key is already over its limit, without counting a hit. */
+  blocked(key: string): number {
+    const h = this.hits.get(key);
+    const now = Date.now();
+    return h && h.resetAt > now && h.n >= this.max ? Math.ceil((h.resetAt - now) / 1000) : 0;
+  }
   /** Seconds to wait, or 0 when allowed. */
   take(key: string): number {
     const now = Date.now();
@@ -48,7 +60,10 @@ class Limiter {
   }
 }
 
-const limiters = new WeakMap<Deps, { ip: Limiter; email: Limiter; verify: Limiter; invite: Limiter; password: Limiter }>();
+const limiters = new WeakMap<
+  Deps,
+  { ip: Limiter; email: Limiter; verify: Limiter; invite: Limiter; password: Limiter; passwordAccount: Limiter }
+>();
 
 export function limits(deps: Deps) {
   let l = limiters.get(deps);
@@ -59,12 +74,28 @@ export function limits(deps: Deps) {
       email: new Limiter(5, w),
       verify: new Limiter(30, w),
       invite: new Limiter(30, 60 * 60_000),
-      // Wrong-password guesses per account.
+      // Wrong passwords per account and IP, and per account from anywhere (higher, so one
+      // attacker can't easily lock a victim out of password sign-in).
       password: new Limiter(10, w),
+      passwordAccount: new Limiter(50, w),
     };
     limiters.set(deps, l);
   }
   return l;
+}
+
+/** Throws 429 if a key is already over its limit; doesn't count this attempt. */
+export function checkLimit(c: Ctx, which: keyof ReturnType<typeof limits>, key: string): void {
+  const wait = limits(c.get("deps"))[which].blocked(key);
+  if (wait > 0) {
+    c.header("Retry-After", String(wait));
+    throw new HttpError(429, "Too many attempts. Wait a few minutes and try again.");
+  }
+}
+
+/** Counts one attempt against a limit without failing (for counting only failures). */
+export function countAttempt(c: Ctx, which: keyof ReturnType<typeof limits>, key: string): void {
+  limits(c.get("deps"))[which].take(key);
 }
 
 export function rateLimit(c: Ctx, which: keyof ReturnType<typeof limits>, key: string): void {

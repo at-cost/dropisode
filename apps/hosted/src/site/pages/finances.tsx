@@ -20,8 +20,8 @@ export function financesPage(c: Ctx, f: FinancesSummary) {
       <>
         <h1>Finances</h1>
         <p class="lede">
-          Live figures from Dropisode's ledger, worked out with the same code that bills you. We charge the provider's price plus {markupPct}%.
-          This page shows where that money goes. The same data is at <a href="/finances.json">/finances.json</a>.
+          Live figures from Dropisode's ledger, worked out with the same code that bills you. We charge the provider's price plus{" "}
+          {markupPct}%. This page shows where that money goes. The same data is at <a href="/finances.json">/finances.json</a>.
         </p>
 
         <div class="grid" style="margin-top:16px">

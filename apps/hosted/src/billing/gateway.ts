@@ -103,7 +103,13 @@ export function stripeGateway(secretKey: string, webhookSecret: string): Payment
       if (event.type === "charge.refunded") {
         const ch = event.data.object as Stripe.Charge;
         const id = pi(ch.payment_intent);
-        return { kind: "refund", ref: `${ch.id}:${ch.amount_refunded}`, paymentIntentId: id, amountCents: ch.amount_refunded, ...(await topupOf(id)) };
+        return {
+          kind: "refund",
+          ref: `${ch.id}:${ch.amount_refunded}`,
+          paymentIntentId: id,
+          amountCents: ch.amount_refunded,
+          ...(await topupOf(id)),
+        };
       }
       if (event.type === "charge.dispute.created") {
         const d = event.data.object as Stripe.Dispute;

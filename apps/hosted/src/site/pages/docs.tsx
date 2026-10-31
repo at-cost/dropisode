@@ -11,7 +11,8 @@ export function docsPage(c: Ctx) {
   const tts = catalog.get(d.tts);
   return page(c, {
     title: "Docs",
-    description: "How to use Dropisode: getting started, prices, drafts and finals, approving shots, audio, export, and what V1 doesn't do.",
+    description:
+      "How to use Dropisode: getting started, prices, drafts and finals, approving shots, audio, export, and what V1 doesn't do.",
     body: (
       <>
         <h1>Docs</h1>
@@ -30,8 +31,8 @@ export function docsPage(c: Ctx) {
         <h2 id="start">Getting started (hosted)</h2>
         <ol>
           <li>
-            <a href="/sign-up">Sign up</a> with your email and a password, or with Google. You get a workspace. Invite as many people to it as you
-            like; there are no seats.
+            <a href="/sign-up">Sign up</a> with your email and a password, or with Google. You get a workspace. Invite as many people to it
+            as you like; there are no seats.
           </li>
           <li>
             Top up on the <a href="/billing">Billing</a> page, from ${platform.minTopupUsd}. There is no free credit, so you top up before
@@ -43,8 +44,8 @@ export function docsPage(c: Ctx) {
           </li>
           <li>Write or paste a script, or give a one-line idea and let the script model draft one. Dropisode splits it into scenes.</li>
           <li>
-            Check the cast. Dropisode picks out characters, locations and props. Give each a description and reference images: generate them, or
-            upload your own. Uploading a photo of a real person needs that person's consent, and you confirm it when you upload.
+            Check the cast. Dropisode picks out characters, locations and props. Give each a description and reference images: generate
+            them, or upload your own. Uploading a photo of a real person needs that person's consent, and you confirm it when you upload.
           </li>
           <li>Storyboard each scene. Each shot is a card you can edit, reorder, split or merge.</li>
           <li>Generate drafts, approve the shots you like, render finals, and assemble the episode.</li>
@@ -95,8 +96,8 @@ export function docsPage(c: Ctx) {
         <h2 id="audio">Audio</h2>
         <ul>
           <li>
-            <strong>Native:</strong> some video models make their own dialogue and sound. Dropisode sends the shot's lines in the prompt. The
-            pricing page marks these models.
+            <strong>Native:</strong> some video models make their own dialogue and sound. Dropisode sends the shot's lines in the prompt.
+            The pricing page marks these models.
           </li>
           <li>
             <strong>Text to speech:</strong> for models without native audio, or when you choose it, Dropisode voices each line with a
@@ -171,8 +172,8 @@ export function docsLocalPage(c: Ctx) {
             A fal.ai key, from your fal.ai dashboard. Not needed for <code>--mock</code>.
           </li>
           <li>
-            ffmpeg. Dropisode uses yours if it can burn in subtitles, and otherwise the copy bundled with the package. If neither works, it tells
-            you how to install it. You can point it at a specific ffmpeg with <code>REEL_FFMPEG</code>.
+            ffmpeg. Dropisode uses yours if it can burn in subtitles, and otherwise the copy bundled with the package. If neither works, it
+            tells you how to install it. You can point it at a specific ffmpeg with <code>REEL_FFMPEG</code>.
           </li>
         </ul>
 
@@ -203,9 +204,9 @@ export function docsLocalPage(c: Ctx) {
             <code>jobs/</code> folder and <code>exports/</code>. No database server.
           </li>
           <li>
-            Your fal.ai key is saved in <code>~/.config/dropisode/config.json</code> (or <code>$XDG_CONFIG_HOME/reel/config.json</code>, or the
-            path in <code>REEL_CONFIG</code>), readable only by you. It is never sent to the browser. You can also set <code>FAL_KEY</code>{" "}
-            in the environment.
+            Your fal.ai key is saved in <code>~/.config/dropisode/config.json</code> (or <code>$XDG_CONFIG_HOME/reel/config.json</code>, or
+            the path in <code>REEL_CONFIG</code>), readable only by you. It is never sent to the browser. You can also set{" "}
+            <code>FAL_KEY</code> in the environment.
           </li>
           <li>
             Optionally add a fal key with billing access, so Dropisode can record what fal actually billed for each request instead of the
@@ -221,8 +222,8 @@ export function docsLocalPage(c: Ctx) {
 
         <h2>Moderation in local mode</h2>
         <p>
-          Local mode has no moderation layer of ours: nothing is checked by Dropisode before it is sent. fal.ai's and the model providers' own
-          filters still apply, and their terms still bind you. fal.ai requires end users to be 18 or over.
+          Local mode has no moderation layer of ours: nothing is checked by Dropisode before it is sent. fal.ai's and the model providers'
+          own filters still apply, and their terms still bind you. fal.ai requires end users to be 18 or over.
         </p>
       </>
     ),

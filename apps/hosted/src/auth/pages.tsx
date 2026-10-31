@@ -10,12 +10,12 @@ import { safeNext } from "./util";
 export const authPages = new Hono<AppEnv>();
 
 const ERRORS: Record<string, string> = {
-  link: "That link is used or expired. Ask for a new one.",
+  link: "That link is used or expired. Sign up again, or if you already have an account, reset your password.",
   oauth: "That sign-in didn't work. Try again, or use your email and password.",
   rate: "Too many attempts. Wait a few minutes and try again.",
   email: "Enter a valid email address.",
   input: "Enter a valid email address and a password of at least 10 characters.",
-  password: "Wrong email or password.",
+  password: "Wrong email or password. If you joined with Google or an email link, use that, or reset your password.",
 };
 
 /** Posts a form as JSON; on success goes to data.next or shows the [data-done] block. */
@@ -58,7 +58,9 @@ function Providers(p: { google: boolean; github: boolean; q: string }) {
   if (!p.google && !p.github) return null;
   return (
     <div class="stack">
-      <p class="muted small" style="text-align:center">or</p>
+      <p class="muted small" style="text-align:center">
+        or
+      </p>
       {p.google ? (
         <a class="button secondary" style="display:block;text-align:center" href={`/auth/oauth/google${p.q}`}>
           Continue with Google
@@ -90,6 +92,7 @@ authPages.get("/sign-in", (c) => {
         No account yet? <a href={`/sign-up${q}`}>Sign up</a>
       </p>
       {err ? <p class="notice">{err}</p> : null}
+      {c.req.query("sent") === "1" ? <p class="notice">Check your email for a sign-in link. It works once, for 15 minutes.</p> : null}
       <form class="card stack" method="post" action="/auth/sign-in" data-auth="">
         <Field id="email" label="Email" type="email" auto="email" />
         <Field id="password" label="Password" type="password" auto="current-password" />
@@ -169,11 +172,15 @@ authPages.get("/forgot", (c) => {
 authPages.get("/reset", (c) => {
   const token = (c.req.query("token") ?? "").replace(/[^A-Za-z0-9_-]/g, "");
   if (token.length < 10 || token.length > 200) return c.redirect("/forgot?error=link");
+  const fresh = c.req.query("new") === "1";
+  const err = ERRORS[c.req.query("error") ?? ""];
   return render(
     c,
-    "Choose a new password",
+    fresh ? "Choose a password" : "Choose a new password",
     <div class="narrow stack">
-      <h1>Choose a new password</h1>
+      <h1>{fresh ? "Choose a password" : "Choose a new password"}</h1>
+      {fresh ? <p class="muted">Your email is confirmed and your account is ready. Choose a password to sign in with next time.</p> : null}
+      {err ? <p class="notice">{err}</p> : null}
       <form class="card stack" method="post" action="/auth/reset" data-auth="">
         <Field id="password" label="New password" type="password" auto="new-password" min={10} hint="At least 10 characters." />
         <input type="hidden" name="token" value={token} />

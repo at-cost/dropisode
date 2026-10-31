@@ -110,15 +110,15 @@ export function termsPage(c: Ctx) {
 
       <h2>Ending your use</h2>
       <p>
-        You can stop using Dropisode at any time and ask for your unused credit back. We may suspend or close an account that breaks these terms,
-        after telling you why unless the law or safety prevents it.
+        You can stop using Dropisode at any time and ask for your unused credit back. We may suspend or close an account that breaks these
+        terms, after telling you why unless the law or safety prevents it.
       </p>
 
       <h2>Our liability</h2>
       <p>
-        We provide Dropisode as it is. We do our best to keep it running and your data safe, but we can't promise it will always be available or
-        that every generation will succeed. As far as the law allows, our liability to you is limited to the amount you paid us in the 12
-        months before the claim. Nothing here limits liability that the law does not allow us to limit.
+        We provide Dropisode as it is. We do our best to keep it running and your data safe, but we can't promise it will always be
+        available or that every generation will succeed. As far as the law allows, our liability to you is limited to the amount you paid us
+        in the 12 months before the claim. Nothing here limits liability that the law does not allow us to limit.
       </p>
 
       <h2>Changes</h2>
@@ -259,8 +259,8 @@ export function privacyPage(c: Ctx) {
 
       <h2>Local mode</h2>
       <p>
-        If you run Dropisode on your own computer, we receive nothing. Your projects stay on your disk and your requests go straight to fal.ai
-        under your own account.
+        If you run Dropisode on your own computer, we receive nothing. Your projects stay on your disk and your requests go straight to
+        fal.ai under your own account.
       </p>
     </>,
   );

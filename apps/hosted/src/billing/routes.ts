@@ -154,7 +154,8 @@ async function reverseTopup(deps: Deps, r: PaymentReversal): Promise<boolean> {
   if (!found) return false;
   await deps.db.transaction().execute(async (tx) => {
     const topup = await tx.selectFrom("topups").selectAll().where("id", "=", found.id).forUpdate().executeTakeFirstOrThrow();
-    if (!topup.paymentIntentId && r.paymentIntentId) await tx.updateTable("topups").set({ paymentIntentId: r.paymentIntentId }).where("id", "=", topup.id).execute();
+    if (!topup.paymentIntentId && r.paymentIntentId)
+      await tx.updateTable("topups").set({ paymentIntentId: r.paymentIntentId }).where("id", "=", topup.id).execute();
     const paidMicro = centsToMicro(topup.amountCents);
     const prior = await tx
       .selectFrom("ledger")

@@ -521,13 +521,13 @@ export function pricingPage(c: Ctx) {
         <div class="notice">
           <p style="margin-top:0">
             <strong>Where subscriptions win.</strong> Higgsfield is cheaper per final second on most models, often by a lot. Kling 3.0 on
-            Higgsfield is about a third of Dropisode's price, and its 7-day unlimited Kling 3.0 window can make Kling drafts nearly free for a
-            week. If you use all your credits every month on Kling or Seedance, a subscription is cheaper than Dropisode.
+            Higgsfield is about a third of Dropisode's price, and its 7-day unlimited Kling 3.0 window can make Kling drafts nearly free for
+            a week. If you use all your credits every month on Kling or Seedance, a subscription is cheaper than Dropisode.
           </p>
           <p>
-            Dropisode is about even on Veo 3.1 Fast and Veo 3.1. It is cheaper only where Higgsfield has no cheap tier: drafting on Veo 3.1 Lite
-            or MiniMax H3 Max Turbo. That is why Dropisode's draft then final beats four tries on the same model for Veo, Seedance 2.0 and Wan,
-            but not for Kling.
+            Dropisode is about even on Veo 3.1 Fast and Veo 3.1. It is cheaper only where Higgsfield has no cheap tier: drafting on Veo 3.1
+            Lite or MiniMax H3 Max Turbo. That is why Dropisode's draft then final beats four tries on the same model for Veo, Seedance 2.0
+            and Wan, but not for Kling.
           </p>
           <p style="margin-bottom:0">
             Higgsfield's "unlimited" plans include "dynamic speed adjustments" at busy times, and unused credits don't carry over. Its
@@ -535,8 +535,8 @@ export function pricingPage(c: Ctx) {
           </p>
         </div>
         <p>
-          Dropisode's case is not the lowest price per second. It is no subscription, no unused credits at month end, no throttling, the real
-          cost of every job, automatic refunds for unbilled failures, and a studio you can run yourself with your own key.
+          Dropisode's case is not the lowest price per second. It is no subscription, no unused credits at month end, no throttling, the
+          real cost of every job, automatic refunds for unbilled failures, and a studio you can run yourself with your own key.
         </p>
       </>
     ),

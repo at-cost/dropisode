@@ -29,6 +29,8 @@ export interface DB {
     purpose: Generated<"signin" | "signup" | "reset">;
     passwordHash: Generated<string | null>;
     name: Generated<string | null>;
+    /** Sign-up only: hash of a cookie set in the browser that signed up. Its password applies only in that browser. */
+    browserHash: Generated<string | null>;
   };
   oauthAccounts: { provider: string; providerUserId: string; userId: string; createdAt: Generated<Date> };
   workspaces: {

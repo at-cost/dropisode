@@ -15,6 +15,18 @@ export async function findOrCreateUser(db: Db, p: { email: string; name?: string
   }
   const id = uuid();
   const name = p.name?.trim() || email.split("@")[0]!;
+  try {
+    await create(db, id, email, name);
+  } catch (err) {
+    // Two confirmations for the same new email at once: the other one created it.
+    const raced = await db.selectFrom("users").select("id").where("email", "=", email).executeTakeFirst();
+    if (raced) return { id: raced.id, created: false };
+    throw err;
+  }
+  return { id, created: true };
+}
+
+async function create(db: Db, id: string, email: string, name: string): Promise<void> {
   await db.transaction().execute(async (tx) => {
     await tx.insertInto("users").values({ id, email, name, emailVerifiedAt: new Date() }).execute();
     const wsId = uuid();
@@ -24,5 +36,4 @@ export async function findOrCreateUser(db: Db, p: { email: string; name?: string
       .execute();
     await tx.insertInto("workspaceMembers").values({ workspaceId: wsId, userId: id, role: "owner" }).execute();
   });
-  return { id, created: true };
 }

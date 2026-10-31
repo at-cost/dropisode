@@ -95,8 +95,8 @@ reportRoutes.get("/report", (c) =>
     <Layout title="Report abuse" user={c.get("user")} description="Report content made with Dropisode that breaks our rules.">
       <h1>Report abuse</h1>
       <p class="muted">
-        Tell us about content made with Dropisode that impersonates someone, sexualises a real person, involves a minor, harasses, or is illegal.
-        We read every report.
+        Tell us about content made with Dropisode that impersonates someone, sexualises a real person, involves a minor, harasses, or is
+        illegal. We read every report.
       </p>
       <p class="muted small">If someone is in danger, contact the police first.</p>
       <Form />

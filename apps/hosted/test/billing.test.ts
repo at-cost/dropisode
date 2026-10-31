@@ -495,9 +495,12 @@ describe("Stripe event order", () => {
     const ws = await t.workspaceOf(cookie);
     await t.request("POST", "/api/billing/topup", { cookie, body: { amountUsd: 10 } });
     const s = t.stripe.sessions[0]!;
-    const send = (body: unknown) => t.request("POST", "/webhooks/stripe", { body: JSON.stringify(body), headers: { "stripe-signature": "fake-signature" } });
+    const send = (body: unknown) =>
+      t.request("POST", "/webhooks/stripe", { body: JSON.stringify(body), headers: { "stripe-signature": "fake-signature" } });
     // Dispute first: the top-up has no payment intent recorded yet.
-    expect((await send({ kind: "dispute", ref: "dp_early", paymentIntentId: "pi_early", amountCents: 1000, topupId: s.topupId })).status).toBe(200);
+    expect(
+      (await send({ kind: "dispute", ref: "dp_early", paymentIntentId: "pi_early", amountCents: 1000, topupId: s.topupId })).status,
+    ).toBe(200);
     // Then the payment confirmation.
     await send({ sessionId: s.id, topupId: s.topupId, workspaceId: ws, amountCents: 1000, paymentIntentId: "pi_early", paid: true });
     expect((await walletState(t.deps.db, ws)).balanceMicro).toBe(0);
@@ -507,7 +510,10 @@ describe("Stripe event order", () => {
 
   it("a reversal for an unknown payment asks Stripe to retry instead of being dropped", async () => {
     t = await testApp();
-    const res = await t.request("POST", "/webhooks/stripe", { body: JSON.stringify({ kind: "refund", ref: "x", paymentIntentId: "pi_unknown", amountCents: 100 }), headers: { "stripe-signature": "fake-signature" } });
+    const res = await t.request("POST", "/webhooks/stripe", {
+      body: JSON.stringify({ kind: "refund", ref: "x", paymentIntentId: "pi_unknown", amountCents: 100 }),
+      headers: { "stripe-signature": "fake-signature" },
+    });
     expect(res.status).toBe(500);
   });
 });
