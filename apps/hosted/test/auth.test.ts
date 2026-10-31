@@ -400,6 +400,8 @@ describe("email and password accounts", () => {
     for (let i = 0; i < 11; i++) codes.push((await signInPw("g@reel.test", `guess number ${i}`, "198.51.100.7")).status);
     expect(codes.slice(0, 10).every((c) => c === 400)).toBe(true);
     expect(codes[10]).toBe(429);
+    const locked = await signInPw("g@reel.test", "one more guess", "198.51.100.7");
+    expect(((await locked.json()) as { error: string }).error).toContain("reset your password");
     // Locked for the guessing IP even with the right password...
     expect((await signInPw("g@reel.test", PW, "198.51.100.7")).status).toBe(429);
     // ...but the owner elsewhere still gets in, and right passwords never count.

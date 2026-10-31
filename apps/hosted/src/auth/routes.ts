@@ -220,6 +220,7 @@ authRoutes.post("/verify", async (c) => {
   return c.redirect(`/reset?token=${encodeURIComponent(reset)}&new=1`);
 });
 
+const ERR_LOCKED = "Too many attempts for this account. Wait 15 minutes, or reset your password to get in now.";
 const ERR_PASSWORD = "Wrong email or password. If you joined with Google or an email link, use that, or reset your password.";
 const base = (deps: Deps) => deps.config.APP_URL.replace(/\/$/, "");
 const liveUser = (deps: Deps, email: string) =>
@@ -326,17 +327,20 @@ authRoutes.post("/sign-in", async (c) => {
   // Attempts are counted as they arrive (so a burst of parallel guesses can't slip past
   // the limits) and given back when the password is right, so only wrong guesses add up.
   const perIp = `pw:${email}|${clientIp(c)}`;
-  const counted: Parameters<typeof refundAttempt>[1][] = [];
+  // Which check is running, so a refusal can say whether the account or the network hit its limit.
+  let stage: "ip" | "password" | "account" = "ip";
   try {
     rateLimit(c, "ip", `ip:${clientIp(c)}`);
+    stage = "password";
     rateLimit(c, "password", perIp);
-    counted.push("password");
+    stage = "account";
     rateLimit(c, "passwordAccount", `pw:${email}`);
-    counted.push("passwordAccount");
   } catch (err) {
-    if (counted.includes("password")) refundAttempt(c, "password", perIp);
-    if (isForm(c)) return c.redirect("/sign-in?error=rate");
-    throw new HttpError(429, "Too many attempts for this account. Wait 15 minutes, or reset your password to get in now.");
+    if (stage === "account") refundAttempt(c, "password", perIp);
+    // Only the account's own limits suggest a reset; the per-IP limit also covers /forgot.
+    if (isForm(c)) return c.redirect(stage === "ip" ? "/sign-in?error=rate" : "/sign-in?error=locked");
+    if (stage === "ip") throw err;
+    throw new HttpError(429, ERR_LOCKED);
   }
   const u = await liveUser(deps, email);
   if (!(await verifyPassword(password, u?.passwordHash)) || !u) return reply(c, { error: ERR_PASSWORD }, 400, "/sign-in?error=password");

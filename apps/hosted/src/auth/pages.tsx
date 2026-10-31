@@ -16,6 +16,7 @@ const ERRORS: Record<string, string> = {
   rate: "Too many attempts. Wait a few minutes and try again.",
   email: "Enter a valid email address.",
   input: "Enter a valid email address and a password of at least 10 characters.",
+  locked: "Too many attempts for this account. Wait 15 minutes, or reset your password to get in now.",
   newpassword: "Use a password of 10 to 200 characters.",
   password: "Wrong email or password. If you joined with Google or an email link, use that, or reset your password.",
 };
