@@ -172,7 +172,7 @@ function CastCard({ c, hint }: { c: CastMember; hint: string }) {
           disabled={generating}
           onClick={() => void act(`gen-${c.id}`, () => api.post<View>(`${path}/generate`), { kick: true })}
         >
-          {generating ? <Spinner /> : <Icon name="image" />} {generating ? "Generating" : "Generate image"}
+          {generating ? <Spinner /> : <Icon name="image" />} {generating ? "Generating" : "Generate"}
           {!generating && <Ticket micro={estimates?.castImage} />}
         </button>
         <input

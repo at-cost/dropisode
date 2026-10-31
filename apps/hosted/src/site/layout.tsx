@@ -74,7 +74,12 @@ button.secondary,.button.secondary{background:transparent;color:var(--accent)}
 .ok-text{color:var(--ok)}.warn-text{color:var(--warn)}.bad-text{color:var(--bad)}
 .big{font-family:var(--display);font-size:34px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}.stat .big{display:block;margin-top:2px}
-.toc{display:flex;gap:6px;flex-wrap:wrap;font-size:14px;margin:12px 0 8px;position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0}
+.toc{display:flex;gap:6px;flex-wrap:wrap;font-size:14px;margin:12px 0 8px;position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0;border-bottom:1px solid var(--border)}
+@media (max-width:640px){.toc{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-left:-16px;margin-right:-16px;padding:10px 16px}.toc::-webkit-scrollbar{display:none}.toc a{white-space:nowrap}}
+@media (max-width:640px){.media-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}
+@media (min-width:1000px){.docs-layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:40px;align-items:start}.docs-toc{flex-direction:column;align-items:stretch;position:sticky;top:16px;border:0;margin:0;padding:0;background:none}.docs-layout .docs-toc a{border:0;background:none;border-radius:8px;padding:6px 10px}.docs-layout .docs-toc a:hover{background:var(--surface)}.docs-body>h2:first-child{margin-top:0}}
+.script{font:15px/1.75 var(--font);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;white-space:pre-wrap;max-width:760px;margin:0}
+.script b{font-variant:small-caps;letter-spacing:.04em}.script .sh{font-weight:700;display:inline-block;margin-top:8px;color:var(--accent)}
 .toc a{text-decoration:none;color:var(--text-2);border:1px solid var(--border);border-radius:999px;padding:5px 12px;background:var(--surface)}.toc a:hover{color:var(--text);border-color:var(--accent)}
 .shots-grid{grid-template-columns:repeat(6,minmax(0,1fr))}@media (max-width:1000px){.shots-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media (max-width:520px){.shots-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 body.auth{display:flex;flex-direction:column}body.auth main{flex:1}

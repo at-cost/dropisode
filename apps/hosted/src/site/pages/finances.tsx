@@ -67,33 +67,35 @@ export function financesPage(c: Ctx, f: FinancesSummary) {
           <p class="card muted">No generations yet.</p>
         ) : (
           <TableWrap label="Generation spend">
-            <table>
+            <table class="fit-sm">
               <thead>
                 <tr>
-                  <th>Provider</th>
+                  <th class="sm-hide">Provider</th>
                   <th>Model</th>
-                  <th class="num">Jobs</th>
-                  <th class="num">Provider cost</th>
+                  <th class="num sm-hide">Jobs</th>
+                  <th class="num sm-hide">Provider cost</th>
                   <th class="num">Charged</th>
                 </tr>
               </thead>
               <tbody>
                 {f.generation.map((g) => (
                   <tr data-model={g.model}>
-                    <td>{g.provider === "mock" ? "Test mode" : g.provider === "fal" ? "fal.ai" : g.provider}</td>
+                    <td class="sm-hide">{g.provider === "mock" ? "Test mode" : g.provider === "fal" ? "fal.ai" : g.provider}</td>
                     <td>{modelName(g.model)}</td>
-                    <td class="num">{int(g.jobs)}</td>
-                    <td class="num">{usd(g.providerCostMicro)}</td>
+                    <td class="num sm-hide">{int(g.jobs)}</td>
+                    <td class="num sm-hide">{usd(g.providerCostMicro)}</td>
                     <td class="num">{usd(g.chargedMicro)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td>Total</td>
-                  <td />
-                  <td class="num">{int(f.generation.reduce((a, g) => a + g.jobs, 0))}</td>
-                  <td class="num">{usd(genCost)}</td>
+                  <td class="sm-hide">Total</td>
+                  <td>
+                    <span class="sm-only">Total</span>
+                  </td>
+                  <td class="num sm-hide">{int(f.generation.reduce((a, g) => a + g.jobs, 0))}</td>
+                  <td class="num sm-hide">{usd(genCost)}</td>
                   <td class="num">{usd(genCharged)}</td>
                 </tr>
               </tfoot>

@@ -74,7 +74,9 @@ accountPages.get("/account", async (c) => {
         </tbody>
       </table>
       <h3 style="margin-top:22px">Start another workspace</h3>
-      <p class="muted small" style="margin-top:0">For a separate team or client, with its own projects and balance.</p>
+      <p class="muted small" style="margin-top:0">
+        For a separate team or client, with its own projects and balance.
+      </p>
       <form class="row" data-api="/api/account/workspaces" data-next="/account">
         <input class="wide-input" name="name" required maxlength={80} placeholder="Name a new workspace" aria-label="New workspace name" />
         <button type="submit">Create workspace</button>
@@ -97,13 +99,13 @@ accountPages.get("/account", async (c) => {
             <strong>Members are free.</strong> <span class="muted">Invite as many people as you like. There are no seats.</span>
           </p>
           <div class="scroll">
-            <table>
+            <table class="fit-sm">
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Email</th>
+                  <th class="sm-hide">Email</th>
                   <th>Role</th>
-                  <th>Joined</th>
+                  <th class="sm-hide">Joined</th>
                   <th />
                 </tr>
               </thead>
@@ -115,10 +117,11 @@ accountPages.get("/account", async (c) => {
                     <tr>
                       <td>
                         {m.name} {me ? <span class="tag">you</span> : null}
+                        <span class="sm-only muted small">{m.email}</span>
                       </td>
-                      <td>{m.email}</td>
+                      <td class="sm-hide">{m.email}</td>
                       <td>{m.role}</td>
-                      <td>{fmtDate(m.joinedAt)}</td>
+                      <td class="sm-hide nowrap">{fmtDate(m.joinedAt)}</td>
                       <td class="num">
                         {owner && !lastOwner ? (
                           <form class="inline" data-api={`/api/account/members/${m.userId}`} data-method="PATCH" data-next="/account">
@@ -282,7 +285,7 @@ accountPages.get("/billing", async (c) => {
           <div class="muted small">
             {lasts === null
               ? "No daily charge right now."
-              : `Your balance lasts about ${lasts} ${lasts === 1 ? "day" : "days"} at this rate, before generations.`}
+              : `At this rate, the daily charge alone would use your balance in about ${lasts} ${lasts === 1 ? "day" : "days"}.`}
           </div>
         </div>
       </div>

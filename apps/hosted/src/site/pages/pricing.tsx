@@ -215,7 +215,7 @@ export function pricingPage(c: Ctx) {
             <select name="final">
               {catalog.list("video", "final").map((m) => (
                 <option value={m.id} selected={m.id === input.finalVideo}>
-                  {m.label}
+                  {m.label.replace(/\s*\([^)]*\)$/, "")}
                 </option>
               ))}
             </select>
@@ -243,7 +243,7 @@ export function pricingPage(c: Ctx) {
                 <th>Final model</th>
                 <th class="num sm-hide">Billed per shot</th>
                 <th class="num sm-hide">Final only: fal</th>
-                <th class="num">Final only: you pay</th>
+                <th class="num sm-hide">Final only: you pay</th>
                 <th class="num sm-hide">Draft then final: fal</th>
                 <th class="num">Draft then final: you pay</th>
               </tr>
@@ -267,7 +267,7 @@ export function pricingPage(c: Ctx) {
                     ) : null}
                   </td>
                   <td class="num sm-hide">{usd(r.finalOnly.providerMicro)}</td>
-                  <td class="num">
+                  <td class="num sm-hide">
                     <strong>{usd(r.finalOnly.chargeMicro)}</strong>
                   </td>
                   <td class="num sm-hide">{usd(r.draftThenFinal.providerMicro)}</td>

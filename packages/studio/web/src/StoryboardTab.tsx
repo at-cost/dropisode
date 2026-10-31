@@ -360,7 +360,33 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
       </div>
 
       <div className="shot-body">
-        <Preview pid={pid} take={take} aspect={p.aspect} />
+        <div className="shot-media">
+          <Preview pid={pid} take={take} aspect={p.aspect} />
+          {shot.takes.length > 0 && (
+            <div className="takes">
+              {shot.takes.map((t, i) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`take${t.id === take?.id ? " selected" : ""} ${t.status}`}
+                  title={
+                    t.error ??
+                    `${t.tier === "final" ? "Final" : "Draft"} take ${i + 1}, ${t.status}. ${modelLabel(app.config, t.imageModel)}, then ${modelLabel(app.config, t.videoModel)}`
+                  }
+                  onClick={() => {
+                    if (t.id !== shot.selectedTakeId) void patch({ selectedTakeId: t.id });
+                  }}
+                >
+                  {t.frameMediaId ? <img src={mediaUrl(pid, t.frameMediaId)} alt="" /> : <span className="take-blank" />}
+                  <span className="take-meta">
+                    <span className={`tier ${t.tier}`}>{t.tier === "final" ? "Final" : "Draft"}</span> {i + 1}
+                    <span className={`status ${t.status}`}>{t.status === "done" ? (t.videoMediaId ? "" : "frame") : t.status}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="shot-fields">
           <textarea
             key={shot.description}
@@ -436,65 +462,39 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
               {cap(shot.camera.trim()) || "No camera set"} · {round(shot.durationS)} s · {AUDIO[shot.audio] ?? shot.audio}
             </button>
           )}
-        </div>
-      </div>
+          <Dialogue shot={shot} onSave={(dialogue) => void patch({ dialogue })} />
 
-      <Dialogue shot={shot} onSave={(dialogue) => void patch({ dialogue })} />
-
-      <div className="row tight">
-        <button type="button" disabled={generating || isBusy(`take-${shot.id}-draft`)} onClick={() => gen("draft")}>
-          Draft <Ticket micro={est?.draft} />
-        </button>
-        <button
-          type="button"
-          className={approved ? "final-ready" : ""}
-          title={approved ? undefined : "Draft and approve the shot first"}
-          disabled={!approved || approving !== null || generating || isBusy(`take-${shot.id}-final`)}
-          onClick={() => gen("final")}
-        >
-          Final <Ticket micro={est?.final} />
-        </button>
-        {generating ? (
-          <span className="muted small-text">
-            <Spinner /> Generating
-          </span>
-        ) : (
-          !approved && shot.takes.length > 0 && <Why>Approve the shot first</Why>
-        )}
-      </div>
-
-      {shot.takes.length > 0 && (
-        <div className="takes">
-          {shot.takes.map((t, i) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`take${t.id === take?.id ? " selected" : ""} ${t.status}`}
-              title={
-                t.error ??
-                `${t.tier === "final" ? "Final" : "Draft"} take ${i + 1}, ${t.status}. ${modelLabel(app.config, t.imageModel)}, then ${modelLabel(app.config, t.videoModel)}`
-              }
-              onClick={() => {
-                if (t.id !== shot.selectedTakeId) void patch({ selectedTakeId: t.id });
-              }}
-            >
-              {t.frameMediaId ? <img src={mediaUrl(pid, t.frameMediaId)} alt="" /> : <span className="take-blank" />}
-              <span className="take-meta">
-                <span className={`tier ${t.tier}`}>{t.tier === "final" ? "Final" : "Draft"}</span> {i + 1}
-                <span className={`status ${t.status}`}>{t.status === "done" ? (t.videoMediaId ? "" : "frame") : t.status}</span>
-              </span>
+          <div className="row tight">
+            <button type="button" disabled={generating || isBusy(`take-${shot.id}-draft`)} onClick={() => gen("draft")}>
+              Draft <Ticket micro={est?.draft} />
             </button>
-          ))}
-        </div>
-      )}
-      {shot.takes
-        .filter((t) => t.status === "failed" && t.error)
-        .slice(-1)
-        .map((t) => (
-          <div key={t.id} className="take-error small-text">
-            Last failure: {t.error}
+            <button
+              type="button"
+              className={approved ? "final-ready" : ""}
+              title={approved ? undefined : "Draft and approve the shot first"}
+              disabled={!approved || approving !== null || generating || isBusy(`take-${shot.id}-final`)}
+              onClick={() => gen("final")}
+            >
+              Final <Ticket micro={est?.final} />
+            </button>
+            {generating ? (
+              <span className="muted small-text">
+                <Spinner /> Generating
+              </span>
+            ) : (
+              !approved && shot.takes.length > 0 && <Why>Approve the shot first</Why>
+            )}
           </div>
-        ))}
+          {shot.takes
+            .filter((t) => t.status === "failed" && t.error)
+            .slice(-1)
+            .map((t) => (
+              <div key={t.id} className="take-error small-text">
+                Last failure: {t.error}
+              </div>
+            ))}
+        </div>
+      </div>
 
       {lines.length > 0 && (
         <details className="shot-costs">

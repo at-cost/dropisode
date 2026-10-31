@@ -26,6 +26,8 @@ export function Projects() {
   const [name, setName] = useState("");
   const [idea, setIdea] = useState("");
   const [aspect, setAspect] = useState<Aspect>("9:16");
+  // On a phone the form folds into one button once there are projects.
+  const [formOpen, setFormOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -114,14 +116,11 @@ export function Projects() {
             <div className="project-grid">
               {list.map((p) => (
                 <article key={p.id} className={`project-card ${p.aspect === "16:9" ? "wide" : "tall"}`}>
-                  <a
-                    className={`poster ${p.aspect === "16:9" ? "wide" : "tall"}`}
-                    href={`#/p/${p.id}/script`}
-                    aria-label={`Open ${p.name}`}
-                    style={posterStyle(p.id)}
-                  >
-                    <span className="poster-title">{p.name}</span>
-                    <span className="poster-format">{p.aspect === "16:9" ? "16:9" : "9:16"}</span>
+                  <a className="poster-stage" href={`#/p/${p.id}/script`} aria-label={`Open ${p.name}`}>
+                    <span className={`poster ${p.aspect === "16:9" ? "wide" : "tall"}`} style={posterStyle(p.id)}>
+                      <span className="poster-title">{p.name}</span>
+                      <span className="poster-format">{p.aspect === "16:9" ? "16:9" : "9:16"}</span>
+                    </span>
                   </a>
                   <div className="project-info">
                     <p className="project-meta">
@@ -154,7 +153,10 @@ export function Projects() {
           )}
         </section>
 
-        <aside className="new-project" aria-label="New project">
+        <aside className={`new-project${!empty && !formOpen ? " collapsible" : ""}`} aria-label="New project">
+          <button type="button" className="primary new-toggle" onClick={() => setFormOpen(true)}>
+            <Icon name="plus" /> New project
+          </button>
           <h2>Start a new episode</h2>
           <form
             className="form"

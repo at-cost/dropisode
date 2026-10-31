@@ -78,48 +78,76 @@ export function CostsTab() {
       {lines.length === 0 ? (
         <Empty>Nothing spent yet.</Empty>
       ) : (
-        <div className="table-wrap">
-          <table className="table costs">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Purpose</th>
-                <th>For</th>
-                <th>Model</th>
-                <th>Provider</th>
-                <th>Tier</th>
-                <th className="num">Units</th>
-                <th className="num">Estimate</th>
-                <th className="num">Paid</th>
-                <th>Status</th>
-                {hasNotes && <th>Note</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((l) => (
-                <tr key={l.id} className={l.status === "refunded" ? "refunded" : ""}>
-                  <td className="nowrap">
-                    <When iso={l.at} />
-                  </td>
-                  <td>{PURPOSE[l.purpose] ?? l.purpose}</td>
-                  <td className="muted">{l.shotId ? shotLabel(p, l.shotId) : castName(l.castId)}</td>
-                  <td>{modelLabel(app.config, l.model)}</td>
-                  <td>{providerLabel(l.provider)}</td>
-                  <td>{l.tier === "final" ? "Final" : l.tier === "draft" ? "Draft" : ""}</td>
-                  <td className="num nowrap">{unitLabel(l.units, l.unit)}</td>
-                  <td className="num muted">{money(l.estimatePaidMicro)}</td>
-                  <td className="num">
-                    <strong>{money(l.paidMicro)}</strong>
-                  </td>
-                  <td>
-                    <StatusBadge status={l.status} />
-                  </td>
-                  {hasNotes && <td className="muted">{l.note}</td>}
+        <>
+          <ul className="cost-rows">
+            {lines.map((l) => {
+              const what = l.shotId ? shotLabel(p, l.shotId) : castName(l.castId);
+              const label = PURPOSE[l.purpose] ?? l.purpose;
+              return (
+                <li key={l.id} className={l.status === "refunded" ? "refunded" : ""}>
+                  <div className="cost-what">
+                    <strong>
+                      {l.tier ? `${l.tier === "final" ? "Final" : "Draft"} ${label.toLowerCase()}` : label}
+                      {what ? `, ${what}` : ""}
+                    </strong>
+                    <span className="muted">
+                      <When iso={l.at} /> · {modelLabel(app.config, l.model)}
+                      {l.status !== "charged" && (
+                        <>
+                          {" "}
+                          · <StatusBadge status={l.status} />
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <strong className="cost-paid">{money(l.paidMicro)}</strong>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="table-wrap">
+            <table className="table costs">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Purpose</th>
+                  <th>For</th>
+                  <th>Model</th>
+                  <th>Provider</th>
+                  <th>Tier</th>
+                  <th className="num">Units</th>
+                  <th className="num">Estimate</th>
+                  <th className="num">Paid</th>
+                  <th>Status</th>
+                  {hasNotes && <th>Note</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {lines.map((l) => (
+                  <tr key={l.id} className={l.status === "refunded" ? "refunded" : ""}>
+                    <td className="nowrap">
+                      <When iso={l.at} />
+                    </td>
+                    <td>{PURPOSE[l.purpose] ?? l.purpose}</td>
+                    <td className="muted">{l.shotId ? shotLabel(p, l.shotId) : castName(l.castId)}</td>
+                    <td>{modelLabel(app.config, l.model)}</td>
+                    <td>{providerLabel(l.provider)}</td>
+                    <td>{l.tier === "final" ? "Final" : l.tier === "draft" ? "Draft" : ""}</td>
+                    <td className="num nowrap">{unitLabel(l.units, l.unit)}</td>
+                    <td className="num muted">{money(l.estimatePaidMicro)}</td>
+                    <td className="num">
+                      <strong>{money(l.paidMicro)}</strong>
+                    </td>
+                    <td>
+                      <StatusBadge status={l.status} />
+                    </td>
+                    {hasNotes && <td className="muted">{l.note}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

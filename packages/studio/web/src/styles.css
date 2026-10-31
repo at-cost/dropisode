@@ -2422,3 +2422,279 @@ button.final-ready {
     display: none;
   }
 }
+
+/* ---------- Round 3 ---------- */
+
+/* Costs: stacked rows on phone */
+.cost-rows {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.cost-rows li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.cost-rows li:last-child {
+  border-bottom: 0;
+}
+.cost-what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cost-what strong {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.cost-what .muted {
+  font-size: 12px;
+}
+.cost-paid {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cost-rows li.refunded .cost-paid {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+@media (max-width: 639px) {
+  .cost-rows {
+    display: block;
+  }
+  .costs-tab .table-wrap {
+    display: none;
+  }
+}
+
+/* Studio list on phone: projects first, form folded into a button */
+.new-toggle {
+  display: none;
+}
+@media (max-width: 900px) {
+  .new-project {
+    order: 0;
+  }
+  .home-main {
+    order: -1;
+  }
+  .new-project.collapsible {
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .new-project.collapsible > :not(.new-toggle) {
+    display: none;
+  }
+  .new-project.collapsible > .new-toggle {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+    font-size: 15px;
+  }
+}
+
+/* Posters: same height for every card, frame centred inside */
+.project-card.wide {
+  grid-column: auto;
+}
+.project-grid {
+  grid-auto-flow: row;
+  align-items: stretch;
+}
+.poster-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  padding: 12px;
+  background: #140a1e;
+  border-radius: 13px 13px 0 0;
+  text-decoration: none !important;
+}
+.poster-stage .poster {
+  border-radius: 8px;
+  max-height: 100%;
+  max-width: 100%;
+}
+.poster-stage .poster.tall {
+  height: 100%;
+  width: auto;
+  aspect-ratio: 9 / 16;
+  max-height: none;
+}
+.poster-stage .poster.wide {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+.poster.wide .poster-title {
+  font-size: 22px;
+}
+.poster-stage:hover .poster {
+  box-shadow: 0 0 0 2px var(--gold);
+}
+@media (max-width: 600px) {
+  .poster-stage {
+    height: 240px;
+    padding: 10px;
+  }
+  .poster-title {
+    font-size: 20px;
+  }
+  .poster.wide .poster-title {
+    font-size: 17px;
+  }
+}
+
+/* Storyboard: frame column holds the takes, no dead space */
+.shot-media {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 112px;
+}
+.shot-media .preview.tall {
+  width: 112px;
+  height: 199px;
+}
+.shot-media .preview.wide {
+  width: 112px;
+  height: 63px;
+}
+.shot-media .takes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  overflow: visible;
+}
+.shot-media .take {
+  width: auto;
+}
+.shot-media .take img,
+.shot-media .take-blank {
+  height: 30px;
+}
+.shot-body {
+  gap: 12px;
+}
+.shot-fields > .row.tight {
+  margin-top: 2px;
+}
+@media (max-width: 600px) {
+  .shot-body {
+    flex-direction: column;
+  }
+  .shot-media {
+    width: 100%;
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .shot-media .takes {
+    flex: 1;
+    grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  }
+}
+.shot-body:has(.preview.wide) {
+  flex-direction: column;
+}
+.shot-body:has(.preview.wide) .shot-media {
+  width: 100%;
+  flex-direction: row;
+  align-items: flex-start;
+}
+.shot-body:has(.preview.wide) .preview.wide {
+  width: 200px;
+  height: 113px;
+}
+.shot-body:has(.preview.wide) .takes {
+  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+}
+
+/* Cast: main portrait at full card width, actions right below */
+.cast-card .refs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.cast-card .refs > .ref:first-child {
+  grid-column: 1 / -1;
+}
+.cast-card .ref {
+  border-radius: 8px;
+}
+.cast-card .refs > .ref:first-child {
+  border-radius: 12px;
+}
+.cast-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+}
+.cast-card > .cast-head {
+  order: 0;
+}
+.cast-card > .refs {
+  order: 1;
+}
+.cast-card > .row {
+  order: 2;
+}
+.cast-card > .consent {
+  order: 3;
+}
+.cast-card > textarea {
+  order: 4;
+  font-size: 13px;
+}
+.cast-card > .row > button {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.cast-card > .row > button {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .shot-body:has(.preview.tall) {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 6px;
+    align-items: start;
+  }
+  .shot-body:has(.preview.tall) .shot-fields {
+    display: contents;
+  }
+  .shot-body:has(.preview.tall) .shot-media {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    width: 104px;
+    flex-direction: column;
+  }
+  .shot-body:has(.preview.tall) .shot-media .preview.tall {
+    width: 104px;
+    height: 185px;
+  }
+  .shot-body:has(.preview.tall) .shot-media .takes {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .shot-body:has(.preview.tall) .shot-fields > * {
+    grid-column: 2;
+  }
+  .shot-body:has(.preview.tall) .shot-fields > .dialogue,
+  .shot-body:has(.preview.tall) .shot-fields > .row,
+  .shot-body:has(.preview.tall) .shot-fields > .take-error {
+    grid-column: 1 / -1;
+  }
+}

@@ -109,7 +109,7 @@ export function demoPage(c: Ctx, demo: Demo | null) {
           Started from the idea "{p.idea.replace(/[.\s]+$/, "")}". The script model wrote this. It could also have been pasted or written by
           hand, and it stays editable.
         </p>
-        <pre>{episode?.script ?? ""}</pre>
+        <ScriptView text={episode?.script ?? ""} />
 
         <h2 id="cast">2. The cast</h2>
         <p class="muted">
@@ -285,4 +285,25 @@ export function demoPage(c: Ctx, demo: Demo | null) {
       </>
     ),
   });
+}
+
+/** A screenplay in the body font: scene headings stand out, speaker names in small caps. */
+function ScriptView(p: { text: string }) {
+  return (
+    <div class="script">
+      {p.text.split("\n").map((line) => {
+        const scene = /^(SCENE \d+|INT\.|EXT\.)/.test(line);
+        const speech = /^([A-Z][A-Z .'-]{1,30}):\s(.*)$/.exec(line);
+        if (scene) return <div class="sh">{line}</div>;
+        if (speech && !/^(TITLE|CAST)$/.test(speech[1]!)) {
+          return (
+            <div>
+              <b>{speech[1]!.toLowerCase()}</b>: {speech[2]}
+            </div>
+          );
+        }
+        return <div>{line || "\u00a0"}</div>;
+      })}
+    </div>
+  );
 }
