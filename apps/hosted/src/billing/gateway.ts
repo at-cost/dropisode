@@ -18,6 +18,8 @@ export interface CheckoutCompleted {
 /** Money taken back after a top-up: a refund, or a card dispute (chargeback). */
 export interface PaymentReversal {
   kind: "refund" | "dispute" | "dispute_won";
+  /** The top-up, from the payment's own metadata (set at checkout). Known even if the checkout event hasn't arrived yet. */
+  topupId?: string;
   /** Stripe's id for the refund total or the dispute, for idempotency. */
   ref: string;
   paymentIntentId: string;
@@ -91,23 +93,28 @@ export function stripeGateway(secretKey: string, webhookSecret: string): Payment
     async parseWebhook(rawBody, signature) {
       const event = await stripe.webhooks.constructEventAsync(rawBody, signature, webhookSecret);
       const pi = (v: string | { id: string } | null | undefined) => (typeof v === "string" ? v : (v?.id ?? ""));
+      // Refund and dispute events can arrive before checkout.session.completed (Stripe doesn't
+      // order them), so read the top-up id from the payment intent's metadata instead of waiting.
+      const topupOf = async (paymentIntentId: string) => {
+        if (!paymentIntentId) return {};
+        const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        return intent.metadata?.topup_id ? { topupId: intent.metadata.topup_id } : {};
+      };
       if (event.type === "charge.refunded") {
         const ch = event.data.object as Stripe.Charge;
-        return {
-          kind: "refund",
-          ref: `${ch.id}:${ch.amount_refunded}`,
-          paymentIntentId: pi(ch.payment_intent),
-          amountCents: ch.amount_refunded,
-        };
+        const id = pi(ch.payment_intent);
+        return { kind: "refund", ref: `${ch.id}:${ch.amount_refunded}`, paymentIntentId: id, amountCents: ch.amount_refunded, ...(await topupOf(id)) };
       }
       if (event.type === "charge.dispute.created") {
         const d = event.data.object as Stripe.Dispute;
-        return { kind: "dispute", ref: d.id, paymentIntentId: pi(d.payment_intent), amountCents: d.amount };
+        const id = pi(d.payment_intent);
+        return { kind: "dispute", ref: d.id, paymentIntentId: id, amountCents: d.amount, ...(await topupOf(id)) };
       }
       if (event.type === "charge.dispute.closed") {
         const d = event.data.object as Stripe.Dispute;
         if (d.status !== "won") return null;
-        return { kind: "dispute_won", ref: d.id, paymentIntentId: pi(d.payment_intent), amountCents: d.amount };
+        const id = pi(d.payment_intent);
+        return { kind: "dispute_won", ref: d.id, paymentIntentId: id, amountCents: d.amount, ...(await topupOf(id)) };
       }
       if (event.type !== "checkout.session.completed" && event.type !== "checkout.session.async_payment_succeeded") return null;
       const s = event.data.object as Stripe.Checkout.Session;

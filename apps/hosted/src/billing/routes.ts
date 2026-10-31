@@ -114,7 +114,8 @@ stripeWebhook.post("/", async (c) => {
     return c.text("Bad signature", 400);
   }
   if (done && done.kind !== undefined && done.kind !== "checkout") {
-    await reverseTopup(deps, done as PaymentReversal);
+    // Not finding the top-up must never drop a refund or chargeback: answer 500 so Stripe retries.
+    if (!(await reverseTopup(deps, done as PaymentReversal))) return c.text("Top-up not found yet; retry", 500);
     return c.json({ ok: true });
   }
   if (!done || !("paid" in done) || !done.paid) return c.json({ ok: true });
@@ -146,11 +147,14 @@ stripeWebhook.post("/", async (c) => {
  * credit back (the workspace stays frozen until an admin unfreezes it).
  * Never takes back more than the top-up paid in, whatever order events arrive in.
  */
-async function reverseTopup(deps: Deps, r: PaymentReversal): Promise<void> {
-  const found = await deps.db.selectFrom("topups").select("id").where("paymentIntentId", "=", r.paymentIntentId).executeTakeFirst();
-  if (!found) return;
+async function reverseTopup(deps: Deps, r: PaymentReversal): Promise<boolean> {
+  const found =
+    (r.topupId ? await deps.db.selectFrom("topups").select("id").where("id", "=", r.topupId).executeTakeFirst() : undefined) ??
+    (await deps.db.selectFrom("topups").select("id").where("paymentIntentId", "=", r.paymentIntentId).executeTakeFirst());
+  if (!found) return false;
   await deps.db.transaction().execute(async (tx) => {
     const topup = await tx.selectFrom("topups").selectAll().where("id", "=", found.id).forUpdate().executeTakeFirstOrThrow();
+    if (!topup.paymentIntentId && r.paymentIntentId) await tx.updateTable("topups").set({ paymentIntentId: r.paymentIntentId }).where("id", "=", topup.id).execute();
     const paidMicro = centsToMicro(topup.amountCents);
     const prior = await tx
       .selectFrom("ledger")
@@ -216,4 +220,5 @@ async function reverseTopup(deps: Deps, r: PaymentReversal): Promise<void> {
         .execute();
     }
   });
+  return true;
 }
