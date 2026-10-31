@@ -4,15 +4,15 @@ import type { Child } from "hono/jsx";
 import type { SessionUser } from "../context";
 
 export const CSS = `
-:root{color-scheme:light;--bg:#f7f5f0;--surface:#fff;--sunken:#efece4;--border:#d9d3c5;--text:#1d1b17;--text-2:#55504a;--accent:#b4441d;--accent-text:#fff;--ok:#2f6b3a;--warn:#9a5b00;--bad:#a12a2a;--radius:10px;--font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#141311;--surface:#1d1b18;--sunken:#26231f;--border:#3a362f;--text:#f1ede5;--text-2:#b5aea2;--accent:#e2774e;--accent-text:#1a0d07;--ok:#7fc48a;--warn:#e0a84a;--bad:#ef8a8a}}
+:root{color-scheme:light;--bg:#F4F2FA;--surface:#fff;--sunken:#EAE6F3;--border:#D9D3E6;--text:#191322;--text-2:#5A5266;--accent:#C2214F;--accent-text:#fff;--plum:#1D0F2B;--plum-2:#2B1840;--rouge:#E5336A;--gold:#F4C24E;--ok:#2f6b3a;--warn:#9a5b00;--bad:#a12a2a;--radius:10px;--display:"Big Shoulders Display","Arial Narrow",sans-serif;--font:"Public Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#140B1E;--surface:#1E1329;--sunken:#2A1C38;--border:#3B2B4D;--text:#F2EEF8;--text-2:#B9AECA;--accent:#F2517F;--accent-text:#1A0710;--ok:#7fc48a;--warn:#e0a84a;--bad:#ef8a8a}}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 var(--font)}
 a{color:var(--accent)}main{max-width:980px;margin:0 auto;padding:24px 16px 64px}
 header.top{display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface)}
-header.top .brand{font-weight:700;font-size:18px;color:var(--text);text-decoration:none;letter-spacing:-.01em}
+header.top .brand{font-family:var(--display);font-weight:800;font-size:24px;line-height:1;color:var(--text);text-decoration:none;letter-spacing:.01em}
 header.top nav{display:flex;gap:14px;flex-wrap:wrap;flex:1}header.top nav a{color:var(--text-2);text-decoration:none}header.top nav a:hover{color:var(--text)}
 header.top nav.user{flex:0 0 auto}
-h1{font-size:28px;line-height:1.2;margin:8px 0 12px;letter-spacing:-.01em}h2{font-size:20px;margin:32px 0 10px;line-height:1.3}h3{font-size:16px;margin:20px 0 6px}
+h1{font-family:var(--display);font-weight:800;font-size:40px;line-height:1.05;margin:8px 0 12px;letter-spacing:.005em}h2{font-family:var(--display);font-weight:700;font-size:28px;margin:32px 0 10px;line-height:1.1}h3{font-size:16px;margin:20px 0 6px}
 p,li{max-width:72ch}ul,ol{padding-left:22px}li{margin:3px 0}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
 .muted{color:var(--text-2)}.small{font-size:13px}.mono{font-family:var(--mono)}
@@ -49,10 +49,13 @@ form.calc{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150
 form.calc input,form.calc select{width:100%}
 footer{max-width:980px;margin:0 auto;padding:24px 16px;color:var(--text-2);font-size:13px;border-top:1px solid var(--border)}
 footer nav{display:flex;gap:6px 14px;flex-wrap:wrap;margin-top:6px}
-@media (max-width:600px){.hero h1{font-size:28px}h1{font-size:24px}}
+main.bleed{max-width:none;padding:0}
+body.bleed header.top{background:var(--plum);border-bottom-color:transparent}body.bleed header.top .brand,body.bleed header.top>a{color:#fff}body.bleed header.top nav a{color:#D9CCE8}body.bleed header.top nav a:hover{color:#fff}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+@media (max-width:600px){.hero h1{font-size:30px}h1{font-size:32px}}
 `;
 
-export function Layout(props: { title: string; user?: SessionUser | null; children: Child; description?: string }) {
+export function Layout(props: { title: string; user?: SessionUser | null; children: Child; description?: string; fullBleed?: boolean }) {
   return (
     <html lang="en">
       <head>
@@ -60,9 +63,13 @@ export function Layout(props: { title: string; user?: SessionUser | null; childr
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{props.title === "Dropisode" ? "Dropisode" : `${props.title} | Dropisode`}</title>
         {props.description ? <meta name="description" content={props.description} /> : null}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
       </head>
-      <body>
+      <body class={props.fullBleed ? "bleed" : undefined}>
         <header class="top">
           <a class="brand" href="/">
             Dropisode
@@ -83,7 +90,7 @@ export function Layout(props: { title: string; user?: SessionUser | null; childr
             <a href="/sign-in">Sign in</a>
           )}
         </header>
-        <main>{props.children}</main>
+        {props.fullBleed ? <main class="bleed">{props.children}</main> : <main>{props.children}</main>}
         <footer>
           Dropisode is open source (MIT). Prices are the provider's price plus 20%, shown before every generation.
           <nav>
