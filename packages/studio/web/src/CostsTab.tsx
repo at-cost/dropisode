@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useProject } from "./ProjectView";
-import { StatusBadge, round, shotLabel } from "./StoryboardTab";
-import { Empty, money, time, useApp } from "./ui";
+import { StatusBadge, shotLabel } from "./StoryboardTab";
+import { Empty, When, modelLabel, money, plural, providerLabel, unitLabel, useApp } from "./ui";
 
 const PURPOSE: Record<string, string> = {
   script: "Script",
@@ -25,6 +25,7 @@ export function CostsTab() {
     return all.filter((l) => l.episodeId === episode);
   }, [view.costLog, episode]);
   const castName = (id: string | null) => (id ? (p.cast.find((c) => c.id === id)?.name ?? "removed") : "");
+  const hasNotes = lines.some((l) => l.note);
   const refunded = view.costLog.filter((l) => l.status === "refunded");
 
   return (
@@ -34,7 +35,8 @@ export function CostsTab() {
           <span className="muted">Project total</span>
           <strong>{money(view.totals.paidMicro)}</strong>
           <span className="muted small-text">
-            {view.totals.tries} lines, {view.totals.refunds} refunded, {view.totals.pending} pending
+            {plural(view.totals.tries, "charge")} · {view.totals.refunds} refunded
+            {view.totals.pending ? ` · ${view.totals.pending} pending` : ""}
           </span>
         </div>
         {p.episodes.map((e, i) => {
@@ -46,7 +48,7 @@ export function CostsTab() {
               </span>
               <strong>{money(t?.paidMicro ?? 0)}</strong>
               <span className="muted small-text">
-                {t?.tries ?? 0} lines, {t?.refunds ?? 0} refunded
+                {plural(t?.tries ?? 0, "charge")} · {t?.refunds ?? 0} refunded
               </span>
             </div>
           );
@@ -54,9 +56,7 @@ export function CostsTab() {
         <div className="stat">
           <span className="muted">Refunded</span>
           <strong>{money(refunded.reduce((a, l) => a + l.estimatePaidMicro, 0))}</strong>
-          <span className="muted small-text">
-            {refunded.length} failed {refunded.length === 1 ? "try" : "tries"}, not charged
-          </span>
+          <span className="muted small-text">{refunded.length} failed, not charged</span>
         </div>
       </div>
       <p className="muted small-text">{app.config.priceLabel}</p>
@@ -93,21 +93,21 @@ export function CostsTab() {
                 <th className="num">Estimate</th>
                 <th className="num">Paid</th>
                 <th>Status</th>
-                <th>Note</th>
+                {hasNotes && <th>Note</th>}
               </tr>
             </thead>
             <tbody>
               {lines.map((l) => (
                 <tr key={l.id} className={l.status === "refunded" ? "refunded" : ""}>
-                  <td className="nowrap">{time(l.at)}</td>
+                  <td className="nowrap">
+                    <When iso={l.at} />
+                  </td>
                   <td>{PURPOSE[l.purpose] ?? l.purpose}</td>
                   <td className="muted">{l.shotId ? shotLabel(p, l.shotId) : castName(l.castId)}</td>
-                  <td className="mono">{l.model}</td>
-                  <td>{l.provider}</td>
+                  <td>{modelLabel(app.config, l.model)}</td>
+                  <td>{providerLabel(l.provider)}</td>
                   <td>{l.tier === "final" ? "Final" : l.tier === "draft" ? "Draft" : ""}</td>
-                  <td className="num nowrap">
-                    {round(l.units)} {l.unit}
-                  </td>
+                  <td className="num nowrap">{unitLabel(l.units, l.unit)}</td>
                   <td className="num muted">{money(l.estimatePaidMicro)}</td>
                   <td className="num">
                     <strong>{money(l.paidMicro)}</strong>
@@ -115,7 +115,7 @@ export function CostsTab() {
                   <td>
                     <StatusBadge status={l.status} />
                   </td>
-                  <td className="muted">{l.note}</td>
+                  {hasNotes && <td className="muted">{l.note}</td>}
                 </tr>
               ))}
             </tbody>

@@ -48,7 +48,7 @@
       "monthlyUsd": 0,
       "source": "https://www.anthropic.com/pricing",
       "status": "assumed",
-      "notes": "Owner to decide the share charged to Dropisode."
+      "notes": "Not charged to Dropisode yet."
     }
   ]
 }

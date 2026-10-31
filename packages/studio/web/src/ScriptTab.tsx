@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { type Episode, type View, api } from "./api";
 import { useProject } from "./ProjectView";
-import { Empty, Icon, Spinner, money, plural } from "./ui";
+import { Icon, Spinner, Ticket, Why, money, plural } from "./ui";
 
 export function ScriptTab() {
   const { pid, view, estimates, act, isBusy } = useProject();
@@ -30,113 +30,144 @@ export function ScriptTab() {
 
   const writing = isBusy("write");
   const pasting = isBusy("paste");
+  const hasEpisodes = p.episodes.length > 0;
+  const [adding, setAdding] = useState(false);
+  const showNew = !hasEpisodes || adding || writing || pasting;
+  const price = scriptPrice ?? estimates?.script;
 
   return (
     <div className="script-tab">
-      <div className="two-col">
-        <section className="panel">
-          <h2>Write from an idea</h2>
-          <form
-            className="form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void act(
-                "write",
-                () =>
-                  api.post<View & { episodeId: string }>(`/projects/${pid}/script`, {
-                    idea: idea.trim(),
-                    targetSeconds: seconds,
-                    ...(title.trim() ? { title: title.trim() } : {}),
-                  }),
-                { kick: true },
-              ).then((r) => {
-                if (r) setTitle("");
-              });
-            }}
-          >
-            <label>
-              Idea
-              <textarea
-                value={idea}
-                onChange={(e) => setIdea(e.target.value)}
-                rows={4}
-                maxLength={4000}
-                placeholder="Who wants what, and what stands in the way"
-              />
-            </label>
-            <div className="row">
-              <label className="grow">
-                Episode title <span className="muted">(optional)</span>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} />
-              </label>
-              <label className="w-num">
-                Length (s)
-                <input
-                  type="number"
-                  min={5}
-                  max={600}
-                  value={seconds}
-                  onChange={(e) => setSeconds(Math.max(5, Math.min(600, Number(e.target.value) || 30)))}
-                />
-              </label>
-            </div>
-            <div className="row">
-              <button type="submit" className="primary" disabled={writing || idea.trim().length < 3}>
-                {writing ? <Spinner /> : null} {writing ? "Writing script" : "Write script"}
-                {(scriptPrice ?? estimates?.script) != null && <span className="price">{money(scriptPrice ?? estimates!.script)}</span>}
-              </button>
-              {writing && <span className="muted">This can take a minute. It also lists the cast.</span>}
-            </div>
-          </form>
-        </section>
+      {hasEpisodes && (
+        <div className="section-head">
+          <h2 className="section-title inline">Episodes</h2>
+          <div className="spacer" />
+          {!showNew && (
+            <button type="button" onClick={() => setAdding(true)}>
+              <Icon name="plus" /> New episode
+            </button>
+          )}
+        </div>
+      )}
+      {hasEpisodes && p.episodes.map((ep, i) => <EpisodeEditor key={ep.id} ep={ep} n={i + 1} />)}
 
-        <section className="panel">
-          <h2>Paste a script</h2>
-          <form
-            className="form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void act("paste", () =>
-                api.post<View & { episodeId: string }>(`/projects/${pid}/episodes`, {
-                  script: paste,
-                  ...(pasteTitle.trim() ? { title: pasteTitle.trim() } : {}),
-                }),
-              ).then((r) => {
-                if (r) {
-                  setPaste("");
-                  setPasteTitle("");
-                }
-              });
-            }}
-          >
-            <label>
-              Episode title <span className="muted">(optional)</span>
-              <input value={pasteTitle} onChange={(e) => setPasteTitle(e.target.value)} maxLength={300} />
-            </label>
-            <label>
-              Script
-              <textarea
-                value={paste}
-                onChange={(e) => setPaste(e.target.value)}
-                rows={6}
-                placeholder={"INT. KITCHEN - NIGHT\n\nMAYA\nYou came back."}
-              />
-            </label>
-            <div className="row">
-              <button type="submit" disabled={pasting}>
-                {pasting && <Spinner />} {paste.trim() ? "Add episode" : "Add empty episode"}
+      {showNew && (
+        <div className="new-episode">
+          {hasEpisodes && (
+            <div className="section-head">
+              <h2 className="section-title inline">New episode</h2>
+              <div className="spacer" />
+              <button type="button" className="link" onClick={() => setAdding(false)}>
+                Cancel
               </button>
-              {pasting && <span className="muted">Reading the script into scenes.</span>}
             </div>
-          </form>
-        </section>
-      </div>
+          )}
+          <div className="two-col">
+            <section className="panel">
+              <h2>Write from an idea</h2>
+              <form
+                className="form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void act(
+                    "write",
+                    () =>
+                      api.post<View & { episodeId: string }>(`/projects/${pid}/script`, {
+                        idea: idea.trim(),
+                        targetSeconds: seconds,
+                        ...(title.trim() ? { title: title.trim() } : {}),
+                      }),
+                    { kick: true },
+                  ).then((r) => {
+                    if (r) {
+                      setTitle("");
+                      setAdding(false);
+                    }
+                  });
+                }}
+              >
+                <label>
+                  Idea
+                  <textarea
+                    value={idea}
+                    onChange={(e) => setIdea(e.target.value)}
+                    rows={4}
+                    maxLength={4000}
+                    placeholder="Who wants what, and what stands in the way"
+                  />
+                </label>
+                <div className="row">
+                  <label className="grow">
+                    Episode title <span className="muted">(optional)</span>
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} />
+                  </label>
+                  <label className="w-num">
+                    Length (s)
+                    <input
+                      type="number"
+                      min={5}
+                      max={600}
+                      value={seconds}
+                      onChange={(e) => setSeconds(Math.max(5, Math.min(600, Number(e.target.value) || 30)))}
+                    />
+                  </label>
+                </div>
+                <div className="row">
+                  <button type="submit" className="primary" disabled={writing || idea.trim().length < 3}>
+                    {writing ? <Spinner /> : null} {writing ? "Writing script" : "Write script"}
+                    <Ticket micro={price} />
+                  </button>
+                  {writing ? (
+                    <span className="muted small-text">Takes about a minute. It also lists the cast.</span>
+                  ) : (
+                    idea.trim().length < 3 && <Why>Add an idea first</Why>
+                  )}
+                </div>
+              </form>
+            </section>
 
-      <h2 className="section-title">Episodes</h2>
-      {p.episodes.length === 0 ? (
-        <Empty>No episodes yet.</Empty>
-      ) : (
-        p.episodes.map((ep, i) => <EpisodeEditor key={ep.id} ep={ep} n={i + 1} />)
+            <section className="panel">
+              <h2>Paste a script</h2>
+              <form
+                className="form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void act("paste", () =>
+                    api.post<View & { episodeId: string }>(`/projects/${pid}/episodes`, {
+                      script: paste,
+                      ...(pasteTitle.trim() ? { title: pasteTitle.trim() } : {}),
+                    }),
+                  ).then((r) => {
+                    if (r) {
+                      setPaste("");
+                      setPasteTitle("");
+                      setAdding(false);
+                    }
+                  });
+                }}
+              >
+                <label>
+                  Episode title <span className="muted">(optional)</span>
+                  <input value={pasteTitle} onChange={(e) => setPasteTitle(e.target.value)} maxLength={300} />
+                </label>
+                <label>
+                  Script
+                  <textarea
+                    value={paste}
+                    onChange={(e) => setPaste(e.target.value)}
+                    rows={6}
+                    placeholder={"INT. KITCHEN - NIGHT\n\nMAYA\nYou came back."}
+                  />
+                </label>
+                <div className="row">
+                  <button type="submit" disabled={pasting}>
+                    {pasting && <Spinner />} {paste.trim() ? "Add episode" : "Add empty episode"}
+                  </button>
+                  {pasting && <span className="muted small-text">Reading the script into scenes.</span>}
+                </div>
+              </form>
+            </section>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -170,6 +201,7 @@ function EpisodeEditor({ ep, n }: { ep: Episode; n: number }) {
     void act(`del-${ep.id}`, () => api.del<View>(`/projects/${pid}/episodes/${ep.id}`));
   };
   const parsing = isBusy(`parse-${ep.id}`);
+  const noScenes = ep.scenes.length === 0;
 
   return (
     <section className="panel episode-editor">
@@ -187,8 +219,8 @@ function EpisodeEditor({ ep, n }: { ep: Episode; n: number }) {
           }}
         />
         <div className="spacer" />
-        <span className="muted">
-          {plural(ep.scenes.length, "scene")}, {plural(shots, "shot")}, {money(spent)} spent
+        <span className="muted small-text">
+          {plural(ep.scenes.length, "scene")} · {plural(shots, "shot")} · {money(spent)} spent
         </span>
       </div>
       <textarea
@@ -199,24 +231,38 @@ function EpisodeEditor({ ep, n }: { ep: Episode; n: number }) {
         spellCheck
       />
       <div className="row">
-        <button type="button" className="primary" disabled={!dirty || isBusy(`save-${ep.id}`)} onClick={() => void save()}>
-          {dirty ? "Save script" : "Saved"}
-        </button>
-        {dirty && (
-          <button type="button" onClick={() => setText(ep.script)}>
-            Undo changes
-          </button>
+        {dirty ? (
+          <>
+            <button type="button" className="primary" disabled={isBusy(`save-${ep.id}`)} onClick={() => void save()}>
+              {isBusy(`save-${ep.id}`) && <Spinner />} Save script
+            </button>
+            <button type="button" onClick={() => setText(ep.script)}>
+              Undo changes
+            </button>
+          </>
+        ) : (
+          <span className="status-text ok-text">
+            <Icon name="check" size={12} /> Saved
+          </span>
         )}
-        <button type="button" disabled={parsing || !text.trim()} onClick={() => void parse()}>
-          {parsing && <Spinner />} {parsing ? "Reading" : "Re-read into scenes"}
+        <button
+          type="button"
+          className={noScenes && !dirty ? "primary" : ""}
+          disabled={parsing || !text.trim()}
+          onClick={() => void parse()}
+        >
+          {parsing && <Spinner />} {parsing ? "Reading" : noScenes ? "Read into scenes" : "Re-read into scenes"}
         </button>
-        <a className="btn" href={`#/p/${pid}/storyboard`}>
-          Storyboard
-        </a>
+        {!text.trim() && <Why>Write or paste a script first</Why>}
         <div className="spacer" />
-        <button type="button" className="danger-text" onClick={remove}>
+        <button type="button" className="ghost-danger" onClick={remove}>
           <Icon name="trash" /> Delete episode
         </button>
+        {!noScenes && (
+          <a className={`btn ${dirty ? "" : "primary"} next-btn`} href={`#/p/${pid}/storyboard`}>
+            Next: storyboard <span aria-hidden="true">→</span>
+          </a>
+        )}
       </div>
     </section>
   );

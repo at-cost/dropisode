@@ -9,7 +9,7 @@ import { walletState } from "../billing/wallet";
 import type { AppEnv, Ctx } from "../context";
 import { num } from "../db";
 import { accountState, pendingInvites } from "./service";
-import { fmtDate, fmtDateTime, render } from "./render";
+import { fmtDate, fmtDateTime, fmtMoney, render } from "./render";
 
 const signInFirst = (c: Ctx) => c.redirect(`/sign-in?next=${encodeURIComponent(c.req.path + (new URL(c.req.url).search || ""))}`);
 
@@ -73,8 +73,8 @@ accountPages.get("/account", async (c) => {
           ))}
         </tbody>
       </table>
-      <form class="row" data-api="/api/account/workspaces" data-next="/account">
-        <input class="wide-input" name="name" required maxlength={80} placeholder="New workspace name" aria-label="New workspace name" />
+      <form class="row" data-api="/api/account/workspaces" data-next="/account" style="margin-top:14px">
+        <input class="wide-input" name="name" required maxlength={80} placeholder="Name a new workspace" aria-label="New workspace name" />
         <button type="submit">Create workspace</button>
         <Err />
       </form>
@@ -226,6 +226,15 @@ const KIND: Record<string, string> = {
   stripe_refund: "Refund to card",
 };
 
+/** A model's display name ("MiniMax H3 Max Turbo"), or its id if it's no longer in the catalog. */
+function modelLabel(deps: { catalog: { get(id: string): { label: string } } }, id: string): string {
+  try {
+    return deps.catalog.get(id).label;
+  } catch {
+    return id;
+  }
+}
+
 accountPages.get("/billing", async (c) => {
   if (!c.get("user")) return signInFirst(c);
   requireUser(c);
@@ -267,7 +276,7 @@ accountPages.get("/billing", async (c) => {
         </div>
         <div class="card">
           <div class="muted small">Daily charge (shared costs + storage)</div>
-          <div class="big">{formatUsd(daily, { precise: true })}</div>
+          <div class="big">{fmtMoney(daily)}</div>
           <div class="muted small">
             {lasts === null
               ? "No daily charge right now."
@@ -278,23 +287,32 @@ accountPages.get("/billing", async (c) => {
 
       <h2>Add credit</h2>
       {canTopUp ? (
-        <form class="row" data-api="/api/billing/topup">
-          <label class="row" style="display:flex;gap:8px;align-items:center;margin:0;font-size:15px;color:var(--text)">
-            Amount (USD)
-            <input
-              type="number"
-              name="amountUsd"
-              min={min}
-              max={max}
-              step="1"
-              value={String(Math.max(min, Math.min(max, 20)))}
-              required
-              style="width:120px"
-            />
-          </label>
-          <button type="submit">Pay with card</button>
-          <Err />
-        </form>
+        <div class="card topup">
+          <div class="presets">
+            {[10, 20, 50]
+              .filter((v) => v >= min && v <= max)
+              .map((v) => (
+                <form data-api="/api/billing/topup">
+                  <input type="hidden" name="amountUsd" value={String(v)} />
+                  <button type="submit" class="preset">
+                    ${v}
+                  </button>
+                </form>
+              ))}
+          </div>
+          <form class="row custom" data-api="/api/billing/topup">
+            <label for="amt" class="muted small">
+              Or another amount
+            </label>
+            <span class="usd-input">
+              $<input id="amt" type="number" name="amountUsd" min={min} max={max} step="1" placeholder="100" required />
+            </span>
+            <button type="submit" class="secondary">
+              Pay
+            </button>
+            <Err />
+          </form>
+        </div>
       ) : (
         <p class="muted">{ws.frozen ? "Top-ups are paused for this workspace." : "Top-ups aren't open yet."}</p>
       )}
@@ -316,23 +334,32 @@ accountPages.get("/billing", async (c) => {
           <table>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Kind</th>
+                <th>When</th>
+                <th>What</th>
                 <th class="num">Amount</th>
-                <th>Model</th>
-                <th>Note</th>
               </tr>
             </thead>
             <tbody>
-              {ledger.map((l) => (
-                <tr>
-                  <td class="mono small">{fmtDateTime(l.at)}</td>
-                  <td>{KIND[l.kind] ?? l.kind}</td>
-                  <td class="num">{formatUsd(num(l.amountMicro), { precise: true })}</td>
-                  <td class="mono small">{l.model ?? ""}</td>
-                  <td>{l.note}</td>
-                </tr>
-              ))}
+              {ledger.map((l) => {
+                const kind = KIND[l.kind] ?? l.kind;
+                const model = l.model ? modelLabel(deps, l.model) : "";
+                const note = l.note && l.note !== kind && l.note !== "Top-up" ? l.note : "";
+                const amount = num(l.amountMicro);
+                return (
+                  <tr>
+                    <td class="muted small nowrap">{fmtDateTime(l.at)}</td>
+                    <td>
+                      {kind}
+                      {model ? <span class="muted"> · {model}</span> : null}
+                      {note ? <span class="muted"> · {note}</span> : null}
+                    </td>
+                    <td class={`num${amount > 0 ? " ok-text" : ""}`}>
+                      {amount > 0 ? "+" : ""}
+                      {fmtMoney(amount)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -262,6 +262,11 @@ export function hostedStudioContext(deps: Deps, workspaceId: string, userId: str
       const visible = rows.filter((r) => !((r.info as { mediaIds?: string[] }).mediaIds ?? []).some((m) => hidden.has(m)));
       return Promise.all(visible.map((r) => signExport(projectId, r)));
     },
+    account: async () => {
+      const u = await deps.db.selectFrom("users").select(["name", "email"]).where("id", "=", userId).executeTakeFirstOrThrow();
+      const ws = await deps.db.selectFrom("workspaces").select("name").where("id", "=", workspaceId).executeTakeFirstOrThrow();
+      return { name: u.name, email: u.email, workspace: ws.name, isAdmin: deps.config.adminEmails.includes(u.email.toLowerCase()) };
+    },
     wallet: async () => {
       const w = await walletState(deps.db, workspaceId);
       const ws = await deps.db.selectFrom("workspaces").select(["frozenAt"]).where("id", "=", workspaceId).executeTakeFirst();

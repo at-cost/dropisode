@@ -79,21 +79,26 @@ adminRoutes.get("/", async (c) => {
   ]);
   return c.html(
     <AdminPage title="Overview" user={user}>
-      <div class="grid">
-        <a class="card" href="/admin/workspaces?status=flagged">
-          <strong>{flagged}</strong> flagged workspaces
+      <div class="grid stat-grid">
+        <a class="card stat-link" href="/admin/workspaces?status=flagged">
+          <span class="big">{flagged}</span>
+          <span class="muted small">flagged workspaces</span>
         </a>
-        <a class="card" href="/admin/workspaces?status=frozen">
-          <strong>{frozen}</strong> frozen workspaces
+        <a class="card stat-link" href="/admin/workspaces?status=frozen">
+          <span class="big">{frozen}</span>
+          <span class="muted small">frozen workspaces</span>
         </a>
-        <a class="card" href="/admin/reports">
-          <strong>{openReports}</strong> open abuse reports
+        <a class="card stat-link" href="/admin/reports">
+          <span class="big">{openReports}</span>
+          <span class="muted small">open abuse reports</span>
         </a>
-        <a class="card" href="/admin/media">
-          <strong>{hidden}</strong> hidden media files
+        <a class="card stat-link" href="/admin/media">
+          <span class="big">{hidden}</span>
+          <span class="muted small">hidden media files</span>
         </a>
-        <a class="card" href="/admin/moderation">
-          <strong>{blocked24h}</strong> blocked requests in 24 hours
+        <a class="card stat-link" href="/admin/moderation">
+          <span class="big">{blocked24h}</span>
+          <span class="muted small">blocked requests in 24 hours</span>
         </a>
       </div>
       <h2>Fraud controls</h2>

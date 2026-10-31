@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "./api";
-import { Spinner, useApp, useBusy } from "./ui";
+import { Spinner, Why, useApp, useBusy } from "./ui";
 
 const FFMPEG_FIX =
   "ffmpeg was not found. Install it (macOS: brew install ffmpeg; Windows: winget install ffmpeg; Linux: your package manager), or set REEL_FFMPEG to its path, then restart Dropisode.";
@@ -27,7 +27,7 @@ export function Settings() {
     <div className="page settings-page">
       <section className="panel narrow">
         <h2>fal.ai key</h2>
-        {s.provider === "mock" && <p className="note">Running in mock mode: no key is used and nothing is spent.</p>}
+        {s.provider === "mock" && <p className="note">Test mode: no key is used and nothing is spent.</p>}
         <p className="muted">
           Generations run on fal.ai with your own key, at fal's price. The key is saved on this computer in <code>{s.configPath}</code> and
           never sent to the browser.
@@ -56,6 +56,7 @@ export function Settings() {
             <button type="submit" className="primary" disabled={!key.trim() || busy === "key"}>
               {busy === "key" && <Spinner />} Save
             </button>
+            {!key.trim() && <Why>Paste a key first</Why>}
             {s.hasKey && (
               <button
                 type="button"

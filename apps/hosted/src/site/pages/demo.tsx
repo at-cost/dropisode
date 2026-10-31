@@ -82,13 +82,10 @@ export function demoPage(c: Ctx, demo: Demo | null) {
       <>
         <h1>Demo: {p.name}</h1>
         {demo.meta.placeholder ? (
-          <div class="notice strong" id="placeholder-notice" role="note">
-            <p style="margin:0">
-              <strong>This example uses placeholder clips.</strong> They were made on our own computer with Dropisode's mock provider, so
-              nothing was spent and the pictures are test patterns. The cost log is priced at fal.ai's real list prices, so the totals are
-              what the same jobs would cost. After our first paid test run, the real example, with its real fal.ai cost, replaces this one.
-            </p>
-          </div>
+          <p class="muted small" id="placeholder-notice" role="note">
+            These clips are placeholders made without spending anything; prices are fal.ai's real list prices. A real episode replaces them
+            soon.
+          </p>
         ) : null}
         <p class="lede">
           A finished project, start to end, without signing up: one{" "}

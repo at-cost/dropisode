@@ -15,12 +15,18 @@ const NAV: [string, string][] = [
   ["/admin/log", "Admin log"],
 ];
 
+const ADMIN_CSS = `.subnav{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 14px}.subnav a{font-size:14px;text-decoration:none;color:var(--text-2);padding:6px 12px;border-radius:999px;border:1px solid var(--border)}.subnav a:hover{color:var(--text);border-color:var(--text-2)}.subnav a[aria-current=page]{color:var(--accent-text);background:var(--accent);border-color:var(--accent)}
+.stat-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.stat-link{text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:2px}.stat-link:hover{border-color:var(--accent)}.stat-link .big{font-family:var(--display);font-size:40px;font-weight:800;line-height:1}`;
+
 export function AdminPage(props: { title: string; user: SessionUser; notice?: string | undefined; children: Child }) {
   return (
     <Layout title={`Admin: ${props.title}`} user={props.user}>
-      <nav class="small" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+      <style dangerouslySetInnerHTML={{ __html: ADMIN_CSS }} />
+      <nav class="subnav" aria-label="Admin">
         {NAV.map(([href, label]) => (
-          <a href={href}>{label}</a>
+          <a href={href} aria-current={label === props.title ? "page" : undefined}>
+            {label}
+          </a>
         ))}
       </nav>
       <h1>{props.title}</h1>

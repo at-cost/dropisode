@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { type CastKind, type CastMember, type View, api, mediaUrl } from "./api";
 import { useProject } from "./ProjectView";
-import { Empty, Icon, Spinner, money, useApp } from "./ui";
+import { Empty, Icon, Spinner, Ticket } from "./ui";
 
 const KINDS: [CastKind, string, string][] = [
   ["character", "Characters", "Wardrobe, age, features, style"],
@@ -30,7 +30,7 @@ export function CastTab() {
           <option value="prop">Prop</option>
         </select>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" maxLength={120} aria-label="Name" />
-        <button type="submit" disabled={!name.trim() || isBusy("add-cast")}>
+        <button type="submit" className="primary" disabled={!name.trim() || isBusy("add-cast")}>
           <Icon name="plus" /> Add
         </button>
       </form>
@@ -39,7 +39,7 @@ export function CastTab() {
         return (
           <section key={k}>
             <h2 className="section-title">
-              {label} <span className="muted">({members.length})</span>
+              {label} <span className="count">{members.length}</span>
             </h2>
             {members.length === 0 ? (
               <Empty>None yet.</Empty>
@@ -58,8 +58,9 @@ export function CastTab() {
 }
 
 function CastCard({ c, hint }: { c: CastMember; hint: string }) {
-  const app = useApp();
   const { pid, view, estimates, act, isBusy } = useProject();
+  // Consent is asked for each upload, then reset.
+  const [asking, setAsking] = useState(false);
   const [consent, setConsent] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const generating = view.openJobs.some((j) => j.refs.castId === c.id) || isBusy(`gen-${c.id}`);
@@ -78,11 +79,13 @@ function CastCard({ c, hint }: { c: CastMember; hint: string }) {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("consent", consent ? "true" : "false");
+    setAsking(false);
+    setConsent(false);
     void act(`up-${c.id}`, () => api.raw<View>(`${path}/upload`, fd));
   };
 
   return (
-    <div className="card cast-card">
+    <div className={`card cast-card ${c.kind}`}>
       <div className="cast-head">
         <input
           key={c.name}
@@ -127,13 +130,24 @@ function CastCard({ c, hint }: { c: CastMember; hint: string }) {
             </a>
             {i === 0 && <span className="ref-badge">Main</span>}
             <div className="ref-tools">
-              <button type="button" aria-label="Move left" disabled={i === 0} onClick={() => move(i, -1)}>
+              <button type="button" aria-label="Move earlier" title="Move earlier" disabled={i === 0} onClick={() => move(i, -1)}>
                 <Icon name="left" size={12} />
               </button>
-              <button type="button" aria-label="Remove" onClick={() => void patch({ refImageIds: c.refImageIds.filter((x) => x !== id) })}>
+              <button
+                type="button"
+                aria-label="Remove image"
+                title="Remove image"
+                onClick={() => void patch({ refImageIds: c.refImageIds.filter((x) => x !== id) })}
+              >
                 <Icon name="x" size={12} />
               </button>
-              <button type="button" aria-label="Move right" disabled={i === c.refImageIds.length - 1} onClick={() => move(i, 1)}>
+              <button
+                type="button"
+                aria-label="Move later"
+                title="Move later"
+                disabled={i === c.refImageIds.length - 1}
+                onClick={() => move(i, 1)}
+              >
                 <Icon name="right" size={12} />
               </button>
             </div>
@@ -144,7 +158,12 @@ function CastCard({ c, hint }: { c: CastMember; hint: string }) {
             <Spinner />
           </div>
         )}
-        {c.refImageIds.length === 0 && !generating && <span className="muted small-text">No reference images</span>}
+        {c.refImageIds.length === 0 && !generating && (
+          <div className="ref empty-ref">
+            <Icon name="image" size={22} />
+            <span>No image yet</span>
+          </div>
+        )}
       </div>
       <div className="row wrap">
         <button
@@ -153,8 +172,8 @@ function CastCard({ c, hint }: { c: CastMember; hint: string }) {
           disabled={generating}
           onClick={() => void act(`gen-${c.id}`, () => api.post<View>(`${path}/generate`), { kick: true })}
         >
-          <Icon name="image" /> {generating ? "Generating" : "Generate image"}
-          {estimates && <span className="price">{money(estimates.castImage)}</span>}
+          {generating ? <Spinner /> : <Icon name="image" />} {generating ? "Generating" : "Generate image"}
+          {!generating && <Ticket micro={estimates?.castImage} />}
         </button>
         <input
           ref={fileRef}
@@ -167,24 +186,35 @@ function CastCard({ c, hint }: { c: CastMember; hint: string }) {
             if (f) upload(f);
           }}
         />
-        <button
-          type="button"
-          disabled={isBusy(`up-${c.id}`)}
-          onClick={() => {
-            if (!consent) {
-              app.toast("Tick the consent box before uploading a photo.");
-              return;
-            }
-            fileRef.current?.click();
-          }}
-        >
-          {isBusy(`up-${c.id}`) ? <Spinner /> : <Icon name="upload" />} Upload
-        </button>
+        {!asking && (
+          <button type="button" disabled={isBusy(`up-${c.id}`)} onClick={() => setAsking(true)}>
+            {isBusy(`up-${c.id}`) ? <Spinner /> : <Icon name="upload" />} Upload
+          </button>
+        )}
       </div>
-      <label className="check small-text">
-        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> I have consent from anyone real in this
-        photo
-      </label>
+      {asking && (
+        <div className="consent">
+          <label className="check">
+            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> Anyone real in this photo agreed to
+            its use
+          </label>
+          <div className="row tight">
+            <button type="button" className="small primary" disabled={!consent} onClick={() => fileRef.current?.click()}>
+              <Icon name="upload" size={12} /> Choose photo
+            </button>
+            <button
+              type="button"
+              className="small link"
+              onClick={() => {
+                setAsking(false);
+                setConsent(false);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -111,6 +111,8 @@ authPages.get("/sign-in", (c) => {
       <Providers google={deps.config.googleEnabled} github={deps.config.githubEnabled} q={q} />
       <Script />
     </div>,
+    200,
+    { variant: "auth" },
   );
 });
 
@@ -146,6 +148,8 @@ authPages.get("/sign-up", (c) => {
       </p>
       <Script />
     </div>,
+    200,
+    { variant: "auth" },
   );
 });
 
@@ -174,6 +178,8 @@ const t = setInterval(() => { n -= 1; el.textContent = String(n); if (n <= 0) { 
         }}
       />
     </div>,
+    200,
+    { variant: "auth" },
   );
 });
 
@@ -199,6 +205,8 @@ authPages.get("/forgot", (c) => {
       </p>
       <Script />
     </div>,
+    200,
+    { variant: "auth" },
   );
 });
 
@@ -235,6 +243,8 @@ authPages.get("/reset", async (c) => {
       </form>
       <Script />
     </div>,
+    200,
+    { variant: "auth" },
   );
 });
 
@@ -328,5 +338,7 @@ export function verifyPage(c: Ctx, token: string, link: { email: string; purpose
       </form>
       <script dangerouslySetInnerHTML={{ __html: 'document.getElementById("verify").submit();' }} />
     </div>,
+    200,
+    { variant: "auth" },
   );
 }

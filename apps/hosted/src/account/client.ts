@@ -37,6 +37,13 @@ document.addEventListener("submit", async (e) => {
 
 export const PAGE_CSS = `
 form.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0}
+.stack>h2{margin-top:36px}.nowrap{white-space:nowrap}
+.topup{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;padding:18px 20px}
+.topup .presets{display:flex;gap:10px}.topup .presets form{margin:0}
+.topup .preset{font-family:var(--display);font-weight:800;font-size:24px;padding:10px 22px;border-radius:12px;min-width:84px}
+.topup .custom{gap:10px}.usd-input{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--text-2);border-radius:8px;padding:0 0 0 10px;background:var(--surface)}
+.usd-input input{border:0;width:90px;background:transparent}
+.grid>.card .big{font-family:var(--display);font-size:34px;font-weight:800;line-height:1.1}
 form.inline{display:inline}
 .err{color:var(--bad);font-size:13px;min-height:1em;margin:4px 0 0}
 .ok{color:var(--ok)}

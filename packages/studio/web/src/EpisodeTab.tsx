@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { type ExportInfo, api } from "./api";
 import { useProject } from "./ProjectView";
 import { EpisodePicker, shotLabel, useEpisodeChoice } from "./StoryboardTab";
-import { Empty, Icon, Spinner, bytes, plural, time, useApp, useBusy } from "./ui";
+import { Empty, Icon, Spinner, When, Why, bytes, plural, useApp, useBusy } from "./ui";
 
 export function EpisodeTab() {
   const app = useApp();
@@ -45,104 +45,123 @@ export function EpisodeTab() {
       </div>
       <section className="panel">
         <h2>Assemble</h2>
-        <p className="muted">
-          {plural(shots.length, "shot")}. {drafts} have a finished video, {finals} have an approved final.
-        </p>
+        <div className="progress-line">
+          <span>
+            <strong>{shots.length}</strong> shots
+          </span>
+          <span>
+            <strong>{drafts}</strong> with video
+          </span>
+          <span>
+            <strong>{finals}</strong> approved finals
+          </span>
+        </div>
         {ffmpegMissing && (
           <p className="warn-text">
             Assembling needs ffmpeg, which wasn't found. <a href="#/settings">See Settings</a>
           </p>
         )}
         <div className="row">
-          <button type="button" disabled={!!busy || drafts === 0} onClick={() => void assemble("rough")}>
-            {busy === "rough" && <Spinner />} Rough cut (drafts)
+          <button
+            type="button"
+            className="primary"
+            disabled={!!busy || finals === 0 || !!ffmpegMissing}
+            onClick={() => void assemble("final")}
+          >
+            {busy === "final" && <Spinner />} Make final episode
           </button>
-          <button type="button" className="primary" disabled={!!busy || finals === 0} onClick={() => void assemble("final")}>
-            {busy === "final" && <Spinner />} Final episode
+          {!busy && !ffmpegMissing && finals === 0 && (
+            <Why>{drafts === 0 ? "Make a draft of each shot first" : "Approve a shot and render its final first"}</Why>
+          )}
+          <div className="spacer" />
+          <button
+            type="button"
+            className={finals === 0 && drafts > 0 ? "primary" : ""}
+            disabled={!!busy || drafts === 0 || !!ffmpegMissing}
+            onClick={() => void assemble("rough")}
+          >
+            {busy === "rough" && <Spinner />} Rough cut from drafts
           </button>
-          {busy && <span className="muted">Joining shots with ffmpeg. This can take a minute.</span>}
         </div>
-        <p className="muted small-text">
-          A rough cut uses each shot's selected take. The final episode uses approved final takes only. Assembling costs nothing.
-        </p>
+        {busy && <p className="muted small-text">Joining shots. About a minute.</p>}
+        <p className="muted small-text">Assembling is free. The final uses approved final takes only.</p>
       </section>
 
-      <h2 className="section-title">Exports</h2>
-      {exports === null ? (
-        <Empty>Loading</Empty>
-      ) : mine.length === 0 ? (
-        <Empty>No exports for this episode yet.</Empty>
-      ) : (
-        mine.map((x, i) => {
-          const video = x.files.find((f) => f.name === "episode.mp4");
-          return (
-            <section key={x.id} className="panel export">
-              <div className="export-body">
-                {video && i === 0 ? (
-                  <video
-                    className={`player ${view.project.aspect === "16:9" ? "wide" : "tall"}`}
-                    src={video.url}
-                    controls
-                    playsInline
-                    preload="metadata"
-                  />
-                ) : null}
-                <div className="export-info">
-                  <h3>
-                    {x.source === "final" ? "Final episode" : "Rough cut"} <span className="muted">{time(x.createdAt)}</span>
-                  </h3>
-                  <p className="muted">{x.durationS.toFixed(1)} s</p>
-                  {video && i > 0 && (
-                    <details>
-                      <summary>Play</summary>
-                      <video
-                        className={`player ${view.project.aspect === "16:9" ? "wide" : "tall"}`}
-                        src={video.url}
-                        controls
-                        playsInline
-                        preload="none"
-                      />
-                    </details>
-                  )}
-                  <ul className="files">
-                    {[...x.files]
-                      .sort((a, b) => Number(b.name === "episode.mp4") - Number(a.name === "episode.mp4"))
-                      .map((f) => (
-                        <li key={f.name}>
-                          <a href={`${f.url}?download=1`}>
-                            <Icon name="download" /> {f.name}
-                          </a>{" "}
-                          <span className="muted">{bytes(f.bytes)}</span>
-                        </li>
-                      ))}
-                  </ul>
-                  {x.skipped.length > 0 && (
-                    <div className="note warn">
-                      <strong>Skipped {plural(x.skipped.length, "shot")}</strong>
-                      <ul>
-                        {x.skipped.map((s) => (
-                          <li key={s.shotId}>
-                            {shotLabel(view.project, s.shotId)}: {s.reason}
+      {exports === null ? null : mine.length === 0 ? null : <h2 className="section-title">Exports</h2>}
+      {exports === null || mine.length === 0
+        ? null
+        : mine.map((x, i) => {
+            const video = x.files.find((f) => f.name === "episode.mp4");
+            return (
+              <section key={x.id} className="panel export">
+                <div className="export-body">
+                  {video && i === 0 ? (
+                    <video
+                      className={`player ${view.project.aspect === "16:9" ? "wide" : "tall"}`}
+                      src={video.url}
+                      controls
+                      playsInline
+                      preload="metadata"
+                    />
+                  ) : null}
+                  <div className="export-info">
+                    <h3>
+                      {x.source === "final" ? "Final episode" : "Rough cut"}{" "}
+                      <span className="muted when">
+                        <When iso={x.createdAt} />
+                      </span>
+                    </h3>
+                    <p className="muted small-text">{x.durationS.toFixed(1)} s long</p>
+                    {video && i > 0 && (
+                      <details>
+                        <summary>Play</summary>
+                        <video
+                          className={`player ${view.project.aspect === "16:9" ? "wide" : "tall"}`}
+                          src={video.url}
+                          controls
+                          playsInline
+                          preload="none"
+                        />
+                      </details>
+                    )}
+                    <ul className="files">
+                      {[...x.files]
+                        .sort((a, b) => Number(b.name === "episode.mp4") - Number(a.name === "episode.mp4"))
+                        .map((f) => (
+                          <li key={f.name}>
+                            <a href={`${f.url}?download=1`}>
+                              <Icon name="download" /> {f.name}
+                            </a>{" "}
+                            <span className="muted">{bytes(f.bytes)}</span>
                           </li>
                         ))}
-                      </ul>
-                    </div>
-                  )}
-                  {x.warnings.length > 0 && (
-                    <div className="note warn">
-                      <ul>
-                        {x.warnings.map((w) => (
-                          <li key={w}>{w}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                    </ul>
+                    {x.skipped.length > 0 && (
+                      <div className="note warn">
+                        <strong>Skipped {plural(x.skipped.length, "shot")}</strong>
+                        <ul>
+                          {x.skipped.map((s) => (
+                            <li key={s.shotId}>
+                              {shotLabel(view.project, s.shotId)}: {s.reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {x.warnings.length > 0 && (
+                      <div className="note warn">
+                        <ul>
+                          {x.warnings.map((w) => (
+                            <li key={w}>{w}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </section>
-          );
-        })
-      )}
+              </section>
+            );
+          })}
     </div>
   );
 }

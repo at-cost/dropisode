@@ -5,7 +5,7 @@ import { CostsTab } from "./CostsTab";
 import { EpisodeTab } from "./EpisodeTab";
 import { ScriptTab } from "./ScriptTab";
 import { StoryboardTab } from "./StoryboardTab";
-import { Spinner, money, useApp } from "./ui";
+import { Icon, Spinner, money, useApp } from "./ui";
 
 export interface ProjectState {
   pid: string;
@@ -155,11 +155,13 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
     <ProjectCtx.Provider value={state}>
       <div className="project-head">
         <div className="title-block">
-          <a href="#/" className="muted small-text">
-            Projects
+          <a href="#/" className="crumb">
+            <Icon name="left" size={12} /> Projects
           </a>
-          <h1>{view.project.name}</h1>
-          <span className="tag">{view.project.aspect}</span>
+          <div className="title-line">
+            <h1>{view.project.name}</h1>
+            <span className="tag">{view.project.aspect === "16:9" ? "Wide 16:9" : "Vertical 9:16"}</span>
+          </div>
         </div>
         <div className="spacer" />
         {working > 0 && (
@@ -167,14 +169,14 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
             <Spinner /> {working} generating
           </span>
         )}
-        <div className="total" title={app.config.priceLabel}>
-          <span className="muted">Spent</span> <strong>{money(view.totals.paidMicro)}</strong>
-          <div className="muted small-text">{app.config.priceLabel}</div>
-        </div>
+        <a className="total" href={`#/p/${pid}/costs`} title={app.config.priceLabel}>
+          <span>Spent</span>
+          <strong>{money(view.totals.paidMicro)}</strong>
+        </a>
       </div>
-      <nav className="tabs">
+      <nav className="tabs" aria-label="Project">
         {TABS.map(([id, label]) => (
-          <a key={id} href={`#/p/${pid}/${id}`} className={tab === id ? "active" : ""}>
+          <a key={id} href={`#/p/${pid}/${id}`} className={tab === id ? "active" : ""} aria-current={tab === id ? "page" : undefined}>
             {label}
           </a>
         ))}

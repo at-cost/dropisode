@@ -147,7 +147,11 @@ export interface Config {
   mode: "local" | "hosted";
   priceLabel: string;
   cameraPresets: string[];
+  /** The model catalog, for human labels. */
+  models?: { id: string; kind: string; label: string; unit: string }[];
   wallet: Wallet | null;
+  /** Hosted only: the signed-in person, for the profile menu. */
+  account: { name: string; email: string; workspace: string; isAdmin: boolean } | null;
 }
 
 export interface ProjectSummary {

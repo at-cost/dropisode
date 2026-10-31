@@ -22,7 +22,7 @@ const CSS = `
 .h-btn.primary{background:var(--rouge);color:#fff}.h-btn.primary:hover{background:#F04B7E}
 .h-btn.ghost{color:#fff;border-color:#6D5A85}.h-btn.ghost:hover{border-color:#fff}
 .h-note{margin:18px 0 0;font-size:14px;color:#A996BF}
-.h-phone{justify-self:center;width:min(340px,100%);aspect-ratio:9/18.5;border-radius:44px;background:#0E0716;border:1px solid #4A3463;box-shadow:0 40px 80px -30px rgba(0,0,0,.7),inset 0 0 0 8px #160C22;padding:22px 16px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.h-phone{margin:0;justify-self:center;width:min(340px,100%);aspect-ratio:9/18.5;border-radius:44px;background:#0E0716;border:1px solid #4A3463;box-shadow:0 40px 80px -30px rgba(0,0,0,.7),inset 0 0 0 8px #160C22;padding:22px 16px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
 .h-phone-bar{display:flex;justify-content:space-between;font:600 13px/1 var(--font);color:#B9A6D0;padding:0 6px}
 .h-phone-bar b{color:#fff;font-family:var(--display);font-size:18px;letter-spacing:.02em}
 .h-card{position:relative;background:var(--plum-2);border-radius:14px;padding:14px 14px 14px 16px;border-left:3px solid var(--rouge)}
@@ -110,7 +110,7 @@ const whatOf = (s: Shot) => s.description.replace(/^(Wide|Medium two-shot|Medium
 
 function Ticket(p: { prices: ShotPrice }) {
   return (
-    <span class="ticket" aria-label={`Draft ${usd(p.prices.draft)}, final ${usd(p.prices.final)}`}>
+    <span class="ticket" role="img" aria-label={`Draft ${usd(p.prices.draft)}, final ${usd(p.prices.final)}`}>
       <span>
         <small>Draft</small>
         {usd(p.prices.draft)}
@@ -166,7 +166,7 @@ export function homePage(c: Ctx) {
               </p>
             </div>
 
-            <div class="h-phone" aria-label={`A storyboard from the demo project ${projectName}, with the price of each shot`}>
+            <figure class="h-phone" aria-label={`A storyboard from the demo project ${projectName}, with the price of each shot`}>
               <div class="h-phone-bar">
                 <b>{projectName}</b>
                 <span>Episode 1</span>
@@ -187,7 +187,7 @@ export function homePage(c: Ctx) {
                 </span>
                 <b>{usd(episodeTotal)}</b>
               </div>
-            </div>
+            </figure>
           </div>
         </section>
 
@@ -292,7 +292,7 @@ export function homePage(c: Ctx) {
                 they move between your computer and dropisode.com. <a href="/docs/local">How to run it</a>.
               </p>
             </div>
-            <div class="h-term" aria-label="Terminal">
+            <div class="h-term" role="img" aria-label="Terminal">
               <div>
                 <span class="p">$ </span>
                 <span class="c">npx dropisode</span>

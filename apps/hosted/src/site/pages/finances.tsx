@@ -47,7 +47,8 @@ export function financesPage(c: Ctx, f: FinancesSummary) {
           </div>
           <div class="stat">
             <span class="muted small">Reserve</span>
-            <span class={`big ${f.reserveMicro < 0 ? "bad-text" : ""}`}>{usd(f.reserveMicro)}</span>
+            <span class="big">{usd(f.reserveMicro)}</span>
+            {f.reserveMicro < 0 ? <span class="muted small">Start-up costs so far, paid by the owner</span> : null}
             <span class="small muted">all time</span>
           </div>
         </div>
@@ -156,17 +157,21 @@ export function financesPage(c: Ctx, f: FinancesSummary) {
 
         <h2>The share per workspace</h2>
         <p>
-          <strong data-k="active">{int(f.activeWorkspaces)}</strong> workspaces generated something in {f.month}. Each pays{" "}
-          <strong data-k="share">{usd(f.currentShareMicro)}</strong> a month towards fixed costs{atCap ? ", which is the cap" : ""}. The cap
-          is {usd(f.shareCapMicro)} and can only go down. Workspaces that generate nothing in a month pay no share, only their storage.{" "}
-          <a href="/pricing#daily">How the daily charge works</a>.
+          <strong data-k="active">{int(f.activeWorkspaces)}</strong> {f.activeWorkspaces === 1 ? "workspace" : "workspaces"} generated
+          something in {f.month}. Each pays <strong data-k="share">{usd(f.currentShareMicro)}</strong> a month towards fixed costs
+          {atCap ? ", which is the cap" : ""}. The cap is {usd(f.shareCapMicro)} and can only go down. Workspaces that generate nothing in a
+          month pay no share, only their storage. <a href="/pricing#daily">How the daily charge works</a>.
         </p>
 
         <h2>Reserve</h2>
         <p>
           The reserve is what we charged (generation and daily charges) minus what providers billed, Stripe fees, and fixed costs for every
-          month so far: <strong>{usd(f.reserveMicro)}</strong>. It pays for months when fixed costs are more than the shares, and for
-          refunds. Our target is {platform.reserveTargetMonths} months of fixed costs.
+          month so far: <strong>{usd(f.reserveMicro)}</strong>.
+          {f.reserveMicro < 0
+            ? " It's below zero because the service is new: fixed costs have so far been more than income, and the owner covers the difference."
+            : ""}{" "}
+          It pays for months when fixed costs are more than the shares, and for refunds. Our target is {platform.reserveTargetMonths} months
+          of fixed costs.
         </p>
 
         <h2>Reconciliation with provider invoices</h2>

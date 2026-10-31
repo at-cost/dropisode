@@ -294,72 +294,78 @@ export function pricingPage(c: Ctx) {
         </h3>
         <Breakdown cost={chosenCost} />
 
-        <h2 id="units">Every model's price</h2>
-        <p>
-          These are fal.ai's list prices, read on the date shown, and what you pay with the {markupPct}% added. Each job is charged at its
-          real cost when it finishes; the estimate on the button uses these prices.
-        </p>
-        <TableWrap label="Unit prices">
-          <table>
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th>Use</th>
-                <th>Unit</th>
-                <th class="num">fal price</th>
-                <th class="num">You pay</th>
-                <th>Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              {models.map((m) => {
-                const u = unitPrices(m, platform);
-                return (
-                  <tr data-unit-model={m.id}>
-                    <td>
-                      {m.label}
-                      {m.nativeAudio ? <div class="small muted">native audio</div> : null}
-                    </td>
-                    <td>
-                      {kindLabel[m.kind]}
-                      {m.tiers.length ? <div class="small muted">{m.tiers.join(" and ")}</div> : null}
-                    </td>
-                    <td>
-                      {unitLabel(m)}
-                      {m.durations.length ? (
+        <details class="fold" id="units">
+          <summary>
+            <h2>Every model's price</h2>
+          </summary>
+          <p>
+            These are fal.ai's list prices, read on the date shown, and what you pay with the {markupPct}% added. Each job is charged at its
+            real cost when it finishes; the estimate on the button uses these prices.
+          </p>
+          <TableWrap label="Unit prices">
+            <table>
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Use</th>
+                  <th>Unit</th>
+                  <th class="num">fal price</th>
+                  <th class="num">You pay</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {models.map((m) => {
+                  const u = unitPrices(m, platform);
+                  return (
+                    <tr data-unit-model={m.id}>
+                      <td>
+                        {m.label}
+                        {m.nativeAudio ? <div class="small muted">native audio</div> : null}
+                      </td>
+                      <td>
+                        {kindLabel[m.kind]}
+                        {m.tiers.length ? <div class="small muted">{m.tiers.join(" and ")}</div> : null}
+                      </td>
+                      <td>
+                        {unitLabel(m)}
+                        {m.durations.length ? (
+                          <div class="small muted">
+                            clips of{" "}
+                            {m.durations.length > 6
+                              ? `${m.durations[0]} to ${m.durations[m.durations.length - 1]}`
+                              : m.durations.join(", ")}{" "}
+                            s
+                          </div>
+                        ) : null}
+                      </td>
+                      <td class="num">
+                        {u.fal.map((x) => (
+                          <div>{x}</div>
+                        ))}
+                      </td>
+                      <td class="num">
+                        {u.you.map((x) => (
+                          <div>{x}</div>
+                        ))}
+                      </td>
+                      <td>
+                        <Ext href={m.price.source}>source</Ext>
                         <div class="small muted">
-                          clips of{" "}
-                          {m.durations.length > 6 ? `${m.durations[0]} to ${m.durations[m.durations.length - 1]}` : m.durations.join(", ")}{" "}
-                          s
+                          verified on {m.price.verifiedOn} <StatusTag status={m.price.status} />
                         </div>
-                      ) : null}
-                    </td>
-                    <td class="num">
-                      {u.fal.map((x) => (
-                        <div>{x}</div>
-                      ))}
-                    </td>
-                    <td class="num">
-                      {u.you.map((x) => (
-                        <div>{x}</div>
-                      ))}
-                    </td>
-                    <td>
-                      <Ext href={m.price.source}>source</Ext>
-                      <div class="small muted">
-                        verified on {m.price.verifiedOn} <StatusTag status={m.price.status} />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </TableWrap>
-        <p class="small muted">
-          Seedance is billed by tokens, and fal charges what the model provider reports, so a Seedance job can cost a little more or less
-          than its estimate. You always pay the real figure plus {markupPct}%.
-        </p>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </TableWrap>
+          <p class="small muted">
+            Seedance is billed by tokens, and fal charges what the model provider reports, so a Seedance job can cost a little more or less
+            than its estimate. You always pay the real figure plus {markupPct}%.
+          </p>
+        </details>
 
         <h2 id="refunds">Failures and refunds</h2>
         <ul>
@@ -375,169 +381,177 @@ export function pricingPage(c: Ctx) {
           <li>A clip that renders but looks wrong is not a failure, and it is charged. That is why drafts are cheap.</li>
         </ul>
 
-        <h2 id="daily">The daily charge</h2>
-        <p>
-          Besides generations, each workspace pays a small daily charge for its storage and a share of our fixed costs (server, backups,
-          domain, email):
-        </p>
-        <pre>
-          <code>
-            daily = (min({usd(capMicro)} cap, fixed costs / active workspaces) + storage) x {1 + platform.markup} / days in month
-          </code>
-        </pre>
-        <ul>
-          <li>
-            Fixed costs are {usd(fixedMonthly)} a month right now, listed line by line on the <a href="/finances">finances page</a>.
-          </li>
-          <li>
-            Only workspaces that generated something that month are active and pay a share. The share is capped at {usd(capMicro)} a month,
-            and the cap can only ever go down.
-          </li>
-          <li>
-            Storage is R2's price: {usdPrecise(usdToMicro(platform.storageUsdPerGbMonth))} per GB a month, charged in every month, active or
-            not.
-          </li>
-        </ul>
-        <div class="card">
-          <p style="margin-top:0">
-            <strong>Example:</strong> a workspace with {exampleGb} GB of media, in a 30 day month when it generated something and the share
-            is at the cap:
-          </p>
+        <details class="fold" id="daily">
+          <summary>
+            <h2>The daily charge</h2>
+          </summary>
           <p>
-            ({usd(exampleMonth.fixedShareMicro)} + {usdPrecise(exampleMonth.storageMicro)}) x {1 + platform.markup} ={" "}
-            <strong>{usd(exampleMonth.totalMicro)}</strong> a month, or {usdPrecise(exampleDay.totalMicro)} a day.
+            Besides generations, each workspace pays a small daily charge for its storage and a share of our fixed costs (server, backups,
+            domain, email):
           </p>
-          <p style="margin-bottom:0">
-            In a month it generates nothing, it pays only storage: {usdPrecise(idleMonth.totalMicro)}. As more workspaces are active, the
-            share falls below the cap.
-          </p>
-        </div>
+          <pre>
+            <code>
+              daily = (min({usd(capMicro)} cap, fixed costs / active workspaces) + storage) x {1 + platform.markup} / days in month
+            </code>
+          </pre>
+          <ul>
+            <li>
+              Fixed costs are {usd(fixedMonthly)} a month right now, listed line by line on the <a href="/finances">finances page</a>.
+            </li>
+            <li>
+              Only workspaces that generated something that month are active and pay a share. The share is capped at {usd(capMicro)} a
+              month, and the cap can only ever go down.
+            </li>
+            <li>
+              Storage is R2's price: {usdPrecise(usdToMicro(platform.storageUsdPerGbMonth))} per GB a month, charged in every month, active
+              or not.
+            </li>
+          </ul>
+          <div class="card">
+            <p style="margin-top:0">
+              <strong>Example:</strong> a workspace with {exampleGb} GB of media, in a 30 day month when it generated something and the
+              share is at the cap:
+            </p>
+            <p>
+              ({usd(exampleMonth.fixedShareMicro)} + {usdPrecise(exampleMonth.storageMicro)}) x {1 + platform.markup} ={" "}
+              <strong>{usd(exampleMonth.totalMicro)}</strong> a month, or {usdPrecise(exampleDay.totalMicro)} a day.
+            </p>
+            <p style="margin-bottom:0">
+              In a month it generates nothing, it pays only storage: {usdPrecise(idleMonth.totalMicro)}. As more workspaces are active, the
+              share falls below the cap.
+            </p>
+          </div>
+        </details>
 
-        <h2 id="compare">Compared with subscriptions</h2>
-        <p>
-          A {COMPARE.scenario.episodes}-episode drama of {COMPARE.scenario.episodeSeconds} seconds per episode is{" "}
-          {int(COMPARE.scenario.totalSeconds)} seconds of final video, or {int(COMPARE.scenario.shots)} shots of{" "}
-          {COMPARE.scenario.shotSeconds} seconds. First frames at ${COMPARE.scenario.frameUsd} each ({COMPARE.scenario.frameModel}). Script
-          writing, voices and storage are left out (a few dollars). Checked on {COMPARE.checkedOn}; these are research figures from our
-          pricing notes, not live prices.
-        </p>
-        <ul>
-          <li>
-            <strong>Final only:</strong> 1 try per shot and 1 first frame.
-          </li>
-          <li>
-            <strong>Draft then final:</strong> 3 drafts per shot on {COMPARE.scenario.draftModel} (${COMPARE.scenario.draftUsdPerSecond}/s),
-            then 1 final, and 4 first frames.
-          </li>
-        </ul>
-        <TableWrap label="54-episode drama on each model">
-          <table>
-            <thead>
-              <tr>
-                <th>Final model</th>
-                <th class="num">fal $/s</th>
-                <th class="num">Final only: fal</th>
-                <th class="num">Final only: Dropisode</th>
-                <th class="num">Draft then final: fal</th>
-                <th class="num">Draft then final: Dropisode</th>
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARE.models.map((m) => (
-                <tr>
-                  <td>{m.model}</td>
-                  <td class="num">{m.perSecond}</td>
-                  <td class="num">${int(m.finalFal)}</td>
-                  <td class="num">${int(m.finalReel)}</td>
-                  <td class="num">${int(m.dtfFal)}</td>
-                  <td class="num">${int(m.dtfReel)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableWrap>
-        <p class="small muted">
-          Veo can't render 5 second clips, so a Veo shot list would use 4 or 6 second shots. Hailuo is priced per video. Seedance charges
-          follow provider-reported tokens. Source: fal.ai model pages, collected in our pricing notes.
-        </p>
-
-        <h3>Higgsfield</h3>
-        <p>
-          Plans read on <Ext href={COMPARE.higgsfieldSource}>higgsfield.ai/pricing</Ext> on {COMPARE.checkedOn}, while a 30% promotion was
-          running:
-        </p>
-        <TableWrap label="Higgsfield plans">
-          <table>
-            <thead>
-              <tr>
-                <th>Plan</th>
-                <th>Monthly</th>
-                <th>Annual (per month)</th>
-                <th>Credits a month</th>
-                <th>$ per credit (monthly / annual)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARE.higgsfieldPlans.map((p) => (
-                <tr>
-                  <td>{p.plan}</td>
-                  <td>{p.monthly}</td>
-                  <td>{p.annual}</td>
-                  <td>{p.credits}</td>
-                  <td>{p.perCredit}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableWrap>
-        <p>
-          The same {int(COMPARE.scenario.totalSeconds)} seconds, one Nano Banana Pro frame per try, at the Ultra plan's price per credit.
-          This assumes every credit bought gets used:
-        </p>
-        <TableWrap label="Higgsfield compared with Dropisode">
-          <table>
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th>Higgsfield final only (Ultra monthly / annual)</th>
-                <th>Dropisode final only</th>
-                <th>Higgsfield 4 tries per shot (Ultra monthly)</th>
-                <th>Dropisode draft then final</th>
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARE.vsHiggsfield.map((r) => (
-                <tr>
-                  <td>{r.model}</td>
-                  <td>{r.hfFinal}</td>
-                  <td>{r.reelFinal}</td>
-                  <td>{r.hf4}</td>
-                  <td>{r.reelDtf}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableWrap>
-        <div class="notice">
-          <p style="margin-top:0">
-            <strong>Where subscriptions win.</strong> Higgsfield is cheaper per final second on most models, often by a lot. Kling 3.0 on
-            Higgsfield is about a third of Dropisode's price, and its 7-day unlimited Kling 3.0 window can make Kling drafts nearly free for
-            a week. If you use all your credits every month on Kling or Seedance, a subscription is cheaper than Dropisode.
-          </p>
+        <details class="fold" id="compare">
+          <summary>
+            <h2>Compared with subscriptions</h2>
+          </summary>
           <p>
-            Dropisode is about even on Veo 3.1 Fast and Veo 3.1. It is cheaper only where Higgsfield has no cheap tier: drafting on Veo 3.1
-            Lite or MiniMax H3 Max Turbo. That is why Dropisode's draft then final beats four tries on the same model for Veo, Seedance 2.0
-            and Wan, but not for Kling.
+            A {COMPARE.scenario.episodes}-episode drama of {COMPARE.scenario.episodeSeconds} seconds per episode is{" "}
+            {int(COMPARE.scenario.totalSeconds)} seconds of final video, or {int(COMPARE.scenario.shots)} shots of{" "}
+            {COMPARE.scenario.shotSeconds} seconds. First frames at ${COMPARE.scenario.frameUsd} each ({COMPARE.scenario.frameModel}).
+            Script writing, voices and storage are left out (a few dollars). Checked on {COMPARE.checkedOn}; these are research figures from
+            our pricing notes, not live prices.
           </p>
-          <p style="margin-bottom:0">
-            Higgsfield's "unlimited" plans include "dynamic speed adjustments" at busy times, and unused credits don't carry over. Its
-            credit costs are shown as approximate, and the page doesn't say whether they include audio.
+          <ul>
+            <li>
+              <strong>Final only:</strong> 1 try per shot and 1 first frame.
+            </li>
+            <li>
+              <strong>Draft then final:</strong> 3 drafts per shot on {COMPARE.scenario.draftModel} (${COMPARE.scenario.draftUsdPerSecond}
+              /s), then 1 final, and 4 first frames.
+            </li>
+          </ul>
+          <TableWrap label="54-episode drama on each model">
+            <table>
+              <thead>
+                <tr>
+                  <th>Final model</th>
+                  <th class="num">fal $/s</th>
+                  <th class="num">Final only: fal</th>
+                  <th class="num">Final only: Dropisode</th>
+                  <th class="num">Draft then final: fal</th>
+                  <th class="num">Draft then final: Dropisode</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARE.models.map((m) => (
+                  <tr>
+                    <td>{m.model}</td>
+                    <td class="num">{m.perSecond}</td>
+                    <td class="num">${int(m.finalFal)}</td>
+                    <td class="num">${int(m.finalReel)}</td>
+                    <td class="num">${int(m.dtfFal)}</td>
+                    <td class="num">${int(m.dtfReel)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+          <p class="small muted">
+            Veo can't render 5 second clips, so a Veo shot list would use 4 or 6 second shots. Hailuo is priced per video. Seedance charges
+            follow provider-reported tokens. Source: fal.ai model pages, collected in our pricing notes.
           </p>
-        </div>
-        <p>
-          Dropisode's case is not the lowest price per second. It is no subscription, no unused credits at month end, no throttling, the
-          real cost of every job, automatic refunds for unbilled failures, and a studio you can run yourself with your own key.
-        </p>
+
+          <h3>Higgsfield</h3>
+          <p>
+            Plans read on <Ext href={COMPARE.higgsfieldSource}>higgsfield.ai/pricing</Ext> on {COMPARE.checkedOn}, while a 30% promotion was
+            running:
+          </p>
+          <TableWrap label="Higgsfield plans">
+            <table>
+              <thead>
+                <tr>
+                  <th>Plan</th>
+                  <th>Monthly</th>
+                  <th>Annual (per month)</th>
+                  <th>Credits a month</th>
+                  <th>$ per credit (monthly / annual)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARE.higgsfieldPlans.map((p) => (
+                  <tr>
+                    <td>{p.plan}</td>
+                    <td>{p.monthly}</td>
+                    <td>{p.annual}</td>
+                    <td>{p.credits}</td>
+                    <td>{p.perCredit}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+          <p>
+            The same {int(COMPARE.scenario.totalSeconds)} seconds, one Nano Banana Pro frame per try, at the Ultra plan's price per credit.
+            This assumes every credit bought gets used:
+          </p>
+          <TableWrap label="Higgsfield compared with Dropisode">
+            <table>
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Higgsfield final only (Ultra monthly / annual)</th>
+                  <th>Dropisode final only</th>
+                  <th>Higgsfield 4 tries per shot (Ultra monthly)</th>
+                  <th>Dropisode draft then final</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARE.vsHiggsfield.map((r) => (
+                  <tr>
+                    <td>{r.model}</td>
+                    <td>{r.hfFinal}</td>
+                    <td>{r.reelFinal}</td>
+                    <td>{r.hf4}</td>
+                    <td>{r.reelDtf}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+          <div class="notice">
+            <p style="margin-top:0">
+              <strong>Where subscriptions win.</strong> Higgsfield is cheaper per final second on most models, often by a lot. Kling 3.0 on
+              Higgsfield is about a third of Dropisode's price, and its 7-day unlimited Kling 3.0 window can make Kling drafts nearly free
+              for a week. If you use all your credits every month on Kling or Seedance, a subscription is cheaper than Dropisode.
+            </p>
+            <p>
+              Dropisode is about even on Veo 3.1 Fast and Veo 3.1. It is cheaper only where Higgsfield has no cheap tier: drafting on Veo
+              3.1 Lite or MiniMax H3 Max Turbo. That is why Dropisode's draft then final beats four tries on the same model for Veo,
+              Seedance 2.0 and Wan, but not for Kling.
+            </p>
+            <p style="margin-bottom:0">
+              Higgsfield's "unlimited" plans include "dynamic speed adjustments" at busy times, and unused credits don't carry over. Its
+              credit costs are shown as approximate, and the page doesn't say whether they include audio.
+            </p>
+          </div>
+          <p>
+            Dropisode's case is not the lowest price per second. It is no subscription, no unused credits at month end, no throttling, the
+            real cost of every job, automatic refunds for unbilled failures, and a studio you can run yourself with your own key.
+          </p>
+        </details>
       </>
     ),
   });

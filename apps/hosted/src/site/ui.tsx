@@ -8,7 +8,7 @@ import { Layout } from "./layout";
 /** A full public page in the shared layout. */
 export function page(c: Ctx, p: { title: string; description: string; body: Child; cache?: string; fullBleed?: boolean }) {
   const el = (
-    <Layout title={p.title} description={p.description} user={c.get("user")} fullBleed={p.fullBleed ?? false}>
+    <Layout title={p.title} description={p.description} user={c.get("user")} fullBleed={p.fullBleed ?? false} path={c.req.path}>
       {p.body}
     </Layout>
   );

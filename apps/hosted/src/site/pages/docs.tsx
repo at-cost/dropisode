@@ -127,11 +127,10 @@ export function docsPage(c: Ctx) {
         </ul>
         <p>You can also assemble a rough cut from drafts to check the pacing before you pay for finals.</p>
 
-        <h2 id="move">Moving projects between hosted and local</h2>
+        <h2 id="move">Keeping a copy of a project</h2>
         <p>
-          Export a project from the project list. You get a zip with <code>project.json</code> and every media file. Import that zip into
-          the local studio (or into another hosted workspace) with Import .zip. The reverse works the same way. Jobs that were still running
-          when you exported come across marked as such.
+          Use Export on a project card to download a zip with <code>project.json</code> and every media file. It's yours to keep. Importing
+          a zip back into the studio isn't available yet.
         </p>
 
         <h2 id="not-v1">What V1 doesn't do</h2>
@@ -214,10 +213,9 @@ export function docsLocalPage(c: Ctx) {
           </li>
         </ul>
 
-        <h2>Moving projects</h2>
+        <h2>Keeping a copy</h2>
         <p>
-          Export a project as a zip and import it into the hosted studio, or the other way round. See{" "}
-          <a href="/docs#move">moving projects</a>.
+          Export a project as a zip from the project list. See <a href="/docs#move">keeping a copy</a>.
         </p>
 
         <h2>Moderation in local mode</h2>

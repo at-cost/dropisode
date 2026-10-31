@@ -68,6 +68,8 @@ export interface StudioContext {
   listExports(projectId: string): Promise<ExportInfo[]>;
   /** Hosted: wallet state for the header. */
   wallet?(): Promise<{ balanceMicro: number; heldMicro: number; blocked: boolean; message?: string }>;
+  /** Hosted: who is signed in, for the profile menu. */
+  account?(): Promise<{ name: string; email: string; workspace: string; isAdmin: boolean }>;
   /** Hosted: who triggered a job (workspace and member), stored with the job. */
   owner?: Record<string, string>;
 }
@@ -161,6 +163,7 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         verifiedOn: m.price.verifiedOn,
       })),
       wallet: ctx.wallet ? await ctx.wallet() : null,
+      account: ctx.account ? await ctx.account() : null,
     });
   });
 

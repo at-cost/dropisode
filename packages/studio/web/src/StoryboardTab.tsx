@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { type DialogueLine, type Episode, type Project, type Scene, type Shot, type Take, type View, api, mediaUrl } from "./api";
 import { useProject } from "./ProjectView";
-import { Empty, Icon, Spinner, money, plural, useApp } from "./ui";
+import { Empty, Icon, MoreMenu, Spinner, Ticket, Why, modelLabel, money, plural, unitLabel, useApp } from "./ui";
 
 /** "Scene 2, shot 3" for a shot id. */
 export function shotLabel(p: Project, shotId: string): string {
@@ -59,8 +59,8 @@ export function StoryboardTab() {
       </datalist>
       <div className="row">
         <EpisodePicker ep={ep} onPick={pick} />
-        <span className="muted">
-          {plural(ep.scenes.length, "scene")}, {plural(shots.length, "shot")}, {Math.round(seconds)} s, {approved} approved,{" "}
+        <span className="muted small-text">
+          {plural(ep.scenes.length, "scene")} · {plural(shots.length, "shot")} · {Math.round(seconds)} s · {approved} approved ·{" "}
           {money(view.episodeTotals[ep.id]?.paidMicro ?? 0)} spent
         </span>
       </div>
@@ -123,15 +123,10 @@ function SceneBlock({ ep, scene, n }: { ep: Episode; scene: Scene; n: number }) 
           ))}
         </select>
         <div className="spacer" />
-        <button
-          type="button"
-          className="primary"
-          disabled={boarding || running}
-          onClick={board}
-          title={running ? "Wait for running takes to finish" : undefined}
-        >
-          {boarding && <Spinner />} {boarding ? "Storyboarding" : "Storyboard this scene"}
-          {price !== undefined && <span className="price">{money(price)}</span>}
+        {running && !boarding && <Why>Wait for running takes</Why>}
+        <button type="button" className={scene.shots.length === 0 ? "primary" : ""} disabled={boarding || running} onClick={board}>
+          {boarding && <Spinner />} {boarding ? "Storyboarding" : scene.shots.length === 0 ? "Storyboard this scene" : "Storyboard again"}
+          {!boarding && <Ticket micro={price} />}
         </button>
       </div>
       {scene.script.trim() && (
@@ -267,21 +262,32 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
   return (
     <article className={`card shot-card${approved ? " approved" : ""}`}>
       <div className="shot-top">
-        <strong>
-          {sceneIdx + 1}.{index + 1}
+        <strong className="shot-n">
+          Shot {sceneIdx + 1}.{index + 1}
         </strong>
-        {approved && (
-          <span className="badge ok">
-            <Icon name="check" size={11} /> Approved
-          </span>
-        )}
         <div className="spacer" />
+        <button
+          type="button"
+          className={`approve${approved ? " on" : ""}`}
+          aria-pressed={approved}
+          disabled={approving !== null}
+          title={approved ? "Click to unapprove" : "Approve this shot for the final render"}
+          onClick={() => setApproved(!approved)}
+        >
+          {approved ? (
+            <>
+              <Icon name="check" size={12} /> Approved
+            </>
+          ) : (
+            "Approve shot"
+          )}
+        </button>
         <div className="tools">
           <button
             type="button"
             className="icon-btn"
-            title="Move up"
-            aria-label="Move up"
+            title="Move shot earlier"
+            aria-label="Move shot earlier"
             disabled={index === 0 && !prevScene}
             onClick={() => move(-1)}
           >
@@ -290,45 +296,42 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
           <button
             type="button"
             className="icon-btn"
-            title="Move down"
-            aria-label="Move down"
+            title="Move shot later"
+            aria-label="Move shot later"
             disabled={last && !nextScene}
             onClick={() => move(1)}
           >
             <Icon name="down" />
           </button>
-          <button
-            type="button"
-            className="icon-btn"
-            title="Split in two"
-            aria-label="Split"
-            disabled={generating}
-            onClick={() => void act(`split-${shot.id}`, () => api.post<View>(`${path}/split`, {}))}
-          >
-            <Icon name="split" />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
-            title="Merge with next"
-            aria-label="Merge with next"
-            disabled={last || generating}
-            onClick={() => void act(`merge-${shot.id}`, () => api.post<View>(`${path}/merge`))}
-          >
-            <Icon name="merge" />
-          </button>
-          <button
-            type="button"
-            className="icon-btn danger-text"
-            title="Delete"
-            aria-label="Delete shot"
-            onClick={() => {
-              if (window.confirm(`Delete shot ${sceneIdx + 1}.${index + 1} and its ${shot.takes.length} takes?`))
-                void act(`del-${shot.id}`, () => api.del<View>(path));
-            }}
-          >
-            <Icon name="trash" />
-          </button>
+          <MoreMenu label="More shot actions">
+            <button
+              type="button"
+              role="menuitem"
+              disabled={generating}
+              onClick={() => void act(`split-${shot.id}`, () => api.post<View>(`${path}/split`, {}))}
+            >
+              <Icon name="split" /> Split in two
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={last || generating}
+              onClick={() => void act(`merge-${shot.id}`, () => api.post<View>(`${path}/merge`))}
+            >
+              <Icon name="merge" /> Merge with next
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="danger-item"
+              onClick={() => {
+                if (window.confirm(`Delete shot ${sceneIdx + 1}.${index + 1} and its ${shot.takes.length} takes?`))
+                  void act(`del-${shot.id}`, () => api.del<View>(path));
+              }}
+            >
+              <Icon name="trash" /> Delete shot
+            </button>
+          </MoreMenu>
         </div>
       </div>
 
@@ -397,9 +400,6 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
               <option value="tts">Text to speech</option>
               <option value="none">No audio</option>
             </select>
-            <label className="check">
-              <input type="checkbox" checked={approved} onChange={(e) => setApproved(e.target.checked)} /> Approve
-            </label>
           </div>
         </div>
       </div>
@@ -407,24 +407,28 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
       <Dialogue shot={shot} onSave={(dialogue) => void patch({ dialogue })} />
 
       <div className="row tight">
-        <button type="button" disabled={generating || isBusy(`take-${shot.id}-draft`)} onClick={() => gen("draft")}>
-          Draft {est && <span className="price">{money(est.draft)}</span>}
+        <button
+          type="button"
+          className={approved ? "" : "primary"}
+          disabled={generating || isBusy(`take-${shot.id}-draft`)}
+          onClick={() => gen("draft")}
+        >
+          Draft <Ticket micro={est?.draft} />
         </button>
         <button
           type="button"
-          className="primary"
+          className={approved ? "primary" : ""}
           disabled={!approved || approving !== null || generating || isBusy(`take-${shot.id}-final`)}
-          title={approved ? undefined : "Approve this shot to render it on the final model"}
           onClick={() => gen("final")}
         >
-          Final {est && <span className="price">{money(est.final)}</span>}
+          Final <Ticket micro={est?.final} />
         </button>
         {generating ? (
           <span className="muted small-text">
             <Spinner /> Generating
           </span>
         ) : (
-          !approved && <span className="muted small-text">Approve to enable Final</span>
+          !approved && <Why>Approve the shot first</Why>
         )}
       </div>
 
@@ -435,7 +439,10 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
               key={t.id}
               type="button"
               className={`take${t.id === take?.id ? " selected" : ""} ${t.status}`}
-              title={t.error ?? `${t.tier} take, ${t.status}. ${t.imageModel} then ${t.videoModel}`}
+              title={
+                t.error ??
+                `${t.tier === "final" ? "Final" : "Draft"} take ${i + 1}, ${t.status}. ${modelLabel(app.config, t.imageModel)}, then ${modelLabel(app.config, t.videoModel)}`
+              }
               onClick={() => {
                 if (t.id !== shot.selectedTakeId) void patch({ selectedTakeId: t.id });
               }}
@@ -460,21 +467,17 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
 
       {lines.length > 0 && (
         <details className="shot-costs">
-          <summary>
-            Costs: {lines.length} {lines.length === 1 ? "line" : "lines"}, {money(shotSpent)}
-          </summary>
+          <summary>Spent on this shot: {money(shotSpent)}</summary>
           <table className="table mini">
             <tbody>
               {lines.map((l) => (
                 <tr key={l.id} className={l.status === "refunded" ? "refunded" : ""}>
                   <td className="nowrap">
-                    {l.tier ? `${l.tier} ` : ""}
-                    {l.kind}
+                    {l.tier === "final" ? "Final " : l.tier === "draft" ? "Draft " : ""}
+                    {KIND[l.kind] ?? l.kind}
                   </td>
-                  <td className="mono">{l.model}</td>
-                  <td className="num">
-                    {round(l.units)} {l.unit}
-                  </td>
+                  <td>{modelLabel(app.config, l.model)}</td>
+                  <td className="num nowrap">{unitLabel(l.units, l.unit)}</td>
                   <td className="num">{money(l.paidMicro)}</td>
                   <td>
                     <StatusBadge status={l.status} />
@@ -484,12 +487,13 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
               ))}
             </tbody>
           </table>
-          <div className="muted small-text">{app.config.priceLabel}</div>
         </details>
       )}
     </article>
   );
 }
+
+const KIND: Record<string, string> = { image: "image", video: "video", tts: "voice", llm: "text" };
 
 export const round = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(n < 10 ? 2 : 1));
 

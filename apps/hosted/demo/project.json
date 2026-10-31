@@ -12,27 +12,21 @@
       "kind": "character",
       "name": "MAYA",
       "description": "late 20s courier, short black hair, yellow rain jacket, messenger bag.",
-      "refImageIds": [
-        "m_zOV0xVKd"
-      ]
+      "refImageIds": ["m_zOV0xVKd"]
     },
     {
       "id": "cast_rcIRUUKD",
       "kind": "character",
       "name": "LEO",
       "description": "early 30s shopkeeper, round glasses, grey cardigan.",
-      "refImageIds": [
-        "m_LI9ckkKw"
-      ]
+      "refImageIds": ["m_LI9ckkKw"]
     },
     {
       "id": "cast_2yATVTal",
       "kind": "location",
       "name": "CORNER SHOP",
       "description": "a small, warmly lit corner shop at night, rain on the windows.",
-      "refImageIds": [
-        "m_DcwhtIBo"
-      ]
+      "refImageIds": ["m_DcwhtIBo"]
     }
   ],
   "episodes": [
@@ -51,10 +45,7 @@
               "id": "shot_g4lROQKP",
               "description": "Wide: rain-streaked window, the corner shop glowing at night. Maya pushes the door open.",
               "camera": "wide, static",
-              "castIds": [
-                "cast_7l49sxAD",
-                "cast_2yATVTal"
-              ],
+              "castIds": ["cast_7l49sxAD", "cast_2yATVTal"],
               "dialogue": [],
               "durationS": 5,
               "audio": "native",
@@ -91,10 +82,7 @@
               "id": "shot_Ju57QHOH",
               "description": "Medium: Maya shakes rain off her yellow jacket and slides a letter across the counter.",
               "camera": "medium, slow push in",
-              "castIds": [
-                "cast_7l49sxAD",
-                "cast_2yATVTal"
-              ],
+              "castIds": ["cast_7l49sxAD", "cast_2yATVTal"],
               "dialogue": [
                 {
                   "id": "line_giU-dhPW",
@@ -149,10 +137,7 @@
               "id": "shot_hooNK3W3",
               "description": "Close-up: Leo turns the envelope over under the lamp, frowning.",
               "camera": "close-up, handheld",
-              "castIds": [
-                "cast_rcIRUUKD",
-                "cast_2yATVTal"
-              ],
+              "castIds": ["cast_rcIRUUKD", "cast_2yATVTal"],
               "dialogue": [],
               "durationS": 5,
               "audio": "native",
@@ -189,11 +174,7 @@
               "id": "shot_Rp-ndmyj",
               "description": "Medium two-shot: Leo slides the letter back.",
               "camera": "medium two-shot",
-              "castIds": [
-                "cast_7l49sxAD",
-                "cast_rcIRUUKD",
-                "cast_2yATVTal"
-              ],
+              "castIds": ["cast_7l49sxAD", "cast_rcIRUUKD", "cast_2yATVTal"],
               "dialogue": [
                 {
                   "id": "line_kizCGa2C",
@@ -236,10 +217,7 @@
               "id": "shot__PKIHGTD",
               "description": "Insert: Maya's hands tear the envelope open.",
               "camera": "insert, top-down",
-              "castIds": [
-                "cast_7l49sxAD",
-                "cast_2yATVTal"
-              ],
+              "castIds": ["cast_7l49sxAD", "cast_2yATVTal"],
               "dialogue": [],
               "durationS": 5,
               "audio": "native",
@@ -276,10 +254,7 @@
               "id": "shot_Q0OwvOy6",
               "description": "Close-up: Maya reads, her face falling.",
               "camera": "close-up, slow push in",
-              "castIds": [
-                "cast_7l49sxAD",
-                "cast_2yATVTal"
-              ],
+              "castIds": ["cast_7l49sxAD", "cast_2yATVTal"],
               "dialogue": [
                 {
                   "id": "line_T7AsgAUq",

@@ -1,13 +1,25 @@
-import { type ReactNode, createContext, useContext, useState } from "react";
+import { type ReactNode, createContext, useContext, useEffect, useRef, useState } from "react";
 import type { Config, LocalSettings } from "./api";
 import { ApiError } from "./api";
 
-/** Micro-USD as dollars: 2 decimals, or 3 under $1. */
+/** Micro-USD as dollars: 2 decimals, or 3 for small non-zero amounts (under $0.10). */
 export function money(micro: number): string {
   const usd = micro / 1_000_000;
   const abs = Math.abs(usd);
-  const digits = abs > 0 && abs < 1 ? 3 : 2;
+  const digits = abs > 0 && abs < 0.1 ? 3 : 2;
   return `${usd < 0 ? "-" : ""}$${abs.toFixed(digits)}`;
+}
+
+/** A price as a gold ticket stub, for generate buttons. */
+export function Ticket({ micro }: { micro: number | null | undefined }) {
+  if (micro == null) return null;
+  return <span className="ticket">{money(micro)}</span>;
+}
+
+/** Why a primary action is disabled, shown beside it. */
+export function Why({ children }: { children: ReactNode }) {
+  if (!children) return null;
+  return <span className="why">{children}</span>;
 }
 
 export function bytes(n: number): string {
@@ -16,9 +28,112 @@ export function bytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function time(iso: string): string {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "31 Oct, 10:47" (with the year when it isn't this year). */
+export function when(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const year = d.getFullYear() !== new Date().getFullYear() ? ` ${d.getFullYear()}` : "";
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}${year}, ${hm}`;
+}
+
+/** "just now", "2 min ago", "3 h ago", then "31 Oct, 10:47". */
+export function ago(iso: string): string {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return when(iso);
+}
+
+/** A timestamp in body text: relative, with the exact time on hover. */
+export function When({ iso }: { iso: string }) {
+  return (
+    <time dateTime={iso} title={when(iso)}>
+      {ago(iso)}
+    </time>
+  );
+}
+
+/** The human name of a model id, from config.models. */
+export function modelLabel(config: Config, id: string): string {
+  return config.models?.find((m) => m.id === id)?.label ?? id;
+}
+
+export function providerLabel(p: string): string {
+  if (p === "mock") return "Test mode";
+  if (p === "fal") return "fal.ai";
+  return p;
+}
+
+const num = (n: number) => (Number.isInteger(n) ? n.toLocaleString("en") : n.toFixed(n < 10 ? 1 : 0));
+
+/** Billed units in plain words: "5 s", "1 image", "420 chars", "1,684 tokens". */
+export function unitLabel(units: number, unit: string): string {
+  switch (unit) {
+    case "second":
+      return `${num(units)} s`;
+    case "image":
+      return plural(units, "image");
+    case "video":
+      return plural(units, "clip");
+    case "1k_chars":
+      return `${Math.round(units * 1000).toLocaleString("en")} chars`;
+    case "tokens":
+      return `${num(units)} tokens`;
+    default:
+      return `${num(units)} ${unit}`;
+  }
+}
+
+/** A small "⋯" button that opens a menu of actions. */
+export function MoreMenu({ label, children }: { label: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return (
+    <div className="more" ref={ref}>
+      <button
+        type="button"
+        className="icon-btn more-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={label}
+        title={label}
+        onClick={() => setOpen(!open)}
+      >
+        <Icon name="more" />
+      </button>
+      {open && (
+        // Any click on an item closes the menu.
+        <div
+          className="more-menu"
+          role="menu"
+          onClick={() => setOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setOpen(false);
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export interface AppState {
@@ -72,6 +187,13 @@ const paths: Record<string, ReactNode> = {
   split: <path d="M8 2v12M3 5l-1.5 3L3 11M13 5l1.5 3L13 11" />,
   merge: <path d="M2 4h4l2 4-2 4H2M14 4h-4M14 12h-4M8 8h6" />,
   check: <path d="M3 8.5l3 3 7-7" />,
+  more: (
+    <>
+      <circle cx="3.5" cy="8" r="1" fill="currentColor" />
+      <circle cx="8" cy="8" r="1" fill="currentColor" />
+      <circle cx="12.5" cy="8" r="1" fill="currentColor" />
+    </>
+  ),
   gear: (
     <>
       <circle cx="8" cy="8" r="2.2" />
