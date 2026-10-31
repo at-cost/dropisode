@@ -154,7 +154,7 @@ export function homePage(c: Ctx) {
                 cheap draft, then render the ones you approve. Every button shows its exact price before you press it.
               </p>
               <div class="h-cta">
-                <a class="h-btn primary" href={user ? "/studio/" : "/sign-in"}>
+                <a class="h-btn primary" href={user ? "/studio/" : "/sign-up"}>
                   {user ? "Open the studio" : "Start a project"}
                 </a>
                 <a class="h-btn ghost" href="/demo">

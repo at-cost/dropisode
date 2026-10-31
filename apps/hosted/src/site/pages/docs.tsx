@@ -30,7 +30,7 @@ export function docsPage(c: Ctx) {
         <h2 id="start">Getting started (hosted)</h2>
         <ol>
           <li>
-            <a href="/sign-in">Sign in</a> with an email link, Google or GitHub. You get a workspace. Invite as many people to it as you
+            <a href="/sign-up">Sign up</a> with your email and a password, or with Google. You get a workspace. Invite as many people to it as you
             like; there are no seats.
           </li>
           <li>

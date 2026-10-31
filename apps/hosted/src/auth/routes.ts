@@ -1,7 +1,12 @@
 /**
- * Sign-in (email link, Google, GitHub) and the account API. Ported from
- * at-cost/glasstrack's auth routes (MIT). Email links and OAuth both prove the
- * address, so findOrCreateUser marks it verified.
+ * Sign-in (email + password, email link, Google, GitHub) and the account API.
+ * Ported from at-cost/glasstrack's auth routes (MIT).
+ *
+ * An account exists only once its email is proved: a sign-up keeps its password
+ * hash on the emailed confirmation link, and the account is created when that
+ * link is used. Email links and OAuth both prove the address, so findOrCreateUser
+ * marks it verified. Nobody can hold an unconfirmed account for someone else's
+ * email (which would otherwise match admin emails or pending invites).
  */
 import { GitHub, Google, generateCodeVerifier, generateState } from "arctic";
 import { Hono } from "hono";
@@ -21,6 +26,7 @@ import {
 import type { AppEnv, Ctx, Deps } from "../context";
 import { notFound } from "../lib/errors";
 import { newToken, sha256 } from "../lib/ids";
+import { hashPassword, passwordField, verifyPassword } from "./password";
 import { createSession, destroySession, requireUser } from "./session";
 import { findOrCreateUser } from "./users";
 import { clientIp, emailField, rateLimit, safeNext } from "./util";
@@ -30,6 +36,8 @@ import { CSS } from "../site/layout";
 export { authPages } from "./pages";
 
 const LINK_MINUTES = 15;
+const SIGNUP_HOURS = 24;
+const RESET_MINUTES = 30;
 const OAUTH_COOKIES = ["reel_oauth_state", "reel_oauth_verifier", "reel_oauth_next"] as const;
 
 const isForm = (c: Ctx) => (c.req.header("content-type") ?? "").includes("application/x-www-form-urlencoded");
@@ -140,14 +148,168 @@ authRoutes.post("/verify", async (c) => {
     .updateTable("loginTokens")
     .set({ usedAt: new Date() })
     .where("tokenHash", "=", sha256(token))
+    .where("purpose", "in", ["signin", "signup"])
     .where("usedAt", "is", null)
     .where("expiresAt", ">", new Date())
-    .returning(["email", "redirect"])
+    .returning(["email", "redirect", "purpose", "passwordHash", "name"])
     .executeTakeFirst();
   if (!link) return c.redirect("/sign-in?error=link");
-  const u = await findOrCreateUser(deps.db, { email: link.email });
+  const u = await findOrCreateUser(deps.db, { email: link.email, name: link.name });
+  // The inbox owner confirmed this sign-up, so its password becomes the account's.
+  if (link.purpose === "signup" && link.passwordHash)
+    await deps.db.updateTable("users").set({ passwordHash: link.passwordHash }).where("id", "=", u.id).execute();
   await createSession(c, u.id);
   return c.redirect(safeNext(link.redirect, deps.config.APP_URL));
+});
+
+const base = (deps: Deps) => deps.config.APP_URL.replace(/\/$/, "");
+const liveUser = (deps: Deps, email: string) =>
+  deps.db.selectFrom("users").select(["id", "passwordHash"]).where("email", "=", email).where("deletedAt", "is", null).executeTakeFirst();
+
+/** Answers a form post with a redirect, or JSON for the page's script. */
+function reply(c: Ctx, json: Record<string, unknown>, status: 200 | 400, formTo: string) {
+  if (isForm(c)) return c.redirect(formTo);
+  return c.json(json, status);
+}
+
+function limited(c: Ctx, checks: [Parameters<typeof rateLimit>[1], string][], formTo: string): Response | null {
+  try {
+    for (const [which, key] of checks) rateLimit(c, which, key);
+    return null;
+  } catch (err) {
+    if (isForm(c)) return c.redirect(formTo);
+    throw err;
+  }
+}
+
+authRoutes.post("/sign-up", async (c) => {
+  const deps = c.get("deps");
+  const parsed = z
+    .object({ email: emailField, password: passwordField, name: z.string().trim().max(80).optional(), next: z.string().max(500).optional() })
+    .safeParse(await readBody(c));
+  if (!parsed.success) {
+    const msg = parsed.error.issues.find((i) => i.path[0] === "password")?.message ?? "Enter a valid email address";
+    return reply(c, { error: msg }, 400, "/sign-up?error=input");
+  }
+  const { email, password } = parsed.data;
+  const stop = limited(c, [["ip", `ip:${clientIp(c)}`], ["email", `email:${email}`]], "/sign-up?error=rate");
+  if (stop) return stop;
+  const next = safeNext(parsed.data.next, deps.config.APP_URL);
+  // Same answer whether or not the account exists, so the form can't be used to find out who has one.
+  if (await liveUser(deps, email)) {
+    await deps.mailer.send({
+      to: email,
+      subject: "You already have a Dropisode account",
+      text: `Someone (hopefully you) tried to sign up to Dropisode with this email, but it already has an account.
+
+Sign in: ${base(deps)}/sign-in
+Forgot your password? ${base(deps)}/forgot
+
+If it wasn't you, ignore this email. Nothing has changed.`,
+    });
+  } else {
+    const token = newToken();
+    await deps.db
+      .insertInto("loginTokens")
+      .values({
+        tokenHash: sha256(token),
+        email,
+        redirect: next,
+        purpose: "signup",
+        passwordHash: await hashPassword(password),
+        name: parsed.data.name || null,
+        expiresAt: new Date(Date.now() + SIGNUP_HOURS * 3_600_000),
+      })
+      .execute();
+    await deps.mailer.send({
+      to: email,
+      subject: "Confirm your Dropisode account",
+      text: `Confirm your email to finish creating your Dropisode account: ${base(deps)}/auth/verify?token=${encodeURIComponent(token)}
+
+The link works once and expires in ${SIGNUP_HOURS} hours.
+If you didn't sign up, ignore this email and no account is created.`,
+    });
+  }
+  return reply(c, { ok: true }, 200, "/sign-up?sent=1");
+});
+
+authRoutes.post("/sign-in", async (c) => {
+  const deps = c.get("deps");
+  const parsed = z
+    .object({ email: emailField, password: z.string().min(1).max(200), next: z.string().max(500).optional() })
+    .safeParse(await readBody(c));
+  if (!parsed.success) return reply(c, { error: "Enter your email and password" }, 400, "/sign-in?error=password");
+  const { email, password } = parsed.data;
+  const stop = limited(c, [["ip", `ip:${clientIp(c)}`], ["password", `pw:${email}`]], "/sign-in?error=rate");
+  if (stop) return stop;
+  const u = await liveUser(deps, email);
+  if (!(await verifyPassword(password, u?.passwordHash)) || !u)
+    return reply(c, { error: "Wrong email or password." }, 400, "/sign-in?error=password");
+  await createSession(c, u.id);
+  const next = safeNext(parsed.data.next, deps.config.APP_URL);
+  if (isForm(c)) return c.redirect(next);
+  return c.json({ ok: true, next });
+});
+
+authRoutes.post("/forgot", async (c) => {
+  const deps = c.get("deps");
+  const parsed = z.object({ email: emailField }).safeParse(await readBody(c));
+  if (!parsed.success) return reply(c, { error: "Enter a valid email address" }, 400, "/forgot?error=email");
+  const { email } = parsed.data;
+  const stop = limited(c, [["ip", `ip:${clientIp(c)}`], ["email", `email:${email}`]], "/forgot?error=rate");
+  if (stop) return stop;
+  // Same answer whether or not the account exists.
+  if (await liveUser(deps, email)) {
+    const token = newToken();
+    await deps.db
+      .insertInto("loginTokens")
+      .values({ tokenHash: sha256(token), email, redirect: null, purpose: "reset", expiresAt: new Date(Date.now() + RESET_MINUTES * 60_000) })
+      .execute();
+    await deps.mailer.send({
+      to: email,
+      subject: "Reset your Dropisode password",
+      text: `Choose a new password: ${base(deps)}/reset?token=${encodeURIComponent(token)}
+
+The link works once and expires in ${RESET_MINUTES} minutes.
+If you didn't ask for it, ignore this email. Your password hasn't changed.`,
+    });
+  }
+  return reply(c, { ok: true }, 200, "/forgot?sent=1");
+});
+
+authRoutes.post("/reset", async (c) => {
+  const deps = c.get("deps");
+  const parsed = z.object({ token: z.string().min(10).max(200), password: passwordField }).safeParse(await readBody(c));
+  if (!parsed.success) {
+    const msg = parsed.error.issues.find((i) => i.path[0] === "password")?.message ?? "That reset link doesn't work";
+    return reply(c, { error: msg }, 400, "/sign-in?error=link");
+  }
+  const stop = limited(c, [["verify", `verify:${clientIp(c)}`]], "/sign-in?error=rate");
+  if (stop) return stop;
+  const passwordHash = await hashPassword(parsed.data.password);
+  const userId = await deps.db.transaction().execute(async (tx) => {
+    const link = await tx
+      .updateTable("loginTokens")
+      .set({ usedAt: new Date() })
+      .where("tokenHash", "=", sha256(parsed.data.token))
+      .where("purpose", "=", "reset")
+      .where("usedAt", "is", null)
+      .where("expiresAt", ">", new Date())
+      .returning("email")
+      .executeTakeFirst();
+    if (!link) return null;
+    const u = await tx.selectFrom("users").select("id").where("email", "=", link.email).where("deletedAt", "is", null).executeTakeFirst();
+    if (!u) return null;
+    await tx.updateTable("users").set({ passwordHash, emailVerifiedAt: new Date() }).where("id", "=", u.id).execute();
+    // A new password signs out every other device, and voids other reset links.
+    await tx.deleteFrom("sessions").where("userId", "=", u.id).execute();
+    await tx.updateTable("loginTokens").set({ usedAt: new Date() }).where("email", "=", link.email).where("purpose", "=", "reset").where("usedAt", "is", null).execute();
+    return u.id;
+  });
+  if (!userId) return reply(c, { error: "That reset link is used or expired. Ask for a new one." }, 400, "/forgot?error=link");
+  await createSession(c, userId);
+  if (isForm(c)) return c.redirect("/studio/");
+  return c.json({ ok: true, next: "/studio/" });
 });
 
 authRoutes.get("/oauth/:provider", (c) => {

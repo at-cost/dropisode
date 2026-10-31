@@ -239,7 +239,7 @@ export function privacyPage(c: Ctx) {
         <li>OpenAI's moderation API: prompts, script excerpts and images, checked before generation.</li>
         <li>Stripe: payments.</li>
         <li>Cloudflare R2: storage for media files.</li>
-        <li>Our email provider: sign-in links and account emails.</li>
+        <li>Our email provider: confirmation, password reset and account emails.</li>
         <li>Our server host: the database and application.</li>
       </ul>
       <p>Some of these are outside your country. We rely on their standard data protection terms for those transfers.</p>

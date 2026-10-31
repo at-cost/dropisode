@@ -87,7 +87,10 @@ export function Layout(props: { title: string; user?: SessionUser | null; childr
               <a href="/account">Account</a>
             </nav>
           ) : (
-            <a href="/sign-in">Sign in</a>
+            <nav class="user">
+              <a href="/sign-in">Sign in</a>
+              <a href="/sign-up">Sign up</a>
+            </nav>
           )}
         </header>
         {props.fullBleed ? <main class="bleed">{props.children}</main> : <main>{props.children}</main>}

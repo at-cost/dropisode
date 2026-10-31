@@ -268,8 +268,15 @@ describe("pages", () => {
     expect((await get("/account")).headers.get("location")).toBe("/sign-in?next=%2Faccount");
     expect((await get("/billing?paid=1")).headers.get("location")).toBe(`/sign-in?next=${encodeURIComponent("/billing?paid=1")}`);
     const signIn = await (await get("/sign-in")).text();
-    expect(signIn).toContain("Email me a sign-in link");
+    expect(signIn).toContain("Forgot your password?");
+    expect(signIn).toContain('href="/sign-up?next=%2Fstudio%2F"');
     expect(signIn).not.toContain("Continue with Google");
+    const signUp = await (await get("/sign-up")).text();
+    expect(signUp).toContain("Create account");
+    expect(signUp).toContain('autocomplete="new-password"');
+    expect(await (await get("/forgot")).text()).toContain("Email me a reset link");
+    expect(await (await get("/reset?token=abcdefghijkl")).text()).toContain('value="abcdefghijkl"');
+    expect((await get("/reset?token=x")).headers.get("location")).toBe("/forgot?error=link");
     const a = await t.signIn("a@reel.test");
     await t.fund(await t.workspaceOf(a), 25);
     const account = await (await get("/account", a)).text();
@@ -281,5 +288,120 @@ describe("pages", () => {
     expect(billing).toContain("Credit never expires.");
     expect(billing).toContain("test credit");
     for (const html of [signIn, account, billing]) expect(html).not.toContain("\u2014");
+  });
+});
+
+
+describe("email and password accounts", () => {
+  const PW = "correct horse battery";
+  const signUp = (email: string, password = PW, next?: string) => t.request("POST", "/auth/sign-up", { body: { email, password, next } });
+  const signInPw = (email: string, password: string) => t.request("POST", "/auth/sign-in", { body: { email, password } });
+  const users = () => t.deps.db.selectFrom("users").select(["email", "passwordHash"]).execute();
+  const sessionOk = async (cookie: string) => (await t.request("GET", "/api/account", { cookie })).status === 200;
+
+  it("sign-up creates the account only when the email link is used, then the password works", async () => {
+    expect((await signUp("New@Reel.test", PW, "/billing")).status).toBe(200);
+    expect(await users()).toHaveLength(0);
+    const mail = lastMailTo("new@reel.test")!;
+    expect(mail.subject).toBe("Confirm your Dropisode account");
+    const res = await follow(linkIn(mail.text, "/auth/verify"));
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/billing");
+    expect(await sessionOk(withCookies("", res))).toBe(true);
+    const [u] = await users();
+    expect(u!.email).toBe("new@reel.test");
+    expect(u!.passwordHash).toMatch(/^scrypt\$/);
+    expect(u!.passwordHash).not.toContain(PW);
+
+    const ok = await signInPw("NEW@reel.test", PW);
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as { next: string }).next).toBe("/studio/");
+    expect(await sessionOk(withCookies("", ok))).toBe(true);
+    const bad = await signInPw("new@reel.test", "wrong password!!");
+    expect(bad.status).toBe(400);
+    expect(bad.headers.getSetCookie()).toHaveLength(0);
+    expect((await signInPw("nobody@reel.test", PW)).status).toBe(400);
+  });
+
+  it("rejects short passwords", async () => {
+    const res = await signUp("a@reel.test", "short");
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain("10 characters");
+  });
+
+  it("an unconfirmed sign-up for an admin email gets no session and no account", async () => {
+    const admin = t.deps.config.adminEmails[0] ?? "admin@reel.test";
+    const res = await signUp(admin);
+    expect(res.headers.getSetCookie()).toHaveLength(0);
+    expect(await users()).toHaveLength(0);
+    expect((await signInPw(admin, PW)).status).toBe(400);
+  });
+
+  it("signing up with an existing email answers the same, sends a notice and changes nothing", async () => {
+    await t.signIn("have@reel.test");
+    const res = await signUp("have@reel.test", "attacker password 1");
+    expect(res.status).toBe(200);
+    expect(lastMailTo("have@reel.test")!.subject).toBe("You already have a Dropisode account");
+    const tokens = await t.deps.db.selectFrom("loginTokens").select("purpose").where("purpose", "=", "signup").execute();
+    expect(tokens).toHaveLength(0);
+    expect((await signInPw("have@reel.test", "attacker password 1")).status).toBe(400);
+  });
+
+  it("a link-only account has no password to guess", async () => {
+    await t.signIn("link@reel.test");
+    expect((await signInPw("link@reel.test", "")).status).toBe(400);
+    expect((await signInPw("link@reel.test", "anything at all")).status).toBe(400);
+  });
+
+  it("password reset: new password works, old fails, other sessions end, link works once", async () => {
+    await signUp("r@reel.test");
+    await follow(linkIn(lastMailTo("r@reel.test")!.text, "/auth/verify"));
+    const other = withCookies("", await signInPw("r@reel.test", PW));
+    expect(await sessionOk(other)).toBe(true);
+
+    expect((await t.request("POST", "/auth/forgot", { body: { email: "nobody@reel.test" } })).status).toBe(200);
+    expect(lastMailTo("nobody@reel.test")).toBeUndefined();
+    expect((await t.request("POST", "/auth/forgot", { body: { email: "r@reel.test" } })).status).toBe(200);
+    const url = linkIn(lastMailTo("r@reel.test")!.text, "/reset");
+    const token = url.searchParams.get("token")!;
+    // A reset link can't be used as a sign-in link.
+    expect((await follow(new URL(`${t.deps.config.APP_URL}/auth/verify?token=${token}`))).headers.get("location")).toBe("/sign-in?error=link");
+
+    const res = await t.request("POST", "/auth/reset", { body: { token, password: "a brand new password" } });
+    expect(res.status).toBe(200);
+    expect(await sessionOk(withCookies("", res))).toBe(true);
+    expect(await sessionOk(other)).toBe(false);
+    expect((await signInPw("r@reel.test", PW)).status).toBe(400);
+    expect((await signInPw("r@reel.test", "a brand new password")).status).toBe(200);
+    expect((await t.request("POST", "/auth/reset", { body: { token, password: "another new password" } })).status).toBe(400);
+  });
+
+  it("a sign-in link can't be used to reset a password", async () => {
+    await t.signIn("s@reel.test");
+    await t.request("POST", "/auth/email", { body: { email: "s@reel.test" } });
+    const token = linkIn(lastMailTo("s@reel.test")!.text, "/auth/verify").searchParams.get("token")!;
+    expect((await t.request("POST", "/auth/reset", { body: { token, password: "a brand new password" } })).status).toBe(400);
+  });
+
+  it("limits wrong-password guesses per account", async () => {
+    await signUp("g@reel.test");
+    await follow(linkIn(lastMailTo("g@reel.test")!.text, "/auth/verify"));
+    const codes: number[] = [];
+    for (let i = 0; i < 11; i++) codes.push((await signInPw("g@reel.test", `guess number ${i}`)).status);
+    expect(codes.slice(0, 10).every((c) => c === 400)).toBe(true);
+    expect(codes[10]).toBe(429);
+    // Locked for now even with the right password.
+    expect((await signInPw("g@reel.test", PW)).status).toBe(429);
+  });
+
+  it("plain HTML forms work without JavaScript", async () => {
+    const form = (path: string, body: string) =>
+      t.request("POST", path, { body, headers: { "content-type": "application/x-www-form-urlencoded" } });
+    expect((await form("/auth/sign-up", "email=f%40reel.test&password=short")).headers.get("location")).toBe("/sign-up?error=input");
+    expect((await form("/auth/sign-up", `email=f%40reel.test&password=${encodeURIComponent(PW)}`)).headers.get("location")).toBe("/sign-up?sent=1");
+    await follow(linkIn(lastMailTo("f@reel.test")!.text, "/auth/verify"));
+    expect((await form("/auth/sign-in", "email=f%40reel.test&password=nope")).headers.get("location")).toBe("/sign-in?error=password");
+    const ok = await form("/auth/sign-in", `email=f%40reel.test&password=${encodeURIComponent(PW)}&next=%2Fbilling`);
+    expect(ok.headers.get("location")).toBe("/billing");
   });
 });

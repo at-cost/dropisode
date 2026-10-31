@@ -276,8 +276,8 @@ export function demoPage(c: Ctx, demo: Demo | null) {
               Open the studio
             </a>
           ) : (
-            <a class="button" href="/sign-in">
-              Sign in to make your own
+            <a class="button" href="/sign-up">
+              Sign up to make your own
             </a>
           )}
           <a class="button secondary" href="/pricing">

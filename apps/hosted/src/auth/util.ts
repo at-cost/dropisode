@@ -48,13 +48,20 @@ class Limiter {
   }
 }
 
-const limiters = new WeakMap<Deps, { ip: Limiter; email: Limiter; verify: Limiter; invite: Limiter }>();
+const limiters = new WeakMap<Deps, { ip: Limiter; email: Limiter; verify: Limiter; invite: Limiter; password: Limiter }>();
 
 export function limits(deps: Deps) {
   let l = limiters.get(deps);
   if (!l) {
     const w = 15 * 60_000;
-    l = { ip: new Limiter(20, w), email: new Limiter(5, w), verify: new Limiter(30, w), invite: new Limiter(30, 60 * 60_000) };
+    l = {
+      ip: new Limiter(30, w),
+      email: new Limiter(5, w),
+      verify: new Limiter(30, w),
+      invite: new Limiter(30, 60 * 60_000),
+      // Wrong-password guesses per account.
+      password: new Limiter(10, w),
+    };
     limiters.set(deps, l);
   }
   return l;

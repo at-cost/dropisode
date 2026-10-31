@@ -8,9 +8,28 @@ type Big = ColumnType<string, number | bigint | string, number | bigint | string
 type Json<T> = ColumnType<T, string, string>;
 
 export interface DB {
-  users: { id: string; email: string; name: string; emailVerifiedAt: TsNull; createdAt: Generated<Date>; deletedAt: TsNull };
+  users: {
+    id: string;
+    email: string;
+    name: string;
+    emailVerifiedAt: TsNull;
+    createdAt: Generated<Date>;
+    deletedAt: TsNull;
+    passwordHash: Generated<string | null>;
+  };
   sessions: { id: string; userId: string; tokenHash: string; expiresAt: Ts; lastSeenAt: Generated<Date>; createdAt: Generated<Date> };
-  loginTokens: { tokenHash: string; email: string; redirect: string | null; expiresAt: Ts; usedAt: TsNull; createdAt: Generated<Date> };
+  loginTokens: {
+    tokenHash: string;
+    email: string;
+    redirect: string | null;
+    expiresAt: Ts;
+    usedAt: TsNull;
+    createdAt: Generated<Date>;
+    /** "signin" (email link), "signup" (confirms a new account; carries its password), "reset" (password reset). */
+    purpose: Generated<"signin" | "signup" | "reset">;
+    passwordHash: Generated<string | null>;
+    name: Generated<string | null>;
+  };
   oauthAccounts: { provider: string; providerUserId: string; userId: string; createdAt: Generated<Date> };
   workspaces: {
     id: string;
