@@ -32,3 +32,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm --filter @reel/studio build
       - run: pnpm test
+      - name: Install the browser for the journey test
+        run: pnpm --filter @reel/hosted exec playwright install --with-deps chromium-headless-shell
+      - name: Customer journey in a real browser (providers and Stripe mocked)
+        run: pnpm --filter @reel/hosted exec vitest run -c vitest.e2e.config.ts
+      - name: Journey test screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: apps/hosted/e2e/.artifacts/
+          if-no-files-found: ignore

@@ -85,6 +85,15 @@ A temporary password-protected staging site (mock video provider, Stripe sandbox
 
 Staging, its data, DNS record and sandbox webhook were removed afterwards.
 
+## Customer journey in a real browser
+
+`apps/hosted/e2e/full-flow.e2e.ts` (`pnpm --filter @reel/hosted e2e`, also in CI)
+
+- A real Chromium drives the real app: sign up, confirm the email from the captured mail, sign out and in with the password, top up with the $10 button through a fake Stripe checkout that sends the webhook, create a project, write the script, generate the cast, storyboard, draft every shot, approve, render finals and assemble the episode.
+- AI providers are the mock provider and Stripe is faked, so it costs nothing. The job worker runs as in production.
+- It checks that generation charges equal the provider's cost × 1.2, nothing stays held, and the balance is $10 minus the charges.
+- Added after the $10/$20/$50 buttons shipped broken (2026-10-31): unit tests called the API directly, so the page's own script was never exercised. Reverting that fix makes this test fail at the top-up step.
+
 ## Not covered yet
 
 - **Real fal.ai calls.** The Phase 1 spike against fal ("the cost log matches fal's dashboard to the cent") needs a fal key and about $2 of spend, and is the owner's step. Run `FAL_KEY=... pnpm spike "<idea>" --tier draft` and compare `cost-log.csv` with the fal dashboard.

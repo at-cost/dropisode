@@ -10,3 +10,4 @@ playwright-report/
 .DS_Store
 .test-data/
 /projects/
+e2e/.artifacts/
