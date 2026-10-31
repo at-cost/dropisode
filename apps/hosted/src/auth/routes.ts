@@ -24,12 +24,12 @@ import {
   setRole,
 } from "../account/service";
 import type { AppEnv, Ctx, Deps } from "../context";
-import { notFound } from "../lib/errors";
+import { HttpError, notFound } from "../lib/errors";
 import { newToken, sha256 } from "../lib/ids";
 import { hashPassword, passwordField, verifyPassword } from "./password";
 import { createSession, destroySession, requireUser } from "./session";
 import { findOrCreateUser } from "./users";
-import { checkLimit, clientIp, countAttempt, emailField, rateLimit, safeNext } from "./util";
+import { clientIp, emailField, rateLimit, refundAttempt, safeNext } from "./util";
 import { switchWorkspace } from "./workspace";
 import { CSS } from "../site/layout";
 
@@ -46,7 +46,9 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};
 
 /** Sends an email without making the request wait for it (so response time doesn't reveal which branch ran). */
 function sendLater(deps: Deps, msg: Parameters<Deps["mailer"]["send"]>[0]): void {
-  deps.mailer.send(msg).catch((err) => console.error(`reel: email to ${msg.to} failed:`, (err as Error).message));
+  Promise.resolve()
+    .then(() => deps.mailer.send(msg))
+    .catch((err) => console.error(`reel: "${msg.subject}" email failed:`, (err as Error).message));
 }
 
 const isForm = (c: Ctx) => (c.req.header("content-type") ?? "").includes("application/x-www-form-urlencoded");
@@ -267,6 +269,15 @@ authRoutes.post("/sign-up", async (c) => {
   // Same answer, and the same work, whether or not the account exists, so the form
   // can't be used to find out who has one.
   const passwordHash = await hashPassword(password);
+  // Every sign-up gets a fresh browser cookie, whether or not it's used.
+  const nonce = newToken();
+  setCookie(c, SIGNUP_COOKIE, nonce, {
+    httpOnly: true,
+    secure: deps.config.secureCookies,
+    sameSite: "Lax",
+    path: "/auth",
+    maxAge: SIGNUP_HOURS * 3600,
+  });
   if (await liveUser(deps, email)) {
     sendLater(deps, {
       to: email,
@@ -280,7 +291,6 @@ If it wasn't you, ignore this email. Nothing has changed.`,
     });
   } else {
     const token = newToken();
-    const nonce = newToken();
     await deps.db
       .insertInto("loginTokens")
       .values({
@@ -294,13 +304,6 @@ If it wasn't you, ignore this email. Nothing has changed.`,
         expiresAt: new Date(Date.now() + SIGNUP_HOURS * 3_600_000),
       })
       .execute();
-    setCookie(c, SIGNUP_COOKIE, nonce, {
-      httpOnly: true,
-      secure: deps.config.secureCookies,
-      sameSite: "Lax",
-      path: "/auth",
-      maxAge: SIGNUP_HOURS * 3600,
-    });
     sendLater(deps, {
       to: email,
       subject: "Confirm your Dropisode account",
@@ -320,22 +323,25 @@ authRoutes.post("/sign-in", async (c) => {
     .safeParse(await readBody(c));
   if (!parsed.success) return reply(c, { error: "Enter your email and password" }, 400, "/sign-in?error=password");
   const { email, password } = parsed.data;
+  // Attempts are counted as they arrive (so a burst of parallel guesses can't slip past
+  // the limits) and given back when the password is right, so only wrong guesses add up.
   const perIp = `pw:${email}|${clientIp(c)}`;
+  const counted: Parameters<typeof refundAttempt>[1][] = [];
   try {
     rateLimit(c, "ip", `ip:${clientIp(c)}`);
-    checkLimit(c, "password", perIp);
-    checkLimit(c, "passwordAccount", `pw:${email}`);
+    rateLimit(c, "password", perIp);
+    counted.push("password");
+    rateLimit(c, "passwordAccount", `pw:${email}`);
+    counted.push("passwordAccount");
   } catch (err) {
+    if (counted.includes("password")) refundAttempt(c, "password", perIp);
     if (isForm(c)) return c.redirect("/sign-in?error=rate");
-    throw err;
+    throw new HttpError(429, "Too many attempts for this account. Wait 15 minutes, or reset your password to get in now.");
   }
   const u = await liveUser(deps, email);
-  if (!(await verifyPassword(password, u?.passwordHash)) || !u) {
-    // Only wrong guesses count, so the account's owner isn't locked out by someone else's attempts as easily.
-    countAttempt(c, "password", perIp);
-    countAttempt(c, "passwordAccount", `pw:${email}`);
-    return reply(c, { error: ERR_PASSWORD }, 400, "/sign-in?error=password");
-  }
+  if (!(await verifyPassword(password, u?.passwordHash)) || !u) return reply(c, { error: ERR_PASSWORD }, 400, "/sign-in?error=password");
+  refundAttempt(c, "password", perIp);
+  refundAttempt(c, "passwordAccount", `pw:${email}`);
   await createSession(c, u.id);
   const next = safeNext(parsed.data.next, deps.config.APP_URL);
   if (isForm(c)) return c.redirect(next);
@@ -388,7 +394,7 @@ authRoutes.post("/reset", async (c) => {
     const raw = await readBody(c).catch(() => ({}) as Record<string, unknown>);
     const tok = typeof raw.token === "string" ? raw.token.replace(/[^A-Za-z0-9_-]/g, "") : "";
     const msg = parsed.error.issues.find((i) => i.path[0] === "password")?.message ?? "That reset link doesn't work";
-    return reply(c, { error: msg }, 400, tok ? `/reset?token=${encodeURIComponent(tok)}&error=input` : "/forgot?error=link");
+    return reply(c, { error: msg }, 400, tok ? `/reset?token=${encodeURIComponent(tok)}&error=newpassword` : "/forgot?error=link");
   }
   const stop = limited(c, [["verify", `verify:${clientIp(c)}`]], "/sign-in?error=rate");
   if (stop) return stop;

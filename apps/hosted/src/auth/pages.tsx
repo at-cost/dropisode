@@ -5,6 +5,7 @@ import { accountPages } from "../account/pages";
 import { render } from "../account/render";
 import { inviteByToken } from "../account/service";
 import type { AppEnv } from "../context";
+import { sha256 } from "../lib/ids";
 import { safeNext } from "./util";
 
 export const authPages = new Hono<AppEnv>();
@@ -15,6 +16,7 @@ const ERRORS: Record<string, string> = {
   rate: "Too many attempts. Wait a few minutes and try again.",
   email: "Enter a valid email address.",
   input: "Enter a valid email address and a password of at least 10 characters.",
+  newpassword: "Use a password of 10 to 200 characters.",
   password: "Wrong email or password. If you joined with Google or an email link, use that, or reset your password.",
 };
 
@@ -169,10 +171,20 @@ authPages.get("/forgot", (c) => {
   );
 });
 
-authPages.get("/reset", (c) => {
+authPages.get("/reset", async (c) => {
   const token = (c.req.query("token") ?? "").replace(/[^A-Za-z0-9_-]/g, "");
   if (token.length < 10 || token.length > 200) return c.redirect("/forgot?error=link");
   const fresh = c.req.query("new") === "1";
+  const link = await c
+    .get("deps")
+    .db.selectFrom("loginTokens")
+    .select("email")
+    .where("tokenHash", "=", sha256(token))
+    .where("purpose", "=", "reset")
+    .where("usedAt", "is", null)
+    .where("expiresAt", ">", new Date())
+    .executeTakeFirst();
+  if (!link) return c.redirect("/forgot?error=link");
   const err = ERRORS[c.req.query("error") ?? ""];
   return render(
     c,
@@ -181,6 +193,9 @@ authPages.get("/reset", (c) => {
       <h1>{fresh ? "Choose a password" : "Choose a new password"}</h1>
       {fresh ? <p class="muted">Your email is confirmed and your account is ready. Choose a password to sign in with next time.</p> : null}
       {err ? <p class="notice">{err}</p> : null}
+      <p>
+        Account: <strong>{link.email}</strong>
+      </p>
       <form class="card stack" method="post" action="/auth/reset" data-auth="">
         <Field id="password" label="New password" type="password" auto="new-password" min={10} hint="At least 10 characters." />
         <input type="hidden" name="token" value={token} />

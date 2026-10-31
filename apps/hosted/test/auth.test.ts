@@ -276,7 +276,7 @@ describe("pages", () => {
     expect(signUp).toContain("Create account");
     expect(signUp).toContain('autocomplete="new-password"');
     expect(await (await get("/forgot")).text()).toContain("Email me a reset link");
-    expect(await (await get("/reset?token=abcdefghijkl")).text()).toContain('value="abcdefghijkl"');
+    expect((await get("/reset?token=abcdefghijkl")).headers.get("location")).toBe("/forgot?error=link");
     expect((await get("/reset?token=x")).headers.get("location")).toBe("/forgot?error=link");
     const a = await t.signIn("a@reel.test");
     await t.fund(await t.workspaceOf(a), 25);
@@ -474,6 +474,37 @@ describe("sign-up takeover attempts", () => {
       body: "token=abcdefghijklmnop&password=short",
       headers: { "content-type": "application/x-www-form-urlencoded" },
     });
-    expect(res.headers.get("location")).toBe("/reset?token=abcdefghijklmnop&error=input");
+    expect(res.headers.get("location")).toBe("/reset?token=abcdefghijklmnop&error=newpassword");
+  });
+
+  it("the sign-up reply is identical (cookie included) whether or not the account exists", async () => {
+    await t.signIn("exists@reel.test");
+    const a = await t.request("POST", "/auth/sign-up", { body: { email: "exists@reel.test", password: PW } });
+    const b = await t.request("POST", "/auth/sign-up", { body: { email: "fresh@reel.test", password: PW } });
+    const names = (r: Response) => r.headers.getSetCookie().map((c) => c.split("=")[0]);
+    expect(names(a)).toEqual(names(b));
+    expect(names(a)).toEqual(["reel_signup"]);
+    expect(await a.text()).toBe(await b.text());
+  });
+
+  it("a burst of parallel guesses can't get past the per-account limit", async () => {
+    const browser = withCookies("", await t.request("POST", "/auth/sign-up", { body: { email: "b@reel.test", password: PW } }));
+    await follow(linkIn(lastMailTo("b@reel.test")!.text, "/auth/verify"), browser);
+    const codes = await Promise.all(
+      Array.from({ length: 25 }, (_, i) =>
+        t.request("POST", "/auth/sign-in", {
+          body: { email: "b@reel.test", password: `guess ${i} xxxx` },
+          headers: { "x-forwarded-for": "192.0.2.9" },
+        }),
+      ).map(async (r) => (await r).status),
+    );
+    expect(codes.filter((c) => c === 400).length).toBeLessThanOrEqual(10);
+  });
+
+  it("the choose-password page names the account", async () => {
+    await t.request("POST", "/auth/sign-up", { body: { email: "named@reel.test", password: PW } });
+    const res = await follow(linkIn(lastMailTo("named@reel.test")!.text, "/auth/verify"));
+    const page = await (await t.request("GET", res.headers.get("location")!, { cookie: withCookies("", res) })).text();
+    expect(page).toContain("Account: <strong>named@reel.test</strong>");
   });
 });

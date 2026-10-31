@@ -46,6 +46,11 @@ class Limiter {
     const now = Date.now();
     return h && h.resetAt > now && h.n >= this.max ? Math.ceil((h.resetAt - now) / 1000) : 0;
   }
+  /** Gives back one counted attempt (e.g. it turned out to be a correct password). */
+  give(key: string): void {
+    const h = this.hits.get(key);
+    if (h && h.n > 0) h.n--;
+  }
   /** Seconds to wait, or 0 when allowed. */
   take(key: string): number {
     const now = Date.now();
@@ -93,9 +98,9 @@ export function checkLimit(c: Ctx, which: keyof ReturnType<typeof limits>, key: 
   }
 }
 
-/** Counts one attempt against a limit without failing (for counting only failures). */
-export function countAttempt(c: Ctx, which: keyof ReturnType<typeof limits>, key: string): void {
-  limits(c.get("deps"))[which].take(key);
+/** Gives back an attempt counted by rateLimit (so only failures end up counted). */
+export function refundAttempt(c: Ctx, which: keyof ReturnType<typeof limits>, key: string): void {
+  limits(c.get("deps"))[which].give(key);
 }
 
 export function rateLimit(c: Ctx, which: keyof ReturnType<typeof limits>, key: string): void {
