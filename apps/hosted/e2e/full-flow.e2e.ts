@@ -148,7 +148,7 @@ describe("full customer journey (mocked providers)", () => {
     });
 
     await step("create a project", async () => {
-      await page.goto(`${base}/studio/`);
+      await page.goto(`${base}/studio/#/projects`);
       await page.getByLabel("Project name").fill("E2E Courier");
       await page.getByLabel(/The idea/).fill("A courier finds a letter addressed to herself, dated tomorrow.");
       await page.getByRole("button", { name: "Create project" }).click();
@@ -161,7 +161,7 @@ describe("full customer journey (mocked providers)", () => {
     });
 
     await step("cast portraits", async () => {
-      await page.getByRole("link", { name: "Cast" }).click();
+      await page.getByRole("link", { name: "Cast", exact: true }).click();
       const generate = page.getByRole("button", { name: /^Generate/ });
       await pw(generate.first()).toBeVisible();
       // Each button turns into "Generating" once pressed, so keep pressing the first one left.
@@ -170,7 +170,7 @@ describe("full customer journey (mocked providers)", () => {
     });
 
     await step("storyboard", async () => {
-      await page.getByRole("link", { name: "Storyboard" }).click();
+      await page.getByRole("link", { name: "Storyboard", exact: true }).click();
       const board = page.getByRole("button", { name: /Storyboard this scene/ });
       await pw(board.first()).toBeEnabled({ timeout: 30_000 });
       await board.first().click();
@@ -199,7 +199,7 @@ describe("full customer journey (mocked providers)", () => {
     });
 
     await step("assemble the episode", async () => {
-      await page.getByRole("link", { name: "Episode" }).click();
+      await page.getByRole("link", { name: "Episode", exact: true }).click();
       const final = page.getByRole("button", { name: /Final episode|Make final episode/ });
       await pw(final.first()).toBeEnabled({ timeout: 30_000 });
       await final.first().click();

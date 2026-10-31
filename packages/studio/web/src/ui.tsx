@@ -1,5 +1,5 @@
 import { type ReactNode, createContext, useContext, useEffect, useRef, useState } from "react";
-import type { Config, LocalSettings } from "./api";
+import type { Config, Dashboard, LocalSettings } from "./api";
 import { ApiError } from "./api";
 
 /** Micro-USD as dollars: 2 decimals, or 3 for small non-zero amounts (under $0.10). */
@@ -144,6 +144,11 @@ export interface AppState {
   /** Shows an error: 402 as a banner, anything else as a toast. */
   fail(err: unknown): void;
   toast(msg: string): void;
+  /** Activity, month spend and running jobs across the workspace. */
+  dash: Dashboard | null;
+  refreshDash(): Promise<void>;
+  /** The last part of the page header breadcrumb, set by the page. */
+  setCrumb(crumb: ReactNode): void;
 }
 
 export const AppCtx = createContext<AppState | null>(null);
@@ -207,6 +212,44 @@ const paths: Record<string, ReactNode> = {
     </>
   ),
   upload: <path d="M8 11V3M5 6l3-3 3 3M3 13h10" />,
+  home: <path d="M2.5 7.5L8 3l5.5 4.5M4 6.5V13h3v-3h2v3h3V6.5" />,
+  folder: <path d="M2 4.5A1.5 1.5 0 013.5 3h2.6l1.4 1.5h5A1.5 1.5 0 0114 6v5.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5z" />,
+  card: (
+    <>
+      <rect x="2" y="3.5" width="12" height="9" rx="1.5" />
+      <path d="M2 6.5h12M4.5 10h3" />
+    </>
+  ),
+  team: (
+    <>
+      <circle cx="6" cy="6" r="2.2" />
+      <path d="M2 13c.4-2.2 2-3.4 4-3.4s3.6 1.2 4 3.4M10.5 4a2 2 0 010 4M12 9.8c1.1.4 1.8 1.6 2 3.2" />
+    </>
+  ),
+  help: (
+    <>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M6.3 6.3a1.8 1.8 0 113 1.4c-.7.4-1.3.8-1.3 1.6M8 11.3v.2" />
+    </>
+  ),
+  menu: <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" />,
+  sun: (
+    <>
+      <circle cx="8" cy="8" r="2.8" />
+      <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1" />
+    </>
+  ),
+  moon: <path d="M13 9.5A5.5 5.5 0 016.5 3a5.5 5.5 0 106.5 6.5z" />,
+  list: <path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.5M2.5 8h.5M2.5 12h.5" />,
+  board: (
+    <>
+      <rect x="2" y="2.5" width="3.3" height="11" rx="1" />
+      <rect x="6.35" y="2.5" width="3.3" height="7" rx="1" />
+      <rect x="10.7" y="2.5" width="3.3" height="9" rx="1" />
+    </>
+  ),
+  chevron: <path d="M4.5 6.5L8 10l3.5-3.5" />,
+  spark: <path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l1.8 1.8M10.2 10.2L12 12M12 4l-1.8 1.8M5.8 10.2L4 12" />,
   download: <path d="M8 3v8M5 8l3 3 3-3M3 13h10" />,
   image: (
     <>
@@ -245,4 +288,45 @@ export function Empty({ children }: { children: ReactNode }) {
 /** "1 scene", "2 scenes". */
 export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+/** True while a media query matches. */
+export function useMedia(query: string): boolean {
+  const get = () => (typeof window !== "undefined" && window.matchMedia ? window.matchMedia(query).matches : false);
+  const [on, setOn] = useState(get);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const fn = () => setOn(m.matches);
+    fn();
+    m.addEventListener("change", fn);
+    return () => m.removeEventListener("change", fn);
+  }, [query]);
+  return on;
+}
+
+/** localStorage that never throws (private windows, blocked storage). */
+export const store = {
+  get(key: string): string | null {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set(key: string, value: string): void {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Not saved; the choice lasts for this visit only.
+    }
+  },
+};
+
+/** Light or dark: the studio defaults to dark. */
+export function currentTheme(): "light" | "dark" {
+  return store.get("dropisode.theme") === "light" ? "light" : "dark";
+}
+export function applyTheme(t: "light" | "dark"): void {
+  document.documentElement.dataset.theme = t;
+  store.set("dropisode.theme", t);
 }

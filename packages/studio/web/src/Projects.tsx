@@ -1,10 +1,10 @@
 import { type CSSProperties, useCallback, useEffect, useState } from "react";
-import { type Aspect, type Project, type ProjectSummary, api } from "./api";
+import { type Aspect, type Project, type ProjectSummary, api, mediaUrl } from "./api";
 import { go } from "./App";
 import { Icon, MoreMenu, Spinner, ago, money, plural, useApp, useBusy, when, Why } from "./ui";
 
 /** A per-project gradient, so posters without a frame still look different. */
-function posterStyle(id: string): CSSProperties {
+export function posterStyle(id: string): CSSProperties {
   let h = 2166136261;
   for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
   const pick = (shift: number, mod: number) => (h >>> shift) % mod;
@@ -17,7 +17,54 @@ function posterStyle(id: string): CSSProperties {
   } as CSSProperties;
 }
 
-const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? "";
+/** A project's poster: its cover frame when it has one, otherwise its own gradient. */
+export function Poster({ p }: { p: ProjectSummary }) {
+  const wide = p.aspect === "16:9";
+  return (
+    <span className={`poster ${wide ? "wide" : "tall"}${p.coverMediaId ? " has-cover" : ""}`} style={posterStyle(p.id)}>
+      {p.coverMediaId && <img className="poster-img" src={mediaUrl(p.id, p.coverMediaId)} alt="" loading="lazy" />}
+      <span className="poster-title">{p.name}</span>
+      <span className="poster-format">{wide ? "16:9" : "9:16"}</span>
+    </span>
+  );
+}
+
+/** The three steps, for a studio with no projects yet. */
+export function WelcomeSteps() {
+  return (
+    <div className="welcome">
+      <h2>How an episode comes together</h2>
+      <ol className="welcome-steps">
+        <li>
+          <span className="step-n">1</span>
+          <div>
+            <strong>Script and cast</strong>
+            <p>Your idea becomes a script. Each character gets a reference portrait that keeps their face the same in every shot.</p>
+          </div>
+        </li>
+        <li>
+          <span className="step-n">2</span>
+          <div>
+            <strong>Storyboard and drafts</strong>
+            <p>Every scene is split into shots. Try each one as a cheap draft and keep the ones you like.</p>
+          </div>
+        </li>
+        <li>
+          <span className="step-n">3</span>
+          <div>
+            <strong>Finals and the episode</strong>
+            <p>Render the approved shots in full quality and get the finished episode with subtitles.</p>
+          </div>
+        </li>
+      </ol>
+      <p className="muted">
+        Every button shows its exact price before you press it. <a href="/demo">See a finished example</a>
+      </p>
+    </div>
+  );
+}
+
+export const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? "";
 
 export function Projects() {
   const app = useApp();
@@ -55,19 +102,17 @@ export function Projects() {
     });
   };
 
-  const account = app.config.account;
   const empty = list !== null && list.length === 0;
 
   return (
     <div className="home">
       <section className="home-hero">
         <div>
-          <p className="eyebrow">Your studio</p>
-          <h1>{account ? `${empty ? "Welcome" : "Welcome back"}, ${firstName(account.name)}` : "Your projects"}</h1>
+          <h1>Projects</h1>
           <p className="home-sub">
             {empty
-              ? "Start your first episode. Name it, give it a one-line idea, and the script is written for you."
-              : "Pick up where you left off, or start a new episode."}
+              ? "Name your first project, give it a one-line idea, and the script is written for you."
+              : "Every episode you are making."}
           </p>
         </div>
       </section>
@@ -81,46 +126,13 @@ export function Projects() {
               ))}
             </div>
           ) : empty ? (
-            <div className="welcome">
-              <h2>How an episode comes together</h2>
-              <ol className="welcome-steps">
-                <li>
-                  <span className="step-n">1</span>
-                  <div>
-                    <strong>Script and cast</strong>
-                    <p>
-                      Your idea becomes a script. Each character gets a reference portrait that keeps their face the same in every shot.
-                    </p>
-                  </div>
-                </li>
-                <li>
-                  <span className="step-n">2</span>
-                  <div>
-                    <strong>Storyboard and drafts</strong>
-                    <p>Every scene is split into shots. Try each one as a cheap draft and keep the ones you like.</p>
-                  </div>
-                </li>
-                <li>
-                  <span className="step-n">3</span>
-                  <div>
-                    <strong>Finals and the episode</strong>
-                    <p>Render the approved shots in full quality and get the finished episode with subtitles.</p>
-                  </div>
-                </li>
-              </ol>
-              <p className="muted">
-                Every button shows its exact price before you press it. <a href="/demo">See a finished example</a>
-              </p>
-            </div>
+            <WelcomeSteps />
           ) : (
             <div className="project-grid">
               {list.map((p) => (
                 <article key={p.id} className={`project-card ${p.aspect === "16:9" ? "wide" : "tall"}`}>
                   <a className="poster-stage" href={`#/p/${p.id}/script`} aria-label={`Open ${p.name}`}>
-                    <span className={`poster ${p.aspect === "16:9" ? "wide" : "tall"}`} style={posterStyle(p.id)}>
-                      <span className="poster-title">{p.name}</span>
-                      <span className="poster-format">{p.aspect === "16:9" ? "16:9" : "9:16"}</span>
-                    </span>
+                    <Poster p={p} />
                   </a>
                   <div className="project-info">
                     <p className="project-meta">

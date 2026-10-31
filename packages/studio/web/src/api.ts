@@ -162,6 +162,25 @@ export interface ProjectSummary {
   episodes: number;
   shots: number;
   paidMicro: number;
+  /** A frame or portrait from the project, for the poster. */
+  coverMediaId?: string | null;
+}
+
+export interface Dashboard {
+  recent: {
+    projectId: string;
+    projectName: string;
+    at: string;
+    purpose: string;
+    tier: string | null;
+    label: string;
+    status: string;
+    paidMicro: number;
+    model: string;
+  }[];
+  month: { month: string; days: { day: string; paidMicro: number }[]; totalMicro: number };
+  running: { projectId: string; projectName: string; count: number; purposes: string[] }[];
+  counts: { projects: number; shots: number };
 }
 
 export interface LocalSettings {

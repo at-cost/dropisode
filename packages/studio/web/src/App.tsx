@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, type Config, type LocalSettings, api } from "./api";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ApiError, type Config, type Dashboard, type LocalSettings, api } from "./api";
 import { ProjectView } from "./ProjectView";
+import { Home } from "./Home";
 import { Projects } from "./Projects";
 import { Settings } from "./Settings";
-import { AppCtx, type AppState, Icon, errorMessage, money } from "./ui";
+import { AppCtx, type AppState, Icon, Spinner, applyTheme, currentTheme, errorMessage, money } from "./ui";
 
-export type Route = { page: "projects" } | { page: "settings" } | { page: "project"; pid: string; tab: string };
+export type Route = { page: "home" } | { page: "projects" } | { page: "settings" } | { page: "project"; pid: string; tab: string };
 
 function parseHash(): Route {
   const parts = window.location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (parts[0] === "settings") return { page: "settings" };
+  if (parts[0] === "projects") return { page: "projects" };
   if (parts[0] === "p" && parts[1]) return { page: "project", pid: parts[1], tab: parts[2] ?? "script" };
-  return { page: "projects" };
+  return { page: "home" };
 }
 
 function initials(name: string, email: string): string {
@@ -49,13 +51,18 @@ function ProfileMenu({ account }: { account: NonNullable<Config["account"]> }) {
     <div className="profile" ref={ref}>
       <button
         type="button"
-        className="avatar-btn"
+        className="user-row"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Your account menu"
         onClick={() => setOpen(!open)}
       >
         <span className="avatar">{initials(account.name, account.email)}</span>
+        <span className="user-text">
+          <strong>{account.name || account.email}</strong>
+          <span>{account.email}</span>
+        </span>
+        <Icon name="chevron" size={14} />
       </button>
       {open && (
         <div className="menu" role="menu">
@@ -64,7 +71,7 @@ function ProfileMenu({ account }: { account: NonNullable<Config["account"]> }) {
             <span>{account.email}</span>
             <span className="ws">{account.workspace}</span>
           </div>
-          <a href="#/" role="menuitem">
+          <a href="#/projects" role="menuitem">
             Projects
           </a>
           <a href="/billing" role="menuitem">
@@ -101,6 +108,28 @@ interface Toast {
   msg: string;
 }
 
+/** One sidebar link; an icon with a label that hides on the rail. */
+function NavItem({
+  href,
+  icon,
+  label,
+  active,
+}: {
+  href: string;
+  icon: Parameters<typeof Icon>[0]["name"];
+  label: string;
+  active?: boolean;
+}) {
+  return (
+    <a href={href} className={`nav-item${active ? " active" : ""}`} aria-current={active ? "page" : undefined} title={label}>
+      <Icon name={icon} size={17} />
+      <span className="nav-label">{label}</span>
+    </a>
+  );
+}
+
+const PAGE_NAMES: Record<string, string> = { home: "Home", projects: "Projects", settings: "Settings" };
+
 export function App() {
   const [route, setRoute] = useState<Route>(parseHash);
   const [config, setConfig] = useState<Config | null>(null);
@@ -108,13 +137,29 @@ export function App() {
   const [settings, setSettings] = useState<LocalSettings | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [blocked, setBlocked] = useState<string | null>(null);
+  const [dash, setDash] = useState<Dashboard | null>(null);
+  const [crumb, setCrumb] = useState<ReactNode>(null);
+  const [drawer, setDrawer] = useState(false);
+  const [theme, setTheme] = useState(currentTheme);
   const nextId = useRef(1);
 
   useEffect(() => {
-    const on = () => setRoute(parseHash());
+    const on = () => {
+      setRoute(parseHash());
+      setDrawer(false);
+    };
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
+
+  useEffect(() => {
+    if (!drawer) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDrawer(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [drawer]);
 
   const refreshConfig = useCallback(async () => {
     try {
@@ -133,12 +178,36 @@ export function App() {
     }
   }, []);
 
+  const refreshDash = useCallback(async () => {
+    try {
+      setDash(await api.get<Dashboard>("/dashboard"));
+    } catch {
+      // The dashboard is a nicety; pages work without it.
+    }
+  }, []);
+
   useEffect(() => {
     void refreshConfig();
   }, [refreshConfig]);
   useEffect(() => {
     if (config?.mode === "local") void refreshSettings();
   }, [config?.mode, refreshSettings]);
+
+  // Refresh on every page change, then every few seconds while something is running.
+  const running = dash?.running.length ?? 0;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: route is the trigger
+  useEffect(() => {
+    if (!config) return;
+    void refreshDash();
+  }, [config, route, refreshDash]);
+  useEffect(() => {
+    if (!config) return;
+    const t = setInterval(() => void refreshDash(), running > 0 ? 4000 : 20000);
+    return () => clearInterval(t);
+  }, [config, running, refreshDash]);
+  useEffect(() => {
+    if (route.page !== "project") setCrumb(null);
+  }, [route.page]);
 
   const toast = useCallback((msg: string) => {
     const id = nextId.current++;
@@ -159,8 +228,8 @@ export function App() {
   );
 
   const state = useMemo<AppState | null>(
-    () => (config ? { config, settings, refreshSettings, refreshConfig, fail, toast } : null),
-    [config, settings, refreshSettings, refreshConfig, fail, toast],
+    () => (config ? { config, settings, refreshSettings, refreshConfig, fail, toast, dash, refreshDash, setCrumb } : null),
+    [config, settings, refreshSettings, refreshConfig, fail, toast, dash, refreshDash],
   );
 
   if (!state || !config) {
@@ -183,69 +252,149 @@ export function App() {
   const local = config.mode === "local";
   const needKey = local && settings && settings.provider !== "mock" && !settings.hasKey;
   const wallet = config.wallet;
+  const account = config.account;
   // Out of credit but not frozen: a calm nudge, not an alarm.
   const lowCredit = !!wallet && wallet.balanceMicro - wallet.heldMicro <= 0 && !/frozen/i.test(wallet.message ?? "");
+  const workspace = account?.workspace ?? "Studio";
+  const runCount = dash?.running.reduce((a, r) => a + r.count, 0) ?? 0;
+  const firstRun = dash?.running[0];
+  const onProject = route.page === "project";
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    applyTheme(next);
+    setTheme(next);
+  };
 
   return (
     <AppCtx.Provider value={state}>
-      <header className="topbar">
-        <a className="brand" href="#/">
-          Dropisode <span className="brand-sub">Studio</span>
-        </a>
-        <nav>
-          <a href="#/" className={route.page === "projects" ? "active" : ""}>
-            Projects
+      <div className={`shell${drawer ? " drawer-open" : ""}`}>
+        <aside className="sidebar" aria-label="Studio">
+          <a className="side-brand" href="#/" aria-label="Dropisode studio home">
+            <span className="brand-full">Dropisode</span>
+            <span className="brand-mark" aria-hidden="true">
+              D
+            </span>
+            <span className="brand-sub">Studio</span>
           </a>
-          {local && (
-            <a href="#/settings" className={route.page === "settings" ? "active" : ""}>
-              Settings
+          {account && (
+            <a className="ws-switch" href="/account" title="Workspace and team">
+              <span className="ws-mark">{account.workspace.trim().charAt(0).toUpperCase() || "W"}</span>
+              <span className="ws-text">
+                <strong>{account.workspace}</strong>
+                <span>Workspace</span>
+              </span>
+              <Icon name="chevron" size={14} />
             </a>
           )}
-        </nav>
-        <div className="spacer" />
-        {local && settings?.provider === "mock" && <span className="tag">Test mode: nothing is spent</span>}
-        {wallet && (
-          <a className="wallet" href="/billing" title="Billing and credit">
-            <span className="wallet-label">Credit</span>
-            <strong>{money(wallet.balanceMicro)}</strong>
-            {wallet.heldMicro > 0 && <span className="wallet-held">{money(wallet.heldMicro)} in use</span>}
-            <span className="wallet-add" aria-hidden="true">
-              +
-            </span>
-          </a>
-        )}
-        {config.account && <ProfileMenu account={config.account} />}
-      </header>
+          <nav className="side-nav">
+            <NavItem href="#/" icon="home" label="Home" active={route.page === "home"} />
+            <NavItem href="#/projects" icon="folder" label="Projects" active={route.page === "projects" || onProject} />
+            <div className="nav-gap" />
+            {!local && <NavItem href="/billing" icon="card" label="Usage & credit" />}
+            {!local && <NavItem href="/account" icon="team" label="Team" />}
+            {local && <NavItem href="#/settings" icon="gear" label="Settings" active={route.page === "settings"} />}
+            {!local && (
+              <>
+                <div className="nav-gap" />
+                <NavItem href="/docs" icon="help" label="Help" />
+              </>
+            )}
+          </nav>
+          <div className="side-fill" />
+          {wallet && (
+            <div className={`credit-card${lowCredit ? " low" : ""}`}>
+              <span className="credit-label">Available credit</span>
+              <strong className="credit-amount">{money(wallet.balanceMicro)}</strong>
+              {wallet.heldMicro > 0 && <span className="credit-held">{money(wallet.heldMicro)} in use</span>}
+              <a className="btn credit-add" href="/billing">
+                <Icon name="plus" size={13} /> Add credit
+              </a>
+            </div>
+          )}
+          {local && settings?.provider === "mock" && <span className="side-tag">Test mode: nothing is spent</span>}
+          {account && <ProfileMenu account={account} />}
+        </aside>
+        <button type="button" className="drawer-backdrop" aria-label="Close menu" tabIndex={-1} onClick={() => setDrawer(false)} />
 
-      {needKey && (
-        <div className="banner warn">
-          Add your fal.ai key to generate anything. <a href="#/settings">Open Settings</a>
-        </div>
-      )}
-      {wallet?.blocked && !blocked && lowCredit && (
-        <div className="banner gold">
-          Add credit to start generating. Everything else is free. <a href="/billing">Add credit</a>
-        </div>
-      )}
-      {wallet?.blocked && !blocked && !lowCredit && (
-        <div className="banner danger">
-          {wallet.message ?? "Generation is paused for this workspace."} <a href="/billing">Billing</a>
-        </div>
-      )}
-      {blocked && (
-        <div className="banner danger" role="alert">
-          <strong>Blocked:</strong> {blocked} {local ? <a href="#/settings">Settings</a> : <a href="/billing">Top up</a>}
-          <button type="button" className="link" onClick={() => setBlocked(null)}>
-            Dismiss
-          </button>
-        </div>
-      )}
+        <div className="shell-main">
+          <header className="pagebar">
+            <button type="button" className="icon-btn menu-btn" aria-label="Open menu" onClick={() => setDrawer(true)}>
+              <Icon name="menu" size={20} />
+            </button>
+            <nav className="crumbs" aria-label="Breadcrumb">
+              <span className="crumb-ws">{workspace}</span>
+              <span className="crumb-sep" aria-hidden="true">
+                /
+              </span>
+              {onProject ? (
+                <>
+                  <a href="#/projects">Projects</a>
+                  {crumb && (
+                    <>
+                      <span className="crumb-sep" aria-hidden="true">
+                        /
+                      </span>
+                      <span className="crumb-here">{crumb}</span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <span className="crumb-here">{PAGE_NAMES[route.page]}</span>
+              )}
+            </nav>
+            <div className="spacer" />
+            {runCount > 0 && firstRun && (
+              <a
+                className="running"
+                href={`#/p/${firstRun.projectId}/storyboard`}
+                title={dash?.running.map((r) => `${r.projectName}: ${r.count}`).join(", ")}
+              >
+                <Spinner /> {runCount} generating
+              </a>
+            )}
+            <button
+              type="button"
+              className="icon-btn theme-btn"
+              aria-label={theme === "dark" ? "Use the light theme" : "Use the dark theme"}
+              title={theme === "dark" ? "Light theme" : "Dark theme"}
+              onClick={toggleTheme}
+            >
+              <Icon name={theme === "dark" ? "sun" : "moon"} size={17} />
+            </button>
+          </header>
 
-      <main>
-        {route.page === "projects" && <Projects />}
-        {route.page === "settings" && (local ? <Settings /> : <p className="muted">Settings are only for the local studio.</p>)}
-        {route.page === "project" && <ProjectView key={route.pid} pid={route.pid} tab={route.tab} />}
-      </main>
+          {needKey && (
+            <div className="banner warn">
+              Add your fal.ai key to generate anything. <a href="#/settings">Open Settings</a>
+            </div>
+          )}
+          {wallet?.blocked && !blocked && lowCredit && (
+            <div className="banner gold">
+              Add credit to start generating. Everything else is free. <a href="/billing">Add credit</a>
+            </div>
+          )}
+          {wallet?.blocked && !blocked && !lowCredit && (
+            <div className="banner danger">
+              {wallet.message ?? "Generation is paused for this workspace."} <a href="/billing">Billing</a>
+            </div>
+          )}
+          {blocked && (
+            <div className="banner danger" role="alert">
+              <strong>Blocked:</strong> {blocked} {local ? <a href="#/settings">Settings</a> : <a href="/billing">Top up</a>}
+              <button type="button" className="link" onClick={() => setBlocked(null)}>
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          <main>
+            {route.page === "home" && <Home />}
+            {route.page === "projects" && <Projects />}
+            {route.page === "settings" && (local ? <Settings /> : <p className="muted">Settings are only for the local studio.</p>)}
+            {route.page === "project" && <ProjectView key={route.pid} pid={route.pid} tab={route.tab} />}
+          </main>
+        </div>
+      </div>
 
       <div className="toasts" aria-live="polite">
         {toasts.map((t) => (
