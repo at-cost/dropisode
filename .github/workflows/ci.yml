@@ -33,7 +33,10 @@ jobs:
       - run: pnpm --filter @reel/studio build
       - name: PostgreSQL 16 client tools (match the server; newer pg_dump output may not restore into 16)
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16
+          # PostgreSQL's own apt repo has every major version for every Ubuntu release.
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-16
           echo /usr/lib/postgresql/16/bin >> "$GITHUB_PATH"
           /usr/lib/postgresql/16/bin/pg_dump --version
       - run: pnpm test
