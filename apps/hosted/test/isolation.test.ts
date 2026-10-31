@@ -242,3 +242,32 @@ describe("jobs across runners", () => {
     expect(ledger).toHaveLength(1);
   });
 });
+
+describe("dashboard", () => {
+  it("shows a workspace its own recent activity, month spend and covers, and nothing of another's", async () => {
+    t = await testApp();
+    const a = await t.signIn("dash-a@reel.test");
+    const b = await t.signIn("dash-b@reel.test");
+    await t.fund(await t.workspaceOf(a), 20);
+    const p = (await (await t.request("POST", "/api/projects", { cookie: a, body: { name: "Dash Project" } })).json()) as { id: string };
+    const cast = (await (
+      await t.request("POST", `/api/projects/${p.id}/cast`, { cookie: a, body: { kind: "character", name: "MAYA", description: "courier" } })
+    ).json()) as { project: { cast: { id: string }[] } };
+    await t.request("POST", `/api/projects/${p.id}/cast/${cast.project.cast[0]!.id}/generate`, { cookie: a });
+    for (let i = 0; i < 20; i++) await tickJobs(t.deps);
+    const dash = (await (await t.request("GET", "/api/dashboard", { cookie: a })).json()) as {
+      recent: { label: string; paidMicro: number; projectName: string }[];
+      month: { totalMicro: number; days: unknown[] };
+      counts: { projects: number };
+    };
+    expect(dash.counts.projects).toBe(1);
+    expect(dash.recent[0]).toMatchObject({ label: "Cast: MAYA", projectName: "Dash Project" });
+    expect(dash.recent[0]!.paidMicro).toBeGreaterThan(0);
+    expect(dash.month.totalMicro).toBe(dash.recent.reduce((s, r) => s + r.paidMicro, 0));
+    const list = (await (await t.request("GET", "/api/projects", { cookie: a })).json()) as { coverMediaId: string | null }[];
+    expect(list[0]!.coverMediaId).toBeTruthy();
+    const other = (await (await t.request("GET", "/api/dashboard", { cookie: b })).json()) as { recent: unknown[]; counts: { projects: number } };
+    expect(other.recent).toHaveLength(0);
+    expect(other.counts.projects).toBe(0);
+  });
+});

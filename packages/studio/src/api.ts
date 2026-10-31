@@ -167,6 +167,62 @@ export function createStudioApi(resolve: ResolveContext): Hono {
     });
   });
 
+  // Dashboard: what's happened lately across all projects, this month's spend, what's running.
+
+  app.get("/dashboard", async (c) => {
+    const ctx = await resolve(c);
+    const list = await ctx.listProjects();
+    const now = new Date();
+    const month = now.toISOString().slice(0, 7);
+    const days: Record<string, number> = {};
+    const lines: Array<{
+      projectId: string;
+      projectName: string;
+      at: string;
+      purpose: string;
+      tier: string | null;
+      label: string;
+      status: string;
+      paidMicro: number;
+      model: string;
+    }> = [];
+    for (const p of list) {
+      for (const l of p.costLog) {
+        const paid = ctx.price(l.providerCostMicro);
+        if (l.at.startsWith(month)) days[l.at.slice(0, 10)] = (days[l.at.slice(0, 10)] ?? 0) + paid;
+        lines.push({
+          projectId: p.id,
+          projectName: p.name,
+          at: l.at,
+          purpose: l.purpose,
+          tier: l.tier,
+          label: costLabel(p, l),
+          status: l.status,
+          paidMicro: paid,
+          model: l.model,
+        });
+      }
+    }
+    lines.sort((a, b) => b.at.localeCompare(a.at));
+    const running = [];
+    for (const p of list) {
+      const open = (await ctx.studio.runner.deps.jobs.listUnfinished(p.id)).filter((j) => j.state === "created" || j.state === "submitted");
+      if (open.length) running.push({ projectId: p.id, projectName: p.name, count: open.length, purposes: [...new Set(open.map((j) => j.purpose))] });
+    }
+    const dayList = Object.entries(days)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, paidMicro]) => ({ day, paidMicro }));
+    return c.json({
+      recent: lines.slice(0, 12),
+      month: { month, days: dayList, totalMicro: dayList.reduce((a, d) => a + d.paidMicro, 0) },
+      running,
+      counts: {
+        projects: list.length,
+        shots: list.reduce((a, p) => a + p.episodes.reduce((b, e) => b + e.scenes.reduce((x, s) => x + s.shots.length, 0), 0), 0),
+      },
+    });
+  });
+
   // Projects
 
   app.get("/projects", async (c) => {
@@ -181,6 +237,7 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         episodes: p.episodes.length,
         shots: p.episodes.reduce((a, e) => a + e.scenes.reduce((b, s) => b + s.shots.length, 0), 0),
         paidMicro: p.costLog.reduce((a, l) => a + ctx.price(l.providerCostMicro), 0),
+        coverMediaId: coverOf(p) ?? null,
       })),
     );
   });
@@ -558,4 +615,35 @@ export function createStudioApi(resolve: ResolveContext): Hono {
   });
 
   return app;
+}
+
+/** A project's cover: the chosen take's first frame of its earliest shot that has one, else any frame, else a cast portrait. */
+export function coverOf(p: Project): string | undefined {
+  const usable = (id: string | undefined) => (id && p.media.some((m) => m.id === id && !m.hidden) ? id : undefined);
+  const shots = p.episodes.flatMap((e) => e.scenes.flatMap((s) => s.shots));
+  for (const sh of shots) {
+    const take = sh.takes.find((t) => t.id === sh.selectedTakeId);
+    const id = usable(take?.frameMediaId);
+    if (id) return id;
+  }
+  for (const sh of shots) for (const t of sh.takes) if (usable(t.frameMediaId)) return t.frameMediaId;
+  for (const c of p.cast) for (const id of c.refImageIds) if (usable(id)) return id;
+  return undefined;
+}
+
+/** "Shot 1.3 draft", "Cast: MAYA", "Script", for activity lines. */
+function costLabel(p: Project, l: { purpose: string; shotId: string | null; castId: string | null; tier: string | null }): string {
+  if (l.shotId) {
+    for (const e of p.episodes)
+      for (const [si, s] of e.scenes.entries()) {
+        const i = s.shots.findIndex((x) => x.id === l.shotId);
+        if (i >= 0) return `Shot ${si + 1}.${i + 1}${l.tier ? ` ${l.tier}` : ""}`;
+      }
+  }
+  if (l.castId) {
+    const c = p.cast.find((x) => x.id === l.castId);
+    if (c) return `Cast: ${c.name}`;
+  }
+  const names: Record<string, string> = { script: "Script", storyboard: "Storyboard", parse: "Read into scenes", tts: "Voice line", assemble: "Episode" };
+  return names[l.purpose] ?? l.purpose.replace(/_/g, " ");
 }
