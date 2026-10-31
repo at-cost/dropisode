@@ -45,8 +45,8 @@ describe("public pages", () => {
       "/terms",
       [
         "Draft: to be reviewed before launch",
-        "[OPERATOR NAME AND ADDRESS]",
-        "[SUPPORT EMAIL]",
+        "Dropisode, London, United Kingdom",
+        "mailto:transparent-ai-businesses@proton.me",
         "18 or over",
         "impersonates",
         "minors",
@@ -55,7 +55,7 @@ describe("public pages", () => {
       ],
     ],
     ["/aup", ["Draft: to be reviewed before launch", "Harassment", "Impersonation"]],
-    ["/privacy", ["Draft: to be reviewed before launch", "Stripe", "fal.ai"]],
+    ["/privacy", ["Draft: to be reviewed before launch", "Stripe", "fal.ai", "transparent-ai-businesses@proton.me", "1 year"]],
     ["/demo", ["placeholder clips", "The script", "The cast", "The storyboard", "The cost log", "/demo/exports/episode.mp4"]],
   ];
   for (const [path, needles] of pages) {

@@ -3,9 +3,10 @@ import type { Child } from "hono/jsx";
 import type { Ctx } from "../../context";
 import { page } from "../ui";
 
-const OPERATOR = "[OPERATOR NAME AND ADDRESS]";
-const SUPPORT = "[SUPPORT EMAIL]";
-const UPDATED = "2026-10-29";
+const OPERATOR = "Dropisode, London, United Kingdom";
+const EMAIL = "transparent-ai-businesses@proton.me";
+const SUPPORT = <a href={`mailto:${EMAIL}`}>{EMAIL}</a>;
+const UPDATED = "2026-10-31";
 
 const Draft = () => (
   <p class="notice strong">
@@ -247,7 +248,7 @@ export function privacyPage(c: Ctx) {
       <ul>
         <li>Projects and media: until you delete them or close your account. [RETENTION FOR UNPAID STORAGE: owner decision]</li>
         <li>Billing records: as long as tax law requires.</li>
-        <li>Moderation records of blocked attempts: [PERIOD], longer where we must report them.</li>
+        <li>Moderation records of blocked attempts: 1 year, longer where we must report them.</li>
       </ul>
 
       <h2>Your rights</h2>
