@@ -14,12 +14,22 @@ import { sql } from "kysely";
 import { loadConfig } from "../config";
 import { createDb, type Db } from "../db";
 
+/** Runs a Postgres tool; a failure includes the tool's own error text. */
+function run(cmd: string, args: string[]): void {
+  try {
+    execFileSync(cmd, args, { stdio: ["ignore", "inherit", "pipe"] });
+  } catch (err) {
+    const stderr = String((err as { stderr?: Buffer }).stderr ?? "").trim();
+    throw new Error(`${cmd} failed${stderr ? `: ${stderr.split("\n").slice(-5).join(" | ")}` : ""}`);
+  }
+}
+
 export function dump(databaseUrl: string, file: string): void {
-  execFileSync("pg_dump", ["--format=custom", "--no-owner", "--no-privileges", `--file=${file}`, databaseUrl], { stdio: "inherit" });
+  run("pg_dump", ["--format=custom", "--no-owner", "--no-privileges", `--file=${file}`, databaseUrl]);
 }
 
 export function restore(file: string, scratchUrl: string): void {
-  execFileSync("pg_restore", ["--no-owner", "--no-privileges", "--exit-on-error", `--dbname=${scratchUrl}`, file], { stdio: "inherit" });
+  run("pg_restore", ["--no-owner", "--no-privileges", "--exit-on-error", `--dbname=${scratchUrl}`, file]);
 }
 
 export interface Fingerprint {

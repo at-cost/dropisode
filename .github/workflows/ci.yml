@@ -31,6 +31,11 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm --filter @reel/studio build
+      - name: PostgreSQL 16 client tools (match the server; newer pg_dump output may not restore into 16)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16
+          echo /usr/lib/postgresql/16/bin >> "$GITHUB_PATH"
+          /usr/lib/postgresql/16/bin/pg_dump --version
       - run: pnpm test
       - name: Install the browser for the journey test
         run: pnpm --filter @reel/hosted exec playwright install --with-deps chromium-headless-shell
