@@ -68,9 +68,12 @@ export function ScriptTab() {
               </button>
             </div>
           )}
-          <div className="two-col">
+          <p className="choose-h">Start this episode one of two ways</p>
+          <div className="choice">
             <section className="panel">
-              <h2>Write from an idea</h2>
+              <p className="choice-tag">Option A</p>
+              <h2>Let AI write it</h2>
+              <p className="muted small-text choice-sub">Give a one-line idea. The script and the cast list are written for you.</p>
               <form
                 className="form"
                 onSubmit={(e) => {
@@ -133,8 +136,14 @@ export function ScriptTab() {
               </form>
             </section>
 
+            <div className="choice-or" aria-hidden="true">
+              <span>or</span>
+            </div>
+
             <section className="panel">
-              <h2>Paste a script</h2>
+              <p className="choice-tag">Option B</p>
+              <h2>Use your own script</h2>
+              <p className="muted small-text choice-sub">Already have one? Paste it and it's split into scenes and cast for free.</p>
               <form
                 className="form"
                 onSubmit={(e) => {
@@ -167,9 +176,10 @@ export function ScriptTab() {
                     placeholder={"INT. KITCHEN - NIGHT\n\nMAYA\nYou came back."}
                   />
                 </label>
+                <p className="muted small-text">Plain text. A CAST: list and SCENE headings work best.</p>
                 <div className="row">
-                  <button type="submit" disabled={pasting}>
-                    {pasting && <Spinner />} {paste.trim() ? "Add episode" : "Add empty episode"}
+                  <button type="submit" className={paste.trim() ? "primary" : ""} disabled={pasting}>
+                    {pasting && <Spinner />} {paste.trim() ? "Use this script" : "Start with a blank episode"}
                   </button>
                   {pasting && <span className="muted small-text">Reading the script into scenes.</span>}
                 </div>

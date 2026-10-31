@@ -4415,3 +4415,62 @@ button.danger-solid {
     background: var(--border-strong);
   }
 }
+
+/* Script tab: two ways to start an episode, clearly either/or */
+.choose-h {
+  margin: 4px 0 10px;
+  font-weight: 700;
+  font-size: 15px;
+}
+.choice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.choice > .panel {
+  margin: 0;
+}
+.choice-tag {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.choice-sub {
+  margin: 4px 0 12px;
+}
+.choice-or {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+.choice-or::before,
+.choice-or::after {
+  content: "";
+  flex: 1;
+  width: 1px;
+  background: var(--border);
+}
+@media (max-width: 900px) {
+  .choice {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .choice-or {
+    flex-direction: row;
+  }
+  .choice-or::before,
+  .choice-or::after {
+    width: auto;
+    height: 1px;
+  }
+}
