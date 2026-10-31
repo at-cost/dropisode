@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { accountPages } from "../account/pages";
 import { render } from "../account/render";
 import { inviteByToken } from "../account/service";
-import type { AppEnv } from "../context";
+import type { AppEnv, Ctx } from "../context";
 import { sha256 } from "../lib/ids";
 import { safeNext } from "./util";
 
@@ -17,6 +17,8 @@ const ERRORS: Record<string, string> = {
   email: "Enter a valid email address.",
   input: "Enter a valid email address and a password of at least 10 characters.",
   locked: "Too many attempts for this account. Wait 15 minutes, or reset your password to get in now.",
+  setpassword: "Your email is confirmed. Enter it below and we'll email you a link to choose your password.",
+  confirmed: "Your email is already confirmed. Sign in below.",
   newpassword: "Use a password of 10 to 200 characters.",
   password: "Wrong email or password. If you joined with Google or an email link, use that, or reset your password.",
 };
@@ -274,3 +276,29 @@ authPages.get("/invite/:token", async (c) => {
 });
 
 authPages.route("/", accountPages);
+
+/**
+ * The page an emailed link opens. It confirms by itself with a script: mail scanners that
+ * open links don't run it, so they can't use the link up. Without JavaScript, a button.
+ */
+export function verifyPage(c: Ctx, token: string, link: { email: string; purpose: string }) {
+  const signup = link.purpose === "signup";
+  return render(
+    c,
+    signup ? "Confirming your email" : "Signing you in",
+    <div class="narrow stack" style="text-align:center">
+      <h1>{signup ? "Confirming your email" : "Signing you in"}</h1>
+      <p class="muted">
+        {signup ? "Setting up the account for " : "Signing in as "}
+        <strong>{link.email}</strong>…
+      </p>
+      <form method="post" action="/auth/verify" id="verify">
+        <input type="hidden" name="token" value={token} />
+        <noscript>
+          <button type="submit">{signup ? "Confirm my email" : "Sign in"}</button>
+        </noscript>
+      </form>
+      <script dangerouslySetInnerHTML={{ __html: 'document.getElementById("verify").submit();' }} />
+    </div>,
+  );
+}

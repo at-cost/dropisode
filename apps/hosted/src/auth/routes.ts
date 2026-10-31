@@ -31,7 +31,8 @@ import { createSession, destroySession, requireUser } from "./session";
 import { findOrCreateUser } from "./users";
 import { clientIp, emailField, rateLimit, refundAttempt, safeNext } from "./util";
 import { switchWorkspace } from "./workspace";
-import { CSS } from "../site/layout";
+
+import { verifyPage } from "./pages";
 
 export { authPages } from "./pages";
 
@@ -41,8 +42,6 @@ const RESET_MINUTES = 30;
 const OAUTH_COOKIES = ["reel_oauth_state", "reel_oauth_verifier", "reel_oauth_next"] as const;
 /** Set in the browser that signs up; the sign-up's password applies only when confirmed in that browser. */
 const SIGNUP_COOKIE = "reel_signup";
-
-const esc = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
 /** Sends an email without making the request wait for it (so response time doesn't reveal which branch ran). */
 function sendLater(deps: Deps, msg: Parameters<Deps["mailer"]["send"]>[0]): void {
@@ -149,16 +148,23 @@ authRoutes.get("/verify", async (c) => {
     .where("usedAt", "is", null)
     .where("expiresAt", ">", new Date())
     .executeTakeFirst();
-  if (!link) return c.redirect("/sign-in?error=link");
-  const signup = link.purpose === "signup";
-  const title = signup ? "Create your Dropisode account" : "Sign in to Dropisode";
-  const lead = signup
-    ? `<p>Create an account for <strong>${esc(link.email)}</strong>? If you didn't sign up, close this page and nothing happens.</p>`
-    : `<p>Sign in as <strong>${esc(link.email)}</strong>.</p>`;
-  return c.html(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} | Dropisode</title><style>${CSS}</style></head><body><main><div class="card stack" style="max-width:420px;margin:40px auto"><h1>${title}</h1>${lead}<form method="post" action="/auth/verify"><input type="hidden" name="token" value="${token}"><button type="submit">${signup ? "Create account" : "Continue"}</button></form></div></main></body></html>`,
-  );
+  if (!link) return c.redirect(await deadLink(c.get("deps"), token));
+  return verifyPage(c, token, link);
 });
+
+/** Where a used or expired link goes: a sign-up already confirmed (often by a mail scanner or a second click) says so. */
+async function deadLink(deps: Deps, token: string): Promise<string> {
+  const used = await deps.db
+    .selectFrom("loginTokens")
+    .select("email")
+    .where("tokenHash", "=", sha256(token))
+    .where("purpose", "=", "signup")
+    .executeTakeFirst();
+  const u = used ? await liveUser(deps, used.email) : undefined;
+  // Confirmed without the sign-up's password (e.g. a scanner ran the page): they choose one by email.
+  if (u) return u.passwordHash ? "/sign-in?error=confirmed" : "/forgot?error=setpassword";
+  return "/sign-in?error=link";
+}
 
 authRoutes.post("/verify", async (c) => {
   const deps = c.get("deps");
@@ -179,7 +185,7 @@ authRoutes.post("/verify", async (c) => {
     .where("expiresAt", ">", new Date())
     .returning(["email", "redirect", "purpose", "passwordHash", "name", "browserHash"])
     .executeTakeFirst();
-  if (!link) return c.redirect("/sign-in?error=link");
+  if (!link) return c.redirect(await deadLink(deps, token));
   const u = await findOrCreateUser(deps.db, { email: link.email, name: link.name });
   await createSession(c, u.id);
   const next = safeNext(link.redirect, deps.config.APP_URL);

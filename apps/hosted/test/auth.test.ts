@@ -313,7 +313,9 @@ describe("email and password accounts", () => {
     expect(mail.subject).toBe("Confirm your Dropisode account");
     const url = linkIn(mail.text, "/auth/verify");
     const page = await (await t.request("GET", `${url.pathname}${url.search}`)).text();
-    expect(page).toContain("Create an account for <strong>new@reel.test</strong>");
+    expect(page).toContain("Confirming your email");
+    expect(page).toContain("<strong>new@reel.test</strong>");
+    expect(page).toContain('document.getElementById("verify").submit()');
     const res = await follow(url, withCookies("", up));
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/billing");
@@ -455,7 +457,7 @@ describe("sign-up takeover attempts", () => {
     const theirLink = linkIn(lastMailTo("v2@reel.test")!.text, "/auth/verify");
     expect((await follow(myLink, mine)).headers.get("location")).toBe("/studio/");
     // Even in the attacker's own browser, their link is dead now.
-    expect((await follow(theirLink, theirs)).headers.get("location")).toBe("/sign-in?error=link");
+    expect((await follow(theirLink, theirs)).headers.get("location")).toBe("/sign-in?error=confirmed");
     expect((await signInPw("v2@reel.test", PW)).status).toBe(200);
     expect((await signInPw("v2@reel.test", "attacker password")).status).toBe(400);
   });
@@ -508,5 +510,20 @@ describe("sign-up takeover attempts", () => {
     const res = await follow(linkIn(lastMailTo("named@reel.test")!.text, "/auth/verify"));
     const page = await (await t.request("GET", res.headers.get("location")!, { cookie: withCookies("", res) })).text();
     expect(page).toContain("Account: <strong>named@reel.test</strong>");
+  });
+
+  it("a link used a second time says the email is confirmed instead of 'expired'", async () => {
+    const browser = withCookies("", await t.request("POST", "/auth/sign-up", { body: { email: "twice@reel.test", password: PW } }));
+    const url = linkIn(lastMailTo("twice@reel.test")!.text, "/auth/verify");
+    await follow(url, browser);
+    expect((await t.request("GET", `${url.pathname}${url.search}`)).headers.get("location")).toBe("/sign-in?error=confirmed");
+    expect((await follow(url, browser)).headers.get("location")).toBe("/sign-in?error=confirmed");
+  });
+
+  it("confirmed by something without the browser cookie (a scanner): the used link leads to choosing a password", async () => {
+    await t.request("POST", "/auth/sign-up", { body: { email: "scanned@reel.test", password: PW } });
+    const url = linkIn(lastMailTo("scanned@reel.test")!.text, "/auth/verify");
+    await follow(url); // the scanner
+    expect((await t.request("GET", `${url.pathname}${url.search}`)).headers.get("location")).toBe("/forgot?error=setpassword");
   });
 });
