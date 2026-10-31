@@ -66,6 +66,8 @@ export function Home() {
   const wallet = app.config.wallet;
   const dash = app.dash;
   const empty = list !== null && list.length === 0;
+  // The month chart only says something after a few days of spend.
+  const chart = !!dash && dash.month.days.filter((d) => d.paidMicro > 0).length >= 3;
   const greeting = `${empty ? "Welcome" : "Welcome back"}${account ? `, ${firstName(account.name)}` : ""}`;
 
   return (
@@ -141,7 +143,7 @@ export function Home() {
         </section>
       )}
 
-      <div className="dash-pair">
+      <div className={`dash-pair${chart ? "" : " stacked"}`}>
         <section className="panel usage" aria-label="Credit and usage">
           <div className="panel-head">
             <h2>{wallet ? "Credit & usage" : "Usage"}</h2>
@@ -165,7 +167,7 @@ export function Home() {
                 <strong className="fig">{dash ? money(dash.month.totalMicro) : "…"}</strong>
               </div>
             </div>
-            {dash && dash.month.days.filter((d) => d.paidMicro > 0).length >= 3 && <MonthChart month={dash.month} />}
+            {chart && dash && <MonthChart month={dash.month} />}
           </div>
           {wallet && <p className="muted small-text">Pay as you create. No subscription.</p>}
         </section>

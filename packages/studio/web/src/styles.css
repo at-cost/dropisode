@@ -4330,3 +4330,88 @@ button.danger-solid {
   background: #c43a3a;
   border-color: #c43a3a;
 }
+
+/* ---------- Critic round 6 ---------- */
+.dash-pair.stacked {
+  grid-template-columns: 1fr;
+}
+.dash-pair.stacked .usage-body {
+  margin: 0;
+}
+.dash-pair.stacked .usage {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px 32px;
+}
+.dash-pair.stacked .usage .panel-head {
+  margin: 0;
+  display: contents;
+}
+.dash-pair.stacked .usage .panel-head .spacer {
+  display: none;
+}
+.dash-pair.stacked .usage .panel-head h2 {
+  grid-column: 1;
+}
+.dash-pair.stacked .usage .usage-body {
+  grid-column: 2;
+  grid-row: 1;
+}
+.dash-pair.stacked .usage .see-all {
+  grid-column: 3;
+  grid-row: 1;
+}
+.dash-pair.stacked .usage > .muted.small-text {
+  grid-column: 1 / -1;
+}
+@media (max-width: 700px) {
+  .dash-pair.stacked .usage {
+    grid-template-columns: 1fr auto;
+  }
+  .dash-pair.stacked .usage .usage-body {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .dash-pair.stacked .usage .see-all {
+    grid-column: 2;
+  }
+}
+.tile-status.warn {
+  color: var(--gold);
+}
+:root:not([data-theme="dark"]) .tile-status.warn {
+  color: var(--warn);
+}
+.insp-note {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12.5px;
+}
+:root[data-theme="dark"] .insp-note {
+  color: var(--gold);
+}
+.cast-card.location .ref,
+.cast-card.prop .ref {
+  aspect-ratio: 3 / 4;
+}
+.sheet-handle {
+  display: none;
+}
+@media (max-width: 699px) {
+  .inspector.floating {
+    padding-top: 10px;
+    transition: transform 0.2s ease;
+  }
+  .sheet-handle {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 0 auto 10px;
+    border-radius: 999px;
+    background: var(--border-strong);
+  }
+}

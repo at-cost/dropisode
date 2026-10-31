@@ -105,11 +105,15 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
 
   // Whether a final episode has been exported, for the stepper's last tick.
   const [exportCount, setExportCount] = useState(0);
+  const [anyExport, setAnyExport] = useState(false);
   const refreshExports = useCallback(() => {
     api
       .get<ExportInfo[]>(`/projects/${pid}/exports`)
       // A complete final episode: nothing was skipped.
-      .then((x) => setExportCount(x.filter((e) => e.source === "final" && e.skipped.length === 0).length))
+      .then((x) => {
+        setExportCount(x.filter((e) => e.source === "final" && e.skipped.length === 0).length);
+        setAnyExport(x.length > 0);
+      })
       .catch(() => {});
   }, [pid]);
   useEffect(() => {
@@ -228,9 +232,11 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
               <strong>{money(view.totals.paidMicro)}</strong>
             </a>
           </div>
-          <a className="btn preview-btn" href={`#/p/${pid}/episode`}>
-            Preview episode
-          </a>
+          {anyExport && (
+            <a className="btn preview-btn" href={`#/p/${pid}/episode`}>
+              Preview episode
+            </a>
+          )}
         </div>
       </div>
       <nav className="stepper" aria-label="Project steps">
@@ -245,7 +251,7 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
               title={tick ? `${label}: done` : label}
             >
               <span className="step-dot" aria-hidden="true">
-                {tick && tab !== id ? <Icon name="check" size={12} /> : i + 1}
+                {tick ? <Icon name="check" size={12} /> : i + 1}
               </span>
               <span className="step-label">{label}</span>
             </a>

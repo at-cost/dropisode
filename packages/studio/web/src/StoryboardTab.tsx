@@ -1,7 +1,7 @@
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, type ReactNode, type TouchEvent, useEffect, useRef, useState } from "react";
 import { type DialogueLine, type Episode, type Project, type Scene, type Shot, type Take, type View, api, mediaUrl } from "./api";
 import { useProject } from "./ProjectView";
-import { type Stage, shotStage, shotStatus } from "./progress";
+import { type Stage, hasFinalTake, shotStage, shotStatus, stageCounts } from "./progress";
 import { Empty, Icon, MoreMenu, Spinner, Ticket, Why, modelLabel, money, plural, store, unitLabel, useApp, useMedia } from "./ui";
 
 /** "Scene 2, shot 3" for a shot id. */
@@ -51,6 +51,18 @@ export function StoryboardTab() {
     setModeState(m);
     store.set("dropisode.storyboard", m);
   };
+  // Escape closes the inspector; a field being edited is saved first (its blur saves it).
+  useEffect(() => {
+    if (!selected) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || document.querySelector(".modal-layer")) return;
+      const el = document.activeElement;
+      if (el instanceof HTMLElement && el.closest(".inspector")) el.blur();
+      setSelected(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selected]);
   if (!ep)
     return (
       <Empty>
@@ -58,7 +70,8 @@ export function StoryboardTab() {
       </Empty>
     );
   const shots = ep.scenes.flatMap((s) => s.shots);
-  const approved = shots.filter((s) => s.approved).length;
+  const counts = stageCounts(shots);
+  const allFinal = shots.length > 0 && counts.final === shots.length;
   const seconds = shots.reduce((a, s) => a + s.durationS, 0);
   const found = selected ? findShot(ep, selected) : null;
   // The inspector sits beside the list on wide screens; on the board it slides over.
@@ -74,10 +87,15 @@ export function StoryboardTab() {
       <div className="sb-toolbar">
         <EpisodePicker ep={ep} onPick={pick} />
         <span className="muted small-text">
-          {plural(shots.length, "shot")} · {Math.round(seconds)} s · {approved} approved ·{" "}
+          {plural(shots.length, "shot")} · {Math.round(seconds)} s · {counts.approved} approved · {counts.final} final ·{" "}
           {money(view.episodeTotals[ep.id]?.paidMicro ?? 0)} spent
         </span>
         <div className="spacer" />
+        {allFinal && (
+          <a className="btn primary next-btn" href={`#/p/${pid}/episode`}>
+            Next: episode <span aria-hidden="true">→</span>
+          </a>
+        )}
         <fieldset className="view-toggle" aria-label="Storyboard view">
           <button type="button" aria-pressed={mode === "list"} className={mode === "list" ? "on" : ""} onClick={() => setMode("list")}>
             <Icon name="list" /> List
@@ -112,13 +130,49 @@ export function StoryboardTab() {
               tabIndex={-1}
               onClick={() => setSelected(null)}
             />
-            <aside className="inspector floating" aria-label="Shot inspector">
+            <Sheet onClose={() => setSelected(null)}>
               <Inspector key={found.shot.id} ep={ep} {...found} onClose={() => setSelected(null)} />
-            </aside>
+            </Sheet>
           </>
         )}
       </div>
     </div>
+  );
+}
+
+/** The floating inspector: a slide-over, or on phones a bottom sheet you can swipe down to close. */
+function Sheet({ onClose, children }: { onClose(): void; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  const start = useRef<number | null>(null);
+  const [dy, setDy] = useState(0);
+  const onStart = (e: TouchEvent) => {
+    // Only from the top, so scrolling the sheet's content still works.
+    if ((ref.current?.scrollTop ?? 0) > 0) return;
+    start.current = e.touches[0]?.clientY ?? null;
+  };
+  const onMove = (e: TouchEvent) => {
+    if (start.current === null) return;
+    setDy(Math.max(0, (e.touches[0]?.clientY ?? start.current) - start.current));
+  };
+  const onEnd = () => {
+    if (start.current !== null && dy > 90) onClose();
+    start.current = null;
+    setDy(0);
+  };
+  return (
+    <aside
+      ref={ref}
+      className="inspector floating"
+      aria-label="Shot inspector"
+      style={dy ? { transform: `translateY(${dy}px)`, transition: "none" } : undefined}
+      onTouchStart={onStart}
+      onTouchMove={onMove}
+      onTouchEnd={onEnd}
+      onTouchCancel={onEnd}
+    >
+      <span className="sheet-handle" aria-hidden="true" />
+      {children}
+    </aside>
   );
 }
 
@@ -138,7 +192,8 @@ function findShot(ep: Episode, id: string): { scene: Scene; shot: Shot; index: n
 function EpisodeSummary({ ep }: { ep: Episode }) {
   const { view } = useProject();
   const shots = ep.scenes.flatMap((s) => s.shots);
-  const count = (st: Stage) => shots.filter((s) => shotStage(s) === st).length;
+  const counts = stageCounts(shots);
+  const count = (st: Stage) => counts[st];
   return (
     <div className="inspector-body">
       <div className="insp-head">
@@ -173,6 +228,26 @@ function SceneBlock({ ep, scene, n, mode, sel }: { ep: Episode; scene: Scene; n:
   const untriedPrices = untried.map((s) => estimates?.shots[s.id]?.draft);
   const untriedTotal = untriedPrices.every((x) => x !== undefined) ? untriedPrices.reduce<number>((a, x) => a + (x ?? 0), 0) : undefined;
   const draftingAll = isBusy(`all-${scene.id}`);
+  // Approved shots without a current final, for one "Render N approved" press.
+  const toRender = scene.shots.filter(
+    (s) =>
+      shotStage(s) === "approved" &&
+      !view.openJobs.some((j) => j.refs.shotId === s.id) &&
+      !s.takes.some((t) => t.status === "queued" || t.status === "running"),
+  );
+  const renderPrices = toRender.map((s) => estimates?.shots[s.id]?.final);
+  const renderTotal = renderPrices.every((x) => x !== undefined) ? renderPrices.reduce<number>((a, x) => a + (x ?? 0), 0) : undefined;
+  const renderingAll = isBusy(`render-${scene.id}`);
+  const renderAll = () =>
+    void act(
+      `render-${scene.id}`,
+      async () => {
+        let last: View | undefined;
+        for (const s of toRender) last = await api.post<View>(`/projects/${pid}/shots/${s.id}/takes`, { tier: "final" });
+        return last as View;
+      },
+      { kick: true },
+    );
   const draftAll = () =>
     void act(
       `all-${scene.id}`,
@@ -241,7 +316,12 @@ function SceneBlock({ ep, scene, n, mode, sel }: { ep: Episode; scene: Scene; n:
               </option>
             ))}
           </select>
-          {running && !boarding && <Why>Wait for running takes</Why>}
+          {toRender.length > 0 && renderTotal !== undefined && (
+            <button type="button" className={untried.length > 0 ? "" : "primary"} disabled={renderingAll || boarding} onClick={renderAll}>
+              {renderingAll && <Spinner />} {`Render ${toRender.length} approved`}
+              <Ticket micro={renderTotal} />
+            </button>
+          )}
           {untried.length > 0 && untriedTotal !== undefined && (
             <button type="button" className="primary" disabled={draftingAll || boarding} onClick={draftAll}>
               {draftingAll && <Spinner />}{" "}
@@ -249,10 +329,22 @@ function SceneBlock({ ep, scene, n, mode, sel }: { ep: Episode; scene: Scene; n:
               <Ticket micro={untriedTotal} />
             </button>
           )}
-          <button type="button" className={scene.shots.length === 0 ? "primary" : ""} disabled={boarding || running} onClick={board}>
+          <button
+            type="button"
+            className={scene.shots.length === 0 ? "primary" : ""}
+            disabled={boarding || running}
+            onClick={board}
+            title={running && !boarding ? "Wait for running takes to finish" : undefined}
+            aria-describedby={running && !boarding ? `wait-${scene.id}` : undefined}
+          >
             {boarding && <Spinner />} {boarding ? "Storyboarding" : scene.shots.length === 0 ? "Storyboard this scene" : "Storyboard again"}
             {!boarding && <Ticket micro={price} />}
           </button>
+          {running && !boarding && (
+            <span id={`wait-${scene.id}`} className="sr-only">
+              Wait for running takes to finish
+            </span>
+          )}
         </div>
       </div>
       {scene.script.trim() && (
@@ -464,6 +556,8 @@ function GenButtons({
   approving: boolean;
   compact?: boolean;
 }) {
+  // A current final exists: rendering again is the exception, not the next step.
+  const rendered = approved && hasFinalTake(shot);
   return (
     <div className={`gen-row${compact ? " compact" : ""}`}>
       <button
@@ -479,7 +573,7 @@ function GenButtons({
       {(!compact || approved) && (
         <button
           type="button"
-          className={approved ? "primary" : ""}
+          className={approved && !rendered ? "primary" : ""}
           title={approved ? undefined : "Draft and approve the shot first"}
           disabled={!approved || approving || c.generating || c.isBusy(`take-${shot.id}-final`)}
           onClick={(e) => {
@@ -487,7 +581,7 @@ function GenButtons({
             c.gen("final");
           }}
         >
-          Final <Ticket micro={c.est?.final} />
+          {rendered ? "Re-render final" : "Final"} <Ticket micro={c.est?.final} />
         </button>
       )}
     </div>
@@ -648,6 +742,7 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
       <div className="insp-preview">
         <Preview pid={c.pid} take={c.take} aspect={c.p.aspect} />
       </div>
+      {a.approved && <p className="insp-note">Editing direction, camera, length, people or lines clears this shot's approval.</p>}
       <label className="insp-field">
         <span>Direction</span>
         <textarea
