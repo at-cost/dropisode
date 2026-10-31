@@ -75,12 +75,24 @@ billingRoutes.post("/topup", async (c) => {
     .where("id", "=", ws.workspaceId)
     .executeTakeFirstOrThrow();
   if (row.frozenAt) throw new HttpError(403, "This workspace is frozen while we review it");
-  const customerId = await deps.payments.ensureCustomer({
-    existingId: row.stripeCustomerId,
-    workspaceId: ws.workspaceId,
-    email: user.email,
-    name: ws.name,
-  });
+  const payments = deps.payments;
+  /** A Stripe outage or misconfiguration: say so plainly; nothing has been charged at this point. */
+  const stripe = async <T>(what: string, fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } catch (err) {
+      console.error(`reel: Stripe ${what} failed:`, (err as Error).message);
+      throw new HttpError(502, "Payments are unavailable right now. Nothing was charged. Try again in a few minutes.");
+    }
+  };
+  const customerId = await stripe("customer", () =>
+    payments.ensureCustomer({
+      existingId: row.stripeCustomerId,
+      workspaceId: ws.workspaceId,
+      email: user.email,
+      name: ws.name,
+    }),
+  );
   if (!row.stripeCustomerId)
     await deps.db.updateTable("workspaces").set({ stripeCustomerId: customerId }).where("id", "=", ws.workspaceId).execute();
   const topupId = uuid();
@@ -90,13 +102,20 @@ billingRoutes.post("/topup", async (c) => {
     .values({ id: topupId, workspaceId: ws.workspaceId, userId: user.id, amountCents, status: "pending" })
     .execute();
   const base = deps.config.APP_URL.replace(/\/$/, "");
-  const session = await deps.payments.createTopupCheckout({
-    customerId,
-    amountCents,
-    workspaceId: ws.workspaceId,
-    topupId,
-    successUrl: `${base}/billing?paid=1`,
-    cancelUrl: `${base}/billing`,
+  const session = await stripe("checkout", async () => {
+    try {
+      return await payments.createTopupCheckout({
+        customerId,
+        amountCents,
+        workspaceId: ws.workspaceId,
+        topupId,
+        successUrl: `${base}/billing?paid=1`,
+        cancelUrl: `${base}/billing`,
+      });
+    } catch (err) {
+      await deps.db.updateTable("topups").set({ status: "failed" }).where("id", "=", topupId).execute();
+      throw err;
+    }
   });
   await deps.db.updateTable("topups").set({ checkoutSessionId: session.id }).where("id", "=", topupId).execute();
   return c.json({ url: session.url });

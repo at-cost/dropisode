@@ -561,3 +561,18 @@ describe("Stripe fees", () => {
     expect(await backfillFees(t.deps)).toBe(0);
   });
 });
+
+describe("Stripe unavailable", () => {
+  it("a failed checkout says nothing was charged, and leaves no pending top-up", async () => {
+    t = await testApp();
+    const cookie = await t.signIn("down@reel.test");
+    t.stripe.createTopupCheckout = async () => {
+      throw new Error("Invalid API Key provided");
+    };
+    const res = await t.request("POST", "/api/billing/topup", { cookie, body: { amountUsd: 10 } });
+    expect(res.status).toBe(502);
+    expect(((await res.json()) as { error: string }).error).toContain("Nothing was charged");
+    const rows = await t.deps.db.selectFrom("topups").select("status").execute();
+    expect(rows.map((r) => r.status)).toEqual(["failed"]);
+  });
+});
