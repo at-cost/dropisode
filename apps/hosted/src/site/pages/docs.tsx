@@ -23,7 +23,7 @@ export function docsPage(c: Ctx) {
           <a href="#approve">Approving shots</a>
           <a href="#audio">Audio</a>
           <a href="#export">Export</a>
-          <a href="#move">Moving projects</a>
+          <a href="#move">Keeping a copy</a>
           <a href="#not-v1">What V1 doesn't do</a>
           <a href="/docs/local">Run it locally</a>
         </div>

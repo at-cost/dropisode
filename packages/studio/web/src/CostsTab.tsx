@@ -59,7 +59,6 @@ export function CostsTab() {
           <span className="muted small-text">{refunded.length} failed, not charged</span>
         </div>
       </div>
-      <p className="muted small-text">{app.config.priceLabel}</p>
 
       <div className="row">
         <label className="inline-label">

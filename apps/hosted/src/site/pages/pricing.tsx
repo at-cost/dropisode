@@ -237,14 +237,14 @@ export function pricingPage(c: Ctx) {
         </form>
 
         <TableWrap label="Episode cost on each final model">
-          <table id="calc-table">
+          <table id="calc-table" class="fit-sm">
             <thead>
               <tr>
                 <th>Final model</th>
-                <th class="num">Billed per shot</th>
-                <th class="num">Final only: fal</th>
+                <th class="num sm-hide">Billed per shot</th>
+                <th class="num sm-hide">Final only: fal</th>
                 <th class="num">Final only: you pay</th>
-                <th class="num">Draft then final: fal</th>
+                <th class="num sm-hide">Draft then final: fal</th>
                 <th class="num">Draft then final: you pay</th>
               </tr>
             </thead>
@@ -260,17 +260,17 @@ export function pricingPage(c: Ctx) {
                     {r.model.label}
                     {input.audio && r.model.nativeAudio ? <span class="muted small"> (audio)</span> : null}
                   </td>
-                  <td class="num">
+                  <td class="num sm-hide">
                     {r.model.price.unit === "second" ? `${r.billedSeconds} s` : "1 clip"}
                     {r.model.price.unit === "second" && r.billedSeconds !== input.shotSeconds ? (
                       <div class="small warn-text">rounds up from {input.shotSeconds} s</div>
                     ) : null}
                   </td>
-                  <td class="num">{usd(r.finalOnly.providerMicro)}</td>
+                  <td class="num sm-hide">{usd(r.finalOnly.providerMicro)}</td>
                   <td class="num">
                     <strong>{usd(r.finalOnly.chargeMicro)}</strong>
                   </td>
-                  <td class="num">{usd(r.draftThenFinal.providerMicro)}</td>
+                  <td class="num sm-hide">{usd(r.draftThenFinal.providerMicro)}</td>
                   <td class="num">
                     <strong>{usd(r.draftThenFinal.chargeMicro)}</strong>
                   </td>
@@ -303,15 +303,15 @@ export function pricingPage(c: Ctx) {
             real cost when it finishes; the estimate on the button uses these prices.
           </p>
           <TableWrap label="Unit prices">
-            <table>
+            <table class="fit-sm">
               <thead>
                 <tr>
                   <th>Model</th>
-                  <th>Use</th>
+                  <th class="sm-hide">Use</th>
                   <th>Unit</th>
-                  <th class="num">fal price</th>
+                  <th class="num sm-hide">fal price</th>
                   <th class="num">You pay</th>
-                  <th>Source</th>
+                  <th class="sm-hide">Source</th>
                 </tr>
               </thead>
               <tbody>
@@ -323,7 +323,7 @@ export function pricingPage(c: Ctx) {
                         {m.label}
                         {m.nativeAudio ? <div class="small muted">native audio</div> : null}
                       </td>
-                      <td>
+                      <td class="sm-hide">
                         {kindLabel[m.kind]}
                         {m.tiers.length ? <div class="small muted">{m.tiers.join(" and ")}</div> : null}
                       </td>
@@ -339,7 +339,7 @@ export function pricingPage(c: Ctx) {
                           </div>
                         ) : null}
                       </td>
-                      <td class="num">
+                      <td class="num sm-hide">
                         {u.fal.map((x) => (
                           <div>{x}</div>
                         ))}
@@ -349,7 +349,7 @@ export function pricingPage(c: Ctx) {
                           <div>{x}</div>
                         ))}
                       </td>
-                      <td>
+                      <td class="sm-hide">
                         <Ext href={m.price.source}>source</Ext>
                         <div class="small muted">
                           verified on {m.price.verifiedOn} <StatusTag status={m.price.status} />

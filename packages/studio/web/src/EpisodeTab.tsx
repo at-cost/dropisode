@@ -65,28 +65,28 @@ export function EpisodeTab() {
           <button
             type="button"
             className="primary"
-            disabled={!!busy || finals === 0 || !!ffmpegMissing}
-            onClick={() => void assemble("final")}
-          >
-            {busy === "final" && <Spinner />} Make final episode
-          </button>
-          {!busy && !ffmpegMissing && finals === 0 && (
-            <Why>{drafts === 0 ? "Make a draft of each shot first" : "Approve a shot and render its final first"}</Why>
-          )}
-          <div className="spacer" />
-          <button
-            type="button"
-            className={finals === 0 && drafts > 0 ? "primary" : ""}
             disabled={!!busy || drafts === 0 || !!ffmpegMissing}
             onClick={() => void assemble("rough")}
           >
             {busy === "rough" && <Spinner />} Rough cut from drafts
           </button>
+          <button type="button" disabled={!!busy || finals === 0 || !!ffmpegMissing} onClick={() => void assemble("final")}>
+            {busy === "final" && <Spinner />} Make final episode
+          </button>
+          {!busy && !ffmpegMissing && (drafts === 0 || finals === 0) && (
+            <Why>{drafts === 0 ? "Make a draft of a shot first" : "Final needs an approved shot with a final take"}</Why>
+          )}
         </div>
         {busy && <p className="muted small-text">Joining shots. About a minute.</p>}
         <p className="muted small-text">Assembling is free. The final uses approved final takes only.</p>
       </section>
 
+      {exports !== null && mine.length === 0 && (
+        <div className={`player-empty ${view.project.aspect === "16:9" ? "wide" : "tall"}`}>
+          <Icon name="film" size={26} />
+          <span>Your rough cut will play here</span>
+        </div>
+      )}
       {exports === null ? null : mine.length === 0 ? null : <h2 className="section-title">Exports</h2>}
       {exports === null || mine.length === 0
         ? null

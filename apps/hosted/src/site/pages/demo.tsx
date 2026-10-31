@@ -137,7 +137,7 @@ export function demoPage(c: Ctx, demo: Demo | null) {
           The scene became {shots.length} shot cards. Each shot was drafted on a cheap model first, approved, then rendered once on a
           premium model. Prices are what you would pay on Dropisode.
         </p>
-        <div class="media-grid">
+        <div class="media-grid shots-grid">
           {shots.map((s, i) => {
             const sel = s.takes.find((t) => t.id === s.selectedTakeId);
             const frame = mediaUrl(p, sel?.frameMediaId);
@@ -280,9 +280,6 @@ export function demoPage(c: Ctx, demo: Demo | null) {
           )}
           <a class="button secondary" href="/pricing">
             See prices
-          </a>
-          <a class="button secondary" href="/docs/local">
-            Try it locally with --mock
           </a>
         </div>
       </>

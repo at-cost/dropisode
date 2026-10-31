@@ -5,7 +5,14 @@ import type { FinancesSummary } from "../../finances";
 import { Ext, StatusTag, TableWrap, int, page, usd } from "../ui";
 
 export function financesPage(c: Ctx, f: FinancesSummary) {
-  const { platform } = c.get("deps");
+  const { platform, catalog } = c.get("deps");
+  const modelName = (id: string) => {
+    try {
+      return catalog.get(id).label;
+    } catch {
+      return id;
+    }
+  };
   const markupPct = Math.round(platform.markup * 100);
   const genCost = f.generation.reduce((a, g) => a + g.providerCostMicro, 0);
   const genCharged = f.generation.reduce((a, g) => a + g.chargedMicro, 0);
@@ -48,8 +55,7 @@ export function financesPage(c: Ctx, f: FinancesSummary) {
           <div class="stat">
             <span class="muted small">Reserve</span>
             <span class="big">{usd(f.reserveMicro)}</span>
-            {f.reserveMicro < 0 ? <span class="muted small">Start-up costs so far, paid by the owner</span> : null}
-            <span class="small muted">all time</span>
+            <span class="small muted">{f.reserveMicro < 0 ? "Start-up costs so far, paid by the owner. All time." : "All time."}</span>
           </div>
         </div>
 
@@ -74,8 +80,8 @@ export function financesPage(c: Ctx, f: FinancesSummary) {
               <tbody>
                 {f.generation.map((g) => (
                   <tr data-model={g.model}>
-                    <td>{g.provider}</td>
-                    <td>{g.model}</td>
+                    <td>{g.provider === "mock" ? "Test mode" : g.provider === "fal" ? "fal.ai" : g.provider}</td>
+                    <td>{modelName(g.model)}</td>
                     <td class="num">{int(g.jobs)}</td>
                     <td class="num">{usd(g.providerCostMicro)}</td>
                     <td class="num">{usd(g.chargedMicro)}</td>

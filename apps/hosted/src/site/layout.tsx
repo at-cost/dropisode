@@ -49,7 +49,9 @@ tr.hl td{background:var(--sunken)}tfoot td{font-weight:600;border-top:2px solid 
 .table-wrap table,.scroll table{min-width:560px}.table-wrap tr:last-child td{border-bottom:0}
 input,select,textarea{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--text-2);border-radius:8px;padding:8px 10px;max-width:100%}
 select{appearance:none;-webkit-appearance:none;padding-right:34px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23B9AECA' stroke-width='1.8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
-form.calc input,form.calc select{height:42px}
+form.calc input,form.calc select{height:42px}form.calc{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.sm-only{display:none}
+@media (max-width:640px){.sm-hide{display:none}.sm-only{display:block}.table-wrap table.fit-sm,.scroll table.fit-sm{min-width:0}}
 details.fold{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin:18px 0;padding:0 18px}
 details.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;padding:14px 0}
 details.fold>summary::-webkit-details-marker{display:none}details.fold>summary h2{margin:0;font-size:24px}
@@ -70,9 +72,12 @@ button.secondary,.button.secondary{background:transparent;color:var(--accent)}
 .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--border);background:var(--sunken);color:var(--text-2);white-space:nowrap}
 .tag.ok{color:var(--ok);border-color:var(--ok)}.tag.warn{color:var(--warn);border-color:var(--warn)}.tag.bad{color:var(--bad);border-color:var(--bad)}
 .ok-text{color:var(--ok)}.warn-text{color:var(--warn)}.bad-text{color:var(--bad)}
-.big{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.big{font-family:var(--display);font-size:34px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}.stat .big{display:block;margin-top:2px}
-.toc{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:14px;margin:8px 0 4px}
+.toc{display:flex;gap:6px;flex-wrap:wrap;font-size:14px;margin:12px 0 8px;position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0}
+.toc a{text-decoration:none;color:var(--text-2);border:1px solid var(--border);border-radius:999px;padding:5px 12px;background:var(--surface)}.toc a:hover{color:var(--text);border-color:var(--accent)}
+.shots-grid{grid-template-columns:repeat(6,minmax(0,1fr))}@media (max-width:1000px){.shots-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media (max-width:520px){.shots-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+body.auth{display:flex;flex-direction:column}body.auth main{flex:1}
 .media-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
 .shot img,.shot video,.cast img{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:6px;background:var(--sunken);display:block}
 .cast img{aspect-ratio:3/4}
@@ -192,12 +197,16 @@ export function Layout(props: {
               </div>
             ) : (
               <div class="user-area">
-                <a class="signin-link" href="/sign-in">
-                  Sign in
-                </a>
-                <a class="studio-btn" href="/sign-up">
-                  Sign up
-                </a>
+                {props.path === "/sign-in" ? null : (
+                  <a class="signin-link" href="/sign-in">
+                    Sign in
+                  </a>
+                )}
+                {props.path === "/sign-up" ? null : (
+                  <a class="studio-btn" href="/sign-up">
+                    Sign up
+                  </a>
+                )}
               </div>
             )}
             <details class="nav-menu">

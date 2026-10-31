@@ -19,7 +19,7 @@ function initials(name: string, email: string): string {
     .replace(/[^\p{L}\p{N} ]/gu, " ")
     .trim()
     .split(/\s+/);
-  const two = words.length > 1 ? (words[0]?.[0] ?? "") + (words[words.length - 1]?.[0] ?? "") : (words[0] ?? "?").slice(0, 2);
+  const two = words.length > 1 ? (words[0]?.[0] ?? "") + (words[words.length - 1]?.[0] ?? "") : (words[0] ?? "?").slice(0, 1);
   return two.toUpperCase();
 }
 

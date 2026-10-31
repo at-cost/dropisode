@@ -169,10 +169,17 @@ export function ProjectView({ pid, tab }: { pid: string; tab: string }) {
             <Spinner /> {working} generating
           </span>
         )}
-        <a className="total" href={`#/p/${pid}/costs`} title={app.config.priceLabel}>
-          <span>Spent</span>
-          <strong>{money(view.totals.paidMicro)}</strong>
-        </a>
+        <div className="total">
+          <span className="total-label">
+            Spent
+            <button type="button" className="hint" aria-label={app.config.priceLabel} data-tip={app.config.priceLabel}>
+              i
+            </button>
+          </span>
+          <a href={`#/p/${pid}/costs`}>
+            <strong>{money(view.totals.paidMicro)}</strong>
+          </a>
+        </div>
       </div>
       <nav className="tabs" aria-label="Project">
         {TABS.map(([id, label]) => (

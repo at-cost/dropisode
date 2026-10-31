@@ -73,7 +73,9 @@ accountPages.get("/account", async (c) => {
           ))}
         </tbody>
       </table>
-      <form class="row" data-api="/api/account/workspaces" data-next="/account" style="margin-top:14px">
+      <h3 style="margin-top:22px">Start another workspace</h3>
+      <p class="muted small" style="margin-top:0">For a separate team or client, with its own projects and balance.</p>
+      <form class="row" data-api="/api/account/workspaces" data-next="/account">
         <input class="wide-input" name="name" required maxlength={80} placeholder="Name a new workspace" aria-label="New workspace name" />
         <button type="submit">Create workspace</button>
         <Err />
@@ -331,10 +333,10 @@ accountPages.get("/billing", async (c) => {
       <h2>History</h2>
       {ledger.length ? (
         <div class="scroll">
-          <table>
+          <table class="fit-sm">
             <thead>
               <tr>
-                <th>When</th>
+                <th class="sm-hide">When</th>
                 <th>What</th>
                 <th class="num">Amount</th>
               </tr>
@@ -347,8 +349,9 @@ accountPages.get("/billing", async (c) => {
                 const amount = num(l.amountMicro);
                 return (
                   <tr>
-                    <td class="muted small nowrap">{fmtDateTime(l.at)}</td>
+                    <td class="muted small nowrap sm-hide">{fmtDateTime(l.at)}</td>
                     <td>
+                      <span class="sm-only muted small">{fmtDateTime(l.at)}</span>
                       {kind}
                       {model ? <span class="muted"> · {model}</span> : null}
                       {note ? <span class="muted"> · {note}</span> : null}

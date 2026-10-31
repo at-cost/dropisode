@@ -82,6 +82,20 @@ function SceneBlock({ ep, scene, n }: { ep: Episode; scene: Scene; n: number }) 
   const boarding = isBusy(`board-${scene.id}`);
   const price = estimates?.storyboard[scene.id];
   const running = scene.shots.some((s) => s.takes.some((t) => t.status === "queued" || t.status === "running"));
+  const untried = scene.shots.filter((s) => s.takes.length === 0 && !view.openJobs.some((j) => j.refs.shotId === s.id));
+  const untriedPrices = untried.map((s) => estimates?.shots[s.id]?.draft);
+  const untriedTotal = untriedPrices.every((x) => x !== undefined) ? untriedPrices.reduce<number>((a, x) => a + (x ?? 0), 0) : undefined;
+  const draftingAll = isBusy(`all-${scene.id}`);
+  const draftAll = () =>
+    void act(
+      `all-${scene.id}`,
+      async () => {
+        let last: View | undefined;
+        for (const s of untried) last = await api.post<View>(`/projects/${pid}/shots/${s.id}/takes`, { tier: "draft" });
+        return last as View;
+      },
+      { kick: true },
+    );
 
   const board = () => {
     if (
@@ -124,6 +138,13 @@ function SceneBlock({ ep, scene, n }: { ep: Episode; scene: Scene; n: number }) 
         </select>
         <div className="spacer" />
         {running && !boarding && <Why>Wait for running takes</Why>}
+        {untried.length > 0 && untriedTotal !== undefined && (
+          <button type="button" className="primary" disabled={draftingAll || boarding} onClick={draftAll}>
+            {draftingAll && <Spinner />}{" "}
+            {`Draft ${untried.length === scene.shots.length ? "all " : ""}${plural(untried.length, "untried shot")}`}
+            <Ticket micro={untriedTotal} />
+          </button>
+        )}
         <button type="button" className={scene.shots.length === 0 ? "primary" : ""} disabled={boarding || running} onClick={board}>
           {boarding && <Spinner />} {boarding ? "Storyboarding" : scene.shots.length === 0 ? "Storyboard this scene" : "Storyboard again"}
           {!boarding && <Ticket micro={price} />}
@@ -241,6 +262,7 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
   const last = index === scene.shots.length - 1;
   // Shown at once while the change is saved.
   const [approving, setApproving] = useState<boolean | null>(null);
+  const [setup, setSetup] = useState(false);
   const approved = approving ?? shot.approved;
   const setApproved = (v: boolean) => {
     setApproving(v);
@@ -266,22 +288,24 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
           Shot {sceneIdx + 1}.{index + 1}
         </strong>
         <div className="spacer" />
-        <button
-          type="button"
-          className={`approve${approved ? " on" : ""}`}
-          aria-pressed={approved}
-          disabled={approving !== null}
-          title={approved ? "Click to unapprove" : "Approve this shot for the final render"}
-          onClick={() => setApproved(!approved)}
-        >
-          {approved ? (
-            <>
-              <Icon name="check" size={12} /> Approved
-            </>
-          ) : (
-            "Approve shot"
-          )}
-        </button>
+        {(shot.takes.length > 0 || approved) && (
+          <button
+            type="button"
+            className={`approve${approved ? " on" : ""}`}
+            aria-pressed={approved}
+            disabled={approving !== null}
+            title={approved ? "Click to unapprove" : "Approve this shot for the final render"}
+            onClick={() => setApproved(!approved)}
+          >
+            {approved ? (
+              <>
+                <Icon name="check" size={12} /> Approved
+              </>
+            ) : (
+              "Approve shot"
+            )}
+          </button>
+        )}
         <div className="tools">
           <button
             type="button"
@@ -349,17 +373,6 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
               if (e.target.value !== shot.description) void patch({ description: e.target.value });
             }}
           />
-          <input
-            key={shot.camera}
-            list="camera-presets"
-            defaultValue={shot.camera}
-            maxLength={500}
-            aria-label="Camera"
-            placeholder="Camera"
-            onBlur={(e) => {
-              if (e.target.value !== shot.camera) void patch({ camera: e.target.value });
-            }}
-          />
           <div className="chips">
             {p.cast.map((c) => {
               const on = shot.castIds.includes(c.id);
@@ -377,47 +390,65 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
               );
             })}
           </div>
-          <div className="row tight">
-            <label className="inline-label">
-              Seconds
+          {setup ? (
+            <div className="setup">
               <input
-                key={shot.durationS}
-                type="number"
-                className="w-num"
-                min={1}
-                max={30}
-                step={0.5}
-                defaultValue={shot.durationS}
+                key={shot.camera}
+                list="camera-presets"
+                defaultValue={shot.camera}
+                maxLength={500}
+                aria-label="Camera"
+                placeholder="Camera"
                 onBlur={(e) => {
-                  const v = Number(e.target.value);
-                  if (v > 0 && v <= 30 && v !== shot.durationS) void patch({ durationS: v });
-                  else e.target.value = String(shot.durationS);
+                  if (e.target.value !== shot.camera) void patch({ camera: e.target.value });
                 }}
               />
-            </label>
-            <select value={shot.audio} aria-label="Audio" onChange={(e) => void patch({ audio: e.target.value })}>
-              <option value="native">Native audio</option>
-              <option value="tts">Text to speech</option>
-              <option value="none">No audio</option>
-            </select>
-          </div>
+              <div className="row tight">
+                <label className="inline-label">
+                  Seconds
+                  <input
+                    key={shot.durationS}
+                    type="number"
+                    className="w-num"
+                    min={1}
+                    max={30}
+                    step={0.5}
+                    defaultValue={shot.durationS}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value);
+                      if (v > 0 && v <= 30 && v !== shot.durationS) void patch({ durationS: v });
+                      else e.target.value = String(shot.durationS);
+                    }}
+                  />
+                </label>
+                <select value={shot.audio} aria-label="Audio" onChange={(e) => void patch({ audio: e.target.value })}>
+                  <option value="native">Native audio</option>
+                  <option value="tts">Text to speech</option>
+                  <option value="none">No audio</option>
+                </select>
+              </div>
+              <button type="button" className="link small-text" onClick={() => setSetup(false)}>
+                Done
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="setup-line" title="Edit camera, length and audio" onClick={() => setSetup(true)}>
+              {cap(shot.camera.trim()) || "No camera set"} · {round(shot.durationS)} s · {AUDIO[shot.audio] ?? shot.audio}
+            </button>
+          )}
         </div>
       </div>
 
       <Dialogue shot={shot} onSave={(dialogue) => void patch({ dialogue })} />
 
       <div className="row tight">
-        <button
-          type="button"
-          className={approved ? "" : "primary"}
-          disabled={generating || isBusy(`take-${shot.id}-draft`)}
-          onClick={() => gen("draft")}
-        >
+        <button type="button" disabled={generating || isBusy(`take-${shot.id}-draft`)} onClick={() => gen("draft")}>
           Draft <Ticket micro={est?.draft} />
         </button>
         <button
           type="button"
-          className={approved ? "primary" : ""}
+          className={approved ? "final-ready" : ""}
+          title={approved ? undefined : "Draft and approve the shot first"}
           disabled={!approved || approving !== null || generating || isBusy(`take-${shot.id}-final`)}
           onClick={() => gen("final")}
         >
@@ -428,7 +459,7 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
             <Spinner /> Generating
           </span>
         ) : (
-          !approved && <Why>Approve the shot first</Why>
+          !approved && shot.takes.length > 0 && <Why>Approve the shot first</Why>
         )}
       </div>
 
@@ -492,6 +523,9 @@ function ShotCard({ ep, scene, shot, index }: { ep: Episode; scene: Scene; shot:
     </article>
   );
 }
+
+const AUDIO: Record<string, string> = { native: "Native audio", tts: "Text to speech", none: "No audio" };
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 const KIND: Record<string, string> = { image: "image", video: "video", tts: "voice", llm: "text" };
 

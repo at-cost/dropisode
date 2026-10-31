@@ -1,7 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useState } from "react";
 import { type Aspect, type Project, type ProjectSummary, api } from "./api";
 import { go } from "./App";
-import { Icon, MoreMenu, Spinner, ago, money, plural, useApp, useBusy, when } from "./ui";
+import { Icon, MoreMenu, Spinner, ago, money, plural, useApp, useBusy, when, Why } from "./ui";
+
+/** A per-project gradient, so posters without a frame still look different. */
+function posterStyle(id: string): CSSProperties {
+  let h = 2166136261;
+  for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const pick = (shift: number, mod: number) => (h >>> shift) % mod;
+  return {
+    "--gx": `${15 + pick(0, 70)}%`,
+    "--gy": `${pick(7, 40)}%`,
+    "--rx": `${pick(13, 60)}%`,
+    "--ry": `${60 + pick(19, 40)}%`,
+    "--ga": `${120 + pick(25, 100)}deg`,
+  } as CSSProperties;
+}
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? "";
 
@@ -40,7 +54,6 @@ export function Projects() {
   };
 
   const account = app.config.account;
-  const wallet = app.config.wallet;
   const empty = list !== null && list.length === 0;
 
   return (
@@ -48,24 +61,12 @@ export function Projects() {
       <section className="home-hero">
         <div>
           <p className="eyebrow">Your studio</p>
-          <h1>{account ? `Welcome back, ${firstName(account.name)}` : "Your projects"}</h1>
+          <h1>{account ? `${empty ? "Welcome" : "Welcome back"}, ${firstName(account.name)}` : "Your projects"}</h1>
           <p className="home-sub">
             {empty
               ? "Start your first episode. Name it, give it a one-line idea, and the script is written for you."
               : "Pick up where you left off, or start a new episode."}
           </p>
-        </div>
-        <div className="home-stats">
-          {wallet && (
-            <a className="stat-chip" href="/billing">
-              <span>Credit</span>
-              <strong>{money(wallet.balanceMicro)}</strong>
-            </a>
-          )}
-          <div className="stat-chip">
-            <span>Projects</span>
-            <strong>{list === null ? "…" : list.length}</strong>
-          </div>
         </div>
       </section>
 
@@ -112,19 +113,17 @@ export function Projects() {
           ) : (
             <div className="project-grid">
               {list.map((p) => (
-                <article key={p.id} className="project-card">
+                <article key={p.id} className={`project-card ${p.aspect === "16:9" ? "wide" : "tall"}`}>
                   <a
                     className={`poster ${p.aspect === "16:9" ? "wide" : "tall"}`}
                     href={`#/p/${p.id}/script`}
                     aria-label={`Open ${p.name}`}
+                    style={posterStyle(p.id)}
                   >
                     <span className="poster-title">{p.name}</span>
                     <span className="poster-format">{p.aspect === "16:9" ? "16:9" : "9:16"}</span>
                   </a>
                   <div className="project-info">
-                    <a className="project-name" href={`#/p/${p.id}/script`}>
-                      {p.name}
-                    </a>
                     <p className="project-meta">
                       {plural(p.episodes, "episode")} · {plural(p.shots, "shot")} · {money(p.paidMicro)} spent
                     </p>
@@ -153,9 +152,6 @@ export function Projects() {
               ))}
             </div>
           )}
-          <p className="muted small-text price-note">
-            Prices shown are what you pay: {app.config.priceLabel.replace(/^Price you pay: /, "")}.
-          </p>
         </section>
 
         <aside className="new-project" aria-label="New project">
@@ -169,7 +165,7 @@ export function Projects() {
           >
             <label>
               Project name
-              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} required placeholder="The Last Train" />
+              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} required placeholder="e.g. Midnight Courier" />
             </label>
             <label>
               <span>
@@ -210,9 +206,12 @@ export function Projects() {
                 </span>
               </button>
             </fieldset>
-            <button type="submit" className="primary big-btn" disabled={!name.trim() || busy === "create"}>
-              {busy === "create" ? <Spinner /> : null} Create project
-            </button>
+            <div className="create-wrap">
+              <button type="submit" className="primary solid big-btn" disabled={!name.trim() || busy === "create"}>
+                {busy === "create" ? <Spinner /> : null} Create project
+              </button>
+              {!name.trim() && <Why>Name your project first</Why>}
+            </div>
           </form>
         </aside>
       </div>
