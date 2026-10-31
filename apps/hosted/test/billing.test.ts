@@ -529,3 +529,35 @@ describe("top-up presets", () => {
     expect((await t.request("POST", "/api/billing/topup", { cookie, body: { amountUsd: "ten" } })).status).toBe(400);
   });
 });
+
+describe("Stripe fees", () => {
+  it("converts a fee reported in the settlement currency back to USD cents", async () => {
+    const { feeInUsdCents } = await import("../src/billing/gateway");
+    // The live $10 top-up of 2026-10-31: settled as GBP 7.47 at 0.746629, fee 46p.
+    expect(feeInUsdCents({ fee: 46, currency: "gbp", exchange_rate: 0.746629 })).toBe(62);
+    expect(feeInUsdCents({ fee: 59, currency: "usd", exchange_rate: null })).toBe(59);
+    expect(feeInUsdCents({ fee: 46, currency: "gbp", exchange_rate: null })).toBeNull();
+  });
+
+  it("fills in a fee that wasn't known when the payment was confirmed", async () => {
+    t = await testApp();
+    const cookie = await t.signIn("fee@reel.test");
+    const ws = await t.workspaceOf(cookie);
+    await t.request("POST", "/api/billing/topup", { cookie, body: { amountUsd: 10 } });
+    const s = t.stripe.sessions[0]!;
+    let known: number | null = null;
+    t.stripe.fetchFee = async () => known;
+    await t.request("POST", "/webhooks/stripe", {
+      body: JSON.stringify({ sessionId: s.id, topupId: s.topupId, workspaceId: ws, amountCents: 1000, paymentIntentId: "pi_fee", paid: true }),
+      headers: { "stripe-signature": "fake-signature" },
+    });
+    const fee = () => t.deps.db.selectFrom("topups").select("feeCents").executeTakeFirstOrThrow();
+    expect((await fee()).feeCents).toBeNull();
+    const { backfillFees } = await import("../src/billing/fees");
+    expect(await backfillFees(t.deps)).toBe(0);
+    known = 62;
+    expect(await backfillFees(t.deps)).toBe(1);
+    expect((await fee()).feeCents).toBe(62);
+    expect(await backfillFees(t.deps)).toBe(0);
+  });
+});

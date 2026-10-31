@@ -27,7 +27,7 @@ export class FakeStripe implements PaymentGateway {
     this.sessions.push({ id, topupId: p.topupId, workspaceId: p.workspaceId, amountCents: p.amountCents });
     return { id, url: `https://checkout.stripe.test/${id}` };
   }
-  async fetchFee() {
+  async fetchFee(_paymentIntentId?: string): Promise<number | null> {
     return 57;
   }
   async parseWebhook(raw: string, signature: string): Promise<CheckoutCompleted | null> {

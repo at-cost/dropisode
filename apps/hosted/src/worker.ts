@@ -2,6 +2,7 @@
  * The background worker: polls open jobs (a backstop for webhooks, and the only
  * path in development), runs the nightly charge, and reviews new outputs.
  */
+import { backfillFees } from "./billing/fees";
 import { runDueDailyCharges } from "./billing/daily";
 import type { Deps } from "./context";
 import { workspacesWithOpenJobs } from "./stores";
@@ -16,7 +17,7 @@ export async function tickJobs(deps: Deps): Promise<number> {
   return n;
 }
 
-export function startWorker(deps: Deps, opts: { jobsEveryMs?: number; dailyEveryMs?: number } = {}): () => void {
+export function startWorker(deps: Deps, opts: { jobsEveryMs?: number; dailyEveryMs?: number; feesEveryMs?: number } = {}): () => void {
   let busy = false;
   const jobs = setInterval(async () => {
     if (busy) return;
@@ -34,8 +35,13 @@ export function startWorker(deps: Deps, opts: { jobsEveryMs?: number; dailyEvery
   const daily = setInterval(() => {
     runDueDailyCharges(deps).catch((err) => console.warn(`reel daily charges: ${(err as Error).message}`));
   }, opts.dailyEveryMs ?? 3_600_000);
+  // Stripe fees settle a few minutes after payment; fill in any that were missing.
+  const fees = setInterval(() => {
+    backfillFees(deps).catch((err) => console.warn(`reel stripe fees: ${(err as Error).message}`));
+  }, opts.feesEveryMs ?? 600_000);
   return () => {
     clearInterval(jobs);
     clearInterval(daily);
+    clearInterval(fees);
   };
 }

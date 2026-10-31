@@ -88,7 +88,7 @@ export function stripeGateway(secretKey: string, webhookSecret: string): Payment
       const pi = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ["latest_charge.balance_transaction"] });
       const charge = pi.latest_charge as Stripe.Charge | null;
       const bt = charge?.balance_transaction as Stripe.BalanceTransaction | null;
-      return bt ? bt.fee : null;
+      return bt ? feeInUsdCents(bt) : null;
     },
     async parseWebhook(rawBody, signature) {
       const event = await stripe.webhooks.constructEventAsync(rawBody, signature, webhookSecret);
@@ -134,4 +134,14 @@ export function stripeGateway(secretKey: string, webhookSecret: string): Payment
       };
     },
   };
+}
+
+/**
+ * Stripe reports a fee in the account's settlement currency (Dropisode's is GBP), with the
+ * rate it used to convert the charge. Ledger figures are USD, so convert back with that rate.
+ */
+export function feeInUsdCents(bt: { fee: number; currency: string; exchange_rate: number | null }): number | null {
+  if (bt.currency.toLowerCase() === "usd") return bt.fee;
+  if (!bt.exchange_rate) return null;
+  return Math.round(bt.fee / bt.exchange_rate);
 }
