@@ -318,7 +318,7 @@ describe("email and password accounts", () => {
     expect(page).toContain('document.getElementById("verify").submit()');
     const res = await follow(url, withCookies("", up));
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/billing");
+    expect(res.headers.get("location")).toBe("/verified?next=%2Fbilling");
     expect(await sessionOk(withCookies("", res))).toBe(true);
     const [u] = await users();
     expect(u!.email).toBe("new@reel.test");
@@ -455,7 +455,7 @@ describe("sign-up takeover attempts", () => {
       await t.request("POST", "/auth/sign-up", { body: { email: "v2@reel.test", password: "attacker password" } }),
     );
     const theirLink = linkIn(lastMailTo("v2@reel.test")!.text, "/auth/verify");
-    expect((await follow(myLink, mine)).headers.get("location")).toBe("/studio/");
+    expect((await follow(myLink, mine)).headers.get("location")).toBe("/verified?next=%2Fstudio%2F");
     // Even in the attacker's own browser, their link is dead now.
     expect((await follow(theirLink, theirs)).headers.get("location")).toBe("/sign-in?error=confirmed");
     expect((await signInPw("v2@reel.test", PW)).status).toBe(200);
@@ -525,5 +525,16 @@ describe("sign-up takeover attempts", () => {
     const url = linkIn(lastMailTo("scanned@reel.test")!.text, "/auth/verify");
     await follow(url); // the scanner
     expect((await t.request("GET", `${url.pathname}${url.search}`)).headers.get("location")).toBe("/forgot?error=setpassword");
+  });
+
+  it("the verified page confirms, names the destination and only goes to same-site paths", async () => {
+    const get = pages();
+    const html = await (await get("/verified?next=%2Fbilling")).text();
+    expect(html).toContain("Account verified");
+    expect(html).toContain("Taking you to Billing in");
+    expect(html).toContain('location.href = "/billing"');
+    const evil = await (await get("/verified?next=https%3A%2F%2Fevil.example")).text();
+    expect(evil).not.toContain("evil.example");
+    expect(evil).toContain('location.href = "/studio/"');
   });
 });

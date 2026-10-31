@@ -149,6 +149,34 @@ authPages.get("/sign-up", (c) => {
   );
 });
 
+/** Shown after a sign-up is confirmed: says so, then moves on after 3 seconds. */
+authPages.get("/verified", (c) => {
+  const next = safeNext(c.req.query("next"), c.get("deps").config.APP_URL);
+  const where = next.startsWith("/studio") ? "the studio" : next.startsWith("/billing") ? "Billing" : "where you were going";
+  return render(
+    c,
+    "Account verified",
+    <div class="narrow stack" style="text-align:center">
+      <h1>Account verified</h1>
+      <p>Your email is confirmed and your account is ready{c.get("user") ? <>, {c.get("user")!.email}</> : null}.</p>
+      <p class="muted">
+        Taking you to {where} in <span id="secs">3</span> seconds…
+      </p>
+      <p>
+        <a class="button" href={next}>
+          Go now
+        </a>
+      </p>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `let n = 3; const el = document.getElementById("secs");
+const t = setInterval(() => { n -= 1; el.textContent = String(n); if (n <= 0) { clearInterval(t); location.href = ${JSON.stringify(next).replace(/</g, "\\u003c")}; } }, 1000);`,
+        }}
+      />
+    </div>,
+  );
+});
+
 authPages.get("/forgot", (c) => {
   const err = ERRORS[c.req.query("error") ?? ""];
   const sent = c.req.query("sent") === "1";

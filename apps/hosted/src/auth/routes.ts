@@ -206,10 +206,10 @@ authRoutes.post("/verify", async (c) => {
   const nonce = getCookie(c, SIGNUP_COOKIE);
   const sameBrowser = !!nonce && !!link.browserHash && sha256(nonce) === link.browserHash;
   const current = await deps.db.selectFrom("users").select("passwordHash").where("id", "=", u.id).executeTakeFirstOrThrow();
-  if (current.passwordHash) return c.redirect(next);
+  if (current.passwordHash) return c.redirect(`/verified?next=${encodeURIComponent(next)}`);
   if (sameBrowser && link.passwordHash) {
     await deps.db.updateTable("users").set({ passwordHash: link.passwordHash }).where("id", "=", u.id).execute();
-    return c.redirect(next);
+    return c.redirect(`/verified?next=${encodeURIComponent(next)}`);
   }
   // Confirmed somewhere else: the email is proved, so let them choose a password now.
   const reset = newToken();
