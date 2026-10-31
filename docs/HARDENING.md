@@ -71,9 +71,22 @@ What was tested, how, and what is known not to be covered. Run the suites with `
 - A card dispute debits the disputed amount and freezes the workspace for review. The freeze is logged in the admin log.
 - The balance may go negative, which blocks new generations. Nothing is deleted.
 
+## Stripe sandbox run (2026-10-31)
+
+A temporary password-protected staging site (mock video provider, Stripe sandbox keys, own database) ran the money path against real Stripe:
+
+- A zero balance blocked generation (402); a $5 top-up was refused (minimum $10).
+- A $10 card payment through Stripe Checkout credited the wallet once, by webhook.
+- A cast image charged $0.04 × 1.2 = $0.048; a forced failure was marked refunded at $0.00; the hold was released.
+- A $3 partial refund issued in Stripe debited $3.00.
+- Card 4000 0000 0000 0259 paid and was disputed in the same second. **Bug found:** the dispute event arrived before checkout.session.completed and was dropped. Fixed in 025fd30: the top-up is found from the payment's own metadata, and an unmatched reversal answers 500 so Stripe retries. Replaying the real event then debited $10 and froze the workspace; generation was refused while frozen.
+- Winning the dispute in Stripe restored the $10. The workspace stays frozen until an admin unfreezes it (by design).
+- A webhook with a forged signature got 400.
+
+Staging, its data, DNS record and sandbox webhook were removed afterwards.
+
 ## Not covered yet
 
 - **Real fal.ai calls.** The Phase 1 spike against fal ("the cost log matches fal's dashboard to the cent") needs a fal key and about $2 of spend, and is the owner's step. Run `FAL_KEY=... pnpm spike "<idea>" --tier draft` and compare `cost-log.csv` with the fal dashboard.
-- **Real Stripe payments** (sandbox or live).
 - **Real R2 signed URLs.** They are tested with the local driver, which uses the same rules. The R2 presigning code is written but untested against a bucket.
 - **Image moderation of minors.** OpenAI's free moderation checks `sexual/minors` on text only. See the moderation notes in `docs/PRICING_NOTES.md`.
