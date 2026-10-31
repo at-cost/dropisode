@@ -32,8 +32,8 @@ header.top .brand{font-family:var(--display);font-weight:800;font-size:26px;line
 .profile .menu a:hover,.profile .menu .signout:hover{background:var(--sunken)}
 .profile .menu form{margin:6px 0 0;padding-top:6px;border-top:1px solid var(--border)}.profile .menu .signout{color:var(--accent)}
 body.auth{background:radial-gradient(90% 70% at 85% 0%,rgba(244,194,78,.18),transparent 60%),radial-gradient(80% 70% at 0% 100%,rgba(229,51,106,.28),transparent 60%),var(--plum);min-height:100vh}
-body.auth main{max-width:none;display:grid;place-items:start center;padding:56px 16px 72px}
-body.auth main>.narrow{width:min(440px,100%);background:var(--surface);border-radius:20px;padding:30px 28px;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+body.auth main{max-width:none;width:100%;margin:0;display:flex;justify-content:center;align-items:flex-start;padding:56px 16px 72px}
+body.auth main>.narrow{width:100%;max-width:460px;flex:0 1 460px;background:var(--surface);border-radius:20px;padding:30px 28px;box-shadow:0 30px 80px rgba(0,0,0,.35)}
 body.auth main>.narrow h1{font-size:40px;margin:0 0 6px}body.auth main>.narrow .card{border:0;padding:0;background:none}
 body.auth main>.narrow input{width:100%;padding:10px 12px}body.auth main>.narrow button[type=submit],body.auth main>.narrow .button{width:100%;padding:11px 14px;font-weight:600;border-radius:10px}
 body.auth footer{color:#B9AECA;border-top-color:rgba(255,255,255,.1)}body.auth footer a{color:#D9CCE8}
