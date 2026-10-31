@@ -302,6 +302,8 @@ function ScriptView(p: { text: string }) {
             </div>
           );
         }
+        const cast = /^\s*-\s*(.*)$/.exec(line);
+        if (cast) return <div class="cast-line">· {cast[1]}</div>;
         return <div>{line || "\u00a0"}</div>;
       })}
     </div>

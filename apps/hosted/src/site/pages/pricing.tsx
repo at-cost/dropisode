@@ -87,21 +87,24 @@ const kindLabel = { video: "Video", image: "Image", tts: "Text to speech", llm: 
 function Breakdown(p: { cost: EpisodeCost }) {
   return (
     <TableWrap label="Cost breakdown">
-      <table>
+      <table class="fit-sm">
         <thead>
           <tr>
             <th>Jobs</th>
-            <th class="num">Count</th>
-            <th class="num">fal price</th>
+            <th class="num sm-hide">Count</th>
+            <th class="num sm-hide">fal price</th>
             <th class="num">You pay</th>
           </tr>
         </thead>
         <tbody>
           {p.cost.lines.map((l) => (
             <tr>
-              <td>{l.label}</td>
-              <td class="num">{int(l.count)}</td>
-              <td class="num">{usd(l.providerMicro)}</td>
+              <td>
+                {l.label}
+                <span class="sm-only muted small">{int(l.count)} jobs</span>
+              </td>
+              <td class="num sm-hide">{int(l.count)}</td>
+              <td class="num sm-hide">{usd(l.providerMicro)}</td>
               <td class="num">{usd(l.chargeMicro)}</td>
             </tr>
           ))}
@@ -109,8 +112,8 @@ function Breakdown(p: { cost: EpisodeCost }) {
         <tfoot>
           <tr>
             <td>Total</td>
-            <td />
-            <td class="num">{usd(p.cost.providerMicro)}</td>
+            <td class="sm-hide" />
+            <td class="num sm-hide">{usd(p.cost.providerMicro)}</td>
             <td class="num">{usd(p.cost.chargeMicro)}</td>
           </tr>
         </tfoot>

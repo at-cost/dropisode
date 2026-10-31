@@ -2207,7 +2207,7 @@ button.primary.solid:disabled {
 
 /* Project posters: aspect-matched, per-project gradient */
 .project-grid {
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   align-items: start;
   grid-auto-flow: dense;
 }
@@ -2697,4 +2697,9 @@ button.final-ready {
   .shot-body:has(.preview.tall) .shot-fields > .take-error {
     grid-column: 1 / -1;
   }
+}
+
+/* A lone project shouldn't stretch across the whole row. */
+.project-grid > .project-card:only-child {
+  max-width: 320px;
 }
