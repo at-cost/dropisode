@@ -207,7 +207,8 @@ export function createStudioApi(resolve: ResolveContext): Hono {
     const running = [];
     for (const p of list) {
       const open = (await ctx.studio.runner.deps.jobs.listUnfinished(p.id)).filter((j) => j.state === "created" || j.state === "submitted");
-      if (open.length) running.push({ projectId: p.id, projectName: p.name, count: open.length, purposes: [...new Set(open.map((j) => j.purpose))] });
+      if (open.length)
+        running.push({ projectId: p.id, projectName: p.name, count: open.length, purposes: [...new Set(open.map((j) => j.purpose))] });
     }
     const dayList = Object.entries(days)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -488,6 +489,8 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         approved: z.boolean().optional(),
         selectedTakeId: z.string().optional(),
         dialogue: z.array(Line).optional(),
+        continueFromPrevious: z.boolean().optional(),
+        onScreenText: z.string().max(300).optional(),
       }),
     );
     await mutate(c, ctx, (p) => updateShot(p, c.req.param("sid"), b));
@@ -644,6 +647,12 @@ function costLabel(p: Project, l: { purpose: string; shotId: string | null; cast
     const c = p.cast.find((x) => x.id === l.castId);
     if (c) return `Cast: ${c.name}`;
   }
-  const names: Record<string, string> = { script: "Script", storyboard: "Storyboard", parse: "Read into scenes", tts: "Voice line", assemble: "Episode" };
+  const names: Record<string, string> = {
+    script: "Script",
+    storyboard: "Storyboard",
+    parse: "Read into scenes",
+    tts: "Voice line",
+    assemble: "Episode",
+  };
   return names[l.purpose] ?? l.purpose.replace(/_/g, " ");
 }

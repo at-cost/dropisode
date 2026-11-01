@@ -42,6 +42,8 @@ export interface Take {
   frameMediaId?: string;
   videoMediaId?: string;
   error?: string;
+  /** A continued final waiting for the previous shot's final. */
+  waitsForShotId?: string;
   createdAt: string;
 }
 
@@ -56,6 +58,8 @@ export interface Shot {
   approved: boolean;
   takes: Take[];
   selectedTakeId?: string;
+  continueFromPrevious?: boolean;
+  onScreenText?: string;
 }
 
 export interface Scene {

@@ -73,6 +73,8 @@ export const Take = z.object({
   frameMediaId: z.string().optional(),
   videoMediaId: z.string().optional(),
   error: z.string().optional(),
+  /** A continued shot's final waits for the shot before it to finish its own final. */
+  waitsForShotId: z.string().optional(),
   createdAt: z.string(),
 });
 export type Take = z.infer<typeof Take>;
@@ -90,6 +92,10 @@ export const Shot = z.object({
   takes: z.array(Take).default([]),
   /** The take shown on the card and used by a rough cut. */
   selectedTakeId: z.string().optional(),
+  /** Start from the last frame of the previous shot in the scene, so the action carries straight on. */
+  continueFromPrevious: z.boolean().default(false),
+  /** Text the studio draws over the shot when the episode is assembled (a card, a sign, a date). */
+  onScreenText: z.string().max(300).default(""),
 });
 export type Shot = z.infer<typeof Shot>;
 

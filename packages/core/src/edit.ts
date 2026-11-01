@@ -131,6 +131,8 @@ export interface ShotInput {
   castIds?: string[];
   dialogue?: { castId: string | null; text: string }[];
   durationS: number;
+  continueFromPrevious?: boolean;
+  onScreenText?: string;
 }
 
 const toLines = (lines: { castId: string | null; text: string }[] = []): DialogueLine[] =>
@@ -147,6 +149,8 @@ export function addShot(scene: Scene, p: ShotInput, at?: number): Shot {
     audio: "native",
     approved: false,
     takes: [],
+    continueFromPrevious: p.continueFromPrevious ?? false,
+    onScreenText: p.onScreenText ?? "",
   };
   if (at === undefined) scene.shots.push(shot);
   else scene.shots.splice(Math.max(0, Math.min(at, scene.shots.length)), 0, shot);
@@ -157,7 +161,12 @@ export function addShot(scene: Scene, p: ShotInput, at?: number): Shot {
 export function updateShot(
   project: Project,
   shotId: string,
-  patch: Partial<Pick<Shot, "description" | "camera" | "castIds" | "durationS" | "audio" | "approved" | "selectedTakeId">> & {
+  patch: Partial<
+    Pick<
+      Shot,
+      "description" | "camera" | "castIds" | "durationS" | "audio" | "approved" | "selectedTakeId" | "continueFromPrevious" | "onScreenText"
+    >
+  > & {
     dialogue?: { id?: string; castId: string | null; text: string }[];
   },
 ): Shot {
@@ -165,7 +174,8 @@ export function updateShot(
   for (const id of patch.castIds ?? []) findCast(project, id);
   if (patch.selectedTakeId !== undefined && !shot.takes.some((t) => t.id === patch.selectedTakeId))
     throw new EditError("No such take", "not_found");
-  const content = ["description", "camera", "castIds", "durationS", "dialogue"] as const;
+  // On-screen text is drawn at assembly, so changing it doesn't touch the clip or its approval.
+  const content = ["description", "camera", "castIds", "durationS", "dialogue", "continueFromPrevious"] as const;
   const changesContent = content.some((k) => patch[k] !== undefined);
   if (patch.description !== undefined) shot.description = patch.description;
   if (patch.camera !== undefined) shot.camera = patch.camera;
@@ -175,6 +185,8 @@ export function updateShot(
     shot.durationS = patch.durationS;
   }
   if (patch.audio !== undefined) shot.audio = patch.audio;
+  if (patch.continueFromPrevious !== undefined) shot.continueFromPrevious = patch.continueFromPrevious;
+  if (patch.onScreenText !== undefined) shot.onScreenText = patch.onScreenText.slice(0, 300);
   if (patch.dialogue !== undefined) {
     const old = new Map(shot.dialogue.map((l) => [l.id, l]));
     shot.dialogue = patch.dialogue.map((l) => {
@@ -222,6 +234,9 @@ export function splitShot(project: Project, shotId: string, atS?: number): [Shot
     audio: shot.audio,
     approved: false,
     takes: [],
+    // The second half picks up exactly where the first ends.
+    continueFromPrevious: true,
+    onScreenText: "",
   };
   shot.dialogue = shot.dialogue.slice(0, cut);
   shot.durationS = round1(at);

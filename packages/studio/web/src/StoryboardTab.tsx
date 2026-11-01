@@ -667,7 +667,15 @@ function audioLabel(shot: Shot, silentVideo: boolean): string {
 }
 
 const setupLine = (shot: Shot, silentVideo: boolean) =>
-  `${cap(shot.camera.trim()) || "No camera set"} · ${round(shot.durationS)} s · ${audioLabel(shot, silentVideo)}`;
+  [
+    shot.continueFromPrevious ? "Continues" : "",
+    cap(shot.camera.trim()) || "No camera set",
+    `${round(shot.durationS)} s`,
+    audioLabel(shot, silentVideo),
+    shot.onScreenText?.trim() ? "Text on screen" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
 /** A compact shot for the wide list and the board; editing happens in the inspector. */
 function ShotTile({
@@ -849,6 +857,32 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
         />
       </label>
       <CameraField key={shot.id} value={shot.camera} presets={app.config.cameraPresets} onSave={(camera) => void c.patch({ camera })} />
+      {index > 0 && (
+        <label className="insp-check">
+          <input
+            type="checkbox"
+            checked={!!shot.continueFromPrevious}
+            onChange={(e) => void c.patch({ continueFromPrevious: e.target.checked })}
+          />
+          <span>
+            Continue from the end of the previous shot
+            <small className="muted">Starts from its last frame, so the action carries straight on.</small>
+          </span>
+        </label>
+      )}
+      <label className="insp-field">
+        <span>On-screen text</span>
+        <input
+          key={shot.onScreenText ?? ""}
+          defaultValue={shot.onScreenText ?? ""}
+          maxLength={300}
+          placeholder="e.g. Nora Ashby, 1992 to 2026"
+          onBlur={(e) => {
+            if (e.target.value !== (shot.onScreenText ?? "")) void c.patch({ onScreenText: e.target.value });
+          }}
+        />
+        <small className="muted">Drawn crisply over the shot when the episode is put together. AI video can't write legible text.</small>
+      </label>
       <div className="insp-pair">
         <label className="insp-field">
           <span>Seconds</span>

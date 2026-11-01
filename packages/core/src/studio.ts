@@ -4,10 +4,14 @@
  * billing and moderation.
  */
 import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { type Catalog, type CatalogModel, type Estimate, billedDuration, estimate, roughTokens, supportsAspect } from "./catalog";
 import { EditError, addCast, addEpisode, addScene, addShot, castByName, findCast, findEpisode, findScene, findShot, newId } from "./edit";
+import { runFfmpeg } from "./ffmpeg";
 import { JobRunner, plainJobError, type RunnerDeps } from "./jobs";
-import type { CastMember, MediaRef, Project, Take, Tier } from "./project";
+import type { CastMember, MediaRef, Project, Shot, Take, Tier } from "./project";
 import {
   type LlmPrompt,
   castExtractPrompt,
@@ -83,7 +87,8 @@ export class Studio {
     const video = this.catalog.get(models.video ?? d.video);
     const audio =
       tier === "draft" && !this.catalog.config.defaults.draftAudio ? "none" : this.audioPlan(shot.audio, video, shot.dialogue.length > 0);
-    const frame = estimate(image, { images: 1 });
+    // A continued shot takes its first frame from the previous clip: no image to pay for.
+    const frame = continuesFrom(project, shotId) ? estimate(image, { images: 0 }) : estimate(image, { images: 1 });
     const vid = estimate(video, { durationS: shot.durationS, audio: audio === "native" });
     const tts =
       audio === "tts" && tier === "final"
@@ -255,7 +260,9 @@ export class Studio {
             const who = scriptSpeakerFor(speakers, d.text) ?? d.speaker;
             return { castId: who ? (castByName(proj, who)?.id ?? null) : null, text: d.text };
           }),
-          durationS: s.duration ?? 5,
+          durationS: s.duration ?? 8,
+          continueFromPrevious: !!s.continues && sc.shots.length > 0,
+          onScreenText: (s.onScreenText ?? "").trim().slice(0, 300),
         });
       }
       return sc.shots.length;
@@ -337,9 +344,28 @@ export class Studio {
       status: "queued",
       createdAt: new Date().toISOString(),
     };
+    const prev = continuesFrom(project, shotId);
+    const source = prev ? chainSource(prev, tier) : undefined;
+    if (
+      prev &&
+      !source &&
+      !(tier === "final" && prev.takes.some((t) => t.tier === "final" && (t.status === "running" || t.status === "queued")))
+    )
+      throw new EditError(
+        tier === "final"
+          ? "This shot continues from the one before it: make that shot's final first"
+          : "This shot continues from the one before it: make a draft of that shot first",
+      );
     await this.projects.mutate(projectId, (proj) => {
-      findShot(proj, shotId).shot.takes.push(take);
+      findShot(proj, shotId).shot.takes.push(prev && !source ? { ...take, waitsForShotId: prev.id } : take);
     });
+
+    if (prev) {
+      // Its first frame is the previous clip's last; a final waits for the previous final if need be.
+      if (source) await this.startChained(projectId, shotId, take.id, source, p.owner);
+      if (tier === "final" && est.audio === "tts") await this.generateMissingTts(projectId, shotId, p.owner).catch(() => {});
+      return { ...take, status: source ? "running" : "queued" };
+    }
 
     const refs = await this.referenceImages(project, shot.castIds, scene.locationId, image.maxRefImages);
     const cast = shot.castIds.map((id) => project.cast.find((c) => c.id === id)).filter((c): c is CastMember => !!c);
@@ -360,7 +386,9 @@ export class Studio {
             cast,
             location,
             aspect: project.aspect,
-            voiceOver: shot.dialogue.length > 0 && this.audioPlan(shot.audio, this.catalog.get(this.catalog.defaultsFor(tier).video), true) !== "native",
+            voiceOver:
+              shot.dialogue.length > 0 &&
+              this.audioPlan(shot.audio, this.catalog.get(this.catalog.defaultsFor(tier).video), true) !== "native",
           }),
           aspect: project.aspect,
           ...(refs.length ? { images: refs } : {}),
@@ -418,6 +446,69 @@ export class Studio {
       });
     }
     return out;
+  }
+
+  /** A continued take: the previous clip's last frame becomes this take's first, then image-to-video. */
+  private async startChained(
+    projectId: string,
+    shotId: string,
+    takeId: string,
+    source: Take,
+    owner?: Record<string, string>,
+  ): Promise<void> {
+    try {
+      const project = await this.projects.get(projectId);
+      const clipRef = project.media.find((m) => m.id === source.videoMediaId);
+      if (!clipRef) throw new Error("The previous shot's clip is missing");
+      const bytes = await lastFrame(await this.deps.media.read(projectId, clipRef));
+      const ref = await this.deps.media.put(projectId, { bytes, contentType: "image/jpeg", source: `chain_${source.id}` });
+      await this.projects.mutate(projectId, (proj) => {
+        proj.media.push(ref);
+        const t = findShot(proj, shotId).shot.takes.find((x) => x.id === takeId);
+        if (!t) return;
+        t.frameMediaId = ref.id;
+        t.status = "running";
+        delete t.waitsForShotId;
+      });
+    } catch (err) {
+      await this.projects.mutate(projectId, (proj) => {
+        const t = findShot(proj, shotId).shot.takes.find((x) => x.id === takeId);
+        if (t) {
+          t.status = "failed";
+          t.error = `Couldn't take the last frame of the previous shot: ${(err as Error).message}`;
+        }
+      });
+      return;
+    }
+    await this.startVideo(projectId, shotId, takeId, owner);
+  }
+
+  /** When a final finishes, start any continued finals that were waiting for it (or fail them if it failed). */
+  private async releaseWaiting(job: JobRecord): Promise<void> {
+    if (job.tier !== "final") return;
+    const project = await this.projects.get(job.projectId);
+    let prev: Shot;
+    try {
+      prev = findShot(project, job.refs.shotId!).shot;
+    } catch {
+      return;
+    }
+    const source = job.state === "done" ? chainSource(prev, "final") : undefined;
+    for (const sc of project.episodes.flatMap((e) => e.scenes))
+      for (const sh of sc.shots)
+        for (const t of sh.takes) {
+          if (t.status !== "queued" || t.waitsForShotId !== prev.id) continue;
+          if (source) await this.startChained(job.projectId, sh.id, t.id, source, job.owner);
+          else if (job.state !== "done")
+            await this.projects.mutate(job.projectId, (proj) => {
+              const x = findShot(proj, sh.id).shot.takes.find((y) => y.id === t.id);
+              if (x) {
+                x.status = "failed";
+                x.error = "The shot before this one failed its final, so this one had nothing to continue from.";
+                delete x.waitsForShotId;
+              }
+            });
+        }
   }
 
   /** Starts image-to-video for a take whose first frame is ready. Idempotent. */
@@ -559,6 +650,9 @@ export class Studio {
         if (!selected || t.tier === "final" || selected.tier === "draft") shot.selectedTakeId = t.id;
       },
       fail: failTake,
+      after: async (job) => {
+        if (job.state === "done" || job.state === "failed") await this.releaseWaiting(job);
+      },
     });
     this.runner.on("tts", {
       apply: (project, job, r) => {
@@ -582,5 +676,35 @@ export class Studio {
 export function assertNothingRunning(shots: { takes: Take[] }[]): void {
   if (shots.some((sh) => sh.takes.some((t) => t.status === "queued" || t.status === "running"))) {
     throw new EditError("Some shots here are still generating. Wait for them to finish first.");
+  }
+}
+
+/** The shot this one continues from: the one before it in its scene, if it asks to continue. */
+export function continuesFrom(project: Project, shotId: string): Shot | undefined {
+  const { shot, scene, index } = findShot(project, shotId);
+  return shot.continueFromPrevious && index > 0 ? scene.shots[index - 1] : undefined;
+}
+
+/** Which of the previous shot's takes a continued take starts from: its finished final for a final, else the take on its card. */
+export function chainSource(prev: Shot, tier: Tier): Take | undefined {
+  const done = prev.takes.filter((t) => t.status === "done" && t.videoMediaId);
+  if (tier === "final") {
+    const sel = done.find((t) => t.id === prev.selectedTakeId && t.tier === "final");
+    return sel ?? done.filter((t) => t.tier === "final").at(-1);
+  }
+  return done.find((t) => t.id === prev.selectedTakeId) ?? done.at(-1);
+}
+
+/** The last frame of a clip, as a JPEG. */
+async function lastFrame(clip: Uint8Array): Promise<Uint8Array> {
+  const dir = mkdtempSync(join(tmpdir(), "reel-chain-"));
+  try {
+    const src = join(dir, "clip.mp4");
+    const out = join(dir, "last.jpg");
+    writeFileSync(src, clip);
+    await runFfmpeg(["-sseof", "-0.2", "-i", src, "-update", "1", "-q:v", "2", out]);
+    return new Uint8Array(readFileSync(out));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 }

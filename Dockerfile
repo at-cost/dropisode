@@ -15,8 +15,9 @@ COPY apps ./apps
 RUN pnpm --filter @reel/studio build && pnpm --filter @reel/hosted build
 
 FROM node:22-alpine
-# ffmpeg with libass (burned-in subtitles); pg client tools for backups and the restore drill.
-RUN apk add --no-cache ffmpeg postgresql16-client tini
+# ffmpeg with libass (burned-in subtitles and on-screen text), and fonts for it to draw with:
+# with no fonts libass draws nothing, silently. pg client tools for backups and the restore drill.
+RUN apk add --no-cache ffmpeg postgresql16-client tini fontconfig font-dejavu font-liberation
 WORKDIR /app
 COPY --from=build /src/apps/hosted/dist ./dist
 COPY --from=build /src/apps/hosted/config ./config

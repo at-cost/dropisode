@@ -95,6 +95,10 @@ export function storyboardPrompt(p: {
       ...p.cast.map((c) => `- ${c.name} (${c.kind})`),
       "",
       `Break the scene into shots${p.targetSeconds ? ` totalling about ${p.targetSeconds} seconds` : ""}. Each shot's duration must be one of: ${durations} seconds.`,
+      "Prefer fewer, longer shots: 8 to 12 seconds wherever the action is continuous, shorter only for a sharp cut or a reveal. A minute of drama is usually 5 to 7 shots.",
+      "Plan the shots as one flowing scene, not separate pictures: establish where everyone is, then move closer; vary the angle from shot to shot (wide, closer, reverse, over the shoulder, insert) so the viewer always knows where they are.",
+      'When a shot picks up exactly where the previous one ends (same moment, same place, the camera simply carrying on), set "continues": true. Use it within a continuous moment; never across a jump in time or place.',
+      'Any text the viewer must read (a printed card, a sign, a message on a phone, a date) goes in "onScreenText", exactly as the script writes it; the studio draws it crisply over the shot. In the description, show the object itself with its text area blank.',
       "Put each line of dialogue in the shot where it is spoken, with its speaker.",
       "Speakers: use the speaker the script names. If that speaker is not in the cast list (a voice from a memory, a crowd, an announcer), set speaker to null. Never give a line to a different character.",
       "Keep every concrete detail the script gives in the description: on-screen text quoted exactly as written, props, clothes, injuries, weather, who faces which way.",
@@ -105,7 +109,7 @@ export function storyboardPrompt(p: {
           ]
         : []),
       `Camera: pick from ${CAMERA_PRESETS.join("; ")}, or describe your own.`,
-      'Answer as {"shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":5}]}.',
+      'Answer as {"shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":10,"continues":false,"onScreenText":""}]}.',
     ].join("\n"),
     maxTokens: 10000,
   };
@@ -130,6 +134,10 @@ export function framePrompt(p: {
     p.shot.camera ? `Camera: ${p.shot.camera}.` : "",
     people.length ? `Characters (keep them exactly as in the reference images): ${people.map(describe).join(" | ")}` : "",
     place ? `Setting: ${describe(place)}` : "",
+    place
+      ? "Use the setting's reference image for its look, light and weather only, not its layout: frame this shot from its own angle, as the camera note says."
+      : "",
+    p.shot.onScreenText?.trim() ? "Any card, sign, paper or screen in the shot is blank: its text is added afterwards." : "",
     p.voiceOver ? "Nobody in the frame is speaking: every mouth is closed." : "",
     "No captions, subtitles or watermarks. Show only text the shot itself describes.",
   ]
@@ -232,6 +240,8 @@ export interface BoardShot {
   cast?: string[];
   dialogue?: { speaker?: string | null; text: string }[];
   duration?: number;
+  continues?: boolean;
+  onScreenText?: string;
 }
 
 export function parseStoryboard(text: string): BoardShot[] {
@@ -248,7 +258,9 @@ export function parseStoryboard(text: string): BoardShot[] {
             .filter((d) => d && typeof d.text === "string")
             .map((d) => ({ speaker: typeof d.speaker === "string" ? d.speaker : null, text: d.text.slice(0, 1000) }))
         : [],
-      duration: typeof s.duration === "number" && s.duration > 0 ? Math.min(30, s.duration) : 5,
+      duration: typeof s.duration === "number" && s.duration > 0 ? Math.min(30, s.duration) : 8,
+      continues: s.continues === true,
+      onScreenText: typeof s.onScreenText === "string" ? s.onScreenText.slice(0, 300) : "",
     }));
 }
 
@@ -264,7 +276,11 @@ export function scriptDialogue(text: string): { speaker: string; text: string }[
 
 /** Matches a script line like `NORA (V.O.): That's me.` or `TWO GIRLS (V.O., faint): ...`. */
 const SPOKEN = /^\s*([A-Z][A-Z0-9 .'&-]{0,40}?)\s*(?:\([^)]*\))?\s*:\s*(.+)$/;
-const normLine = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const normLine = (t: string) =>
+  t
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
 /**
  * Who the script says speaks each line, keyed by the line's text. The storyboard model is

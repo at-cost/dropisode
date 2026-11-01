@@ -3,7 +3,7 @@
  * plus every shot file and an edit list (CMX 3600 EDL and JSON) for finishing
  * in another editor.
  */
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { findEpisode } from "./edit";
@@ -36,6 +36,8 @@ export interface AssembleResult {
   /** Shots left out, and why. */
   skipped: { shotId: string; reason: string }[];
   subtitlesBurned: boolean;
+  /** Shots whose on-screen text was drawn over the video. */
+  overlaysBurned: number;
   warnings: string[];
   durationS: number;
 }
@@ -82,6 +84,7 @@ export async function assembleEpisode(
 
     const out: AssembledShot[] = [];
     const subs: { start: number; end: number; text: string }[] = [];
+    const overlays: { start: number; end: number; text: string }[] = [];
     let t = 0;
     const all = episode.scenes.flatMap((s) => s.shots);
     for (const shot of all) {
@@ -164,6 +167,7 @@ export async function assembleEpisode(
           subs.push({ start: t + from + i * slot + 0.1, end: Math.min(t + dur, t + from + (i + 1) * slot - 0.1), text: x.text });
         });
       }
+      if (shot.onScreenText?.trim()) overlays.push({ start: t + 0.2, end: t + dur - 0.1, text: shot.onScreenText.trim() });
       out.push({ index, shotId: shot.id, takeId: pick.id, tier: pick.tier, file, startS: t, durationS: dur });
       t += dur;
     }
@@ -180,17 +184,31 @@ export async function assembleEpisode(
     writeFileSync(join(opts.outDir, "subtitles.srt"), srt);
     const episodeFile = join(opts.outDir, "episode.mp4");
     let burned = false;
-    if ((opts.burnSubtitles ?? true) && subs.length) {
+    let overlaysBurned = 0;
+    const burnSubs = (opts.burnSubtitles ?? true) && subs.length > 0;
+    if (burnSubs || overlays.length) {
       if (ff.subtitles) {
-        copyFileSync(join(opts.outDir, "subtitles.srt"), join(work, "subs.srt"));
-        // libass sizes SRT styles against a 288-line script, whatever the video size.
-        const style = `FontName=Arial,FontSize=${vertical ? 11 : 16},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Alignment=2,MarginV=${vertical ? 40 : 18},MarginL=12,MarginR=12`;
+        if (!fontsAvailable())
+          warnings.push(
+            "No fonts are installed on this server, so subtitles and on-screen text may not show. Install fonts (e.g. font-dejavu) for ffmpeg.",
+          );
+        const filters: string[] = [];
+        if (overlays.length) {
+          writeFileSync(join(work, "overlay.ass"), toAss(overlays, w, h));
+          filters.push("ass=overlay.ass");
+        }
+        if (burnSubs) {
+          copyFileSync(join(opts.outDir, "subtitles.srt"), join(work, "subs.srt"));
+          // libass sizes SRT styles against a 288-line script, whatever the video size.
+          const style = `FontName=Arial,FontSize=${vertical ? 11 : 16},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Alignment=2,MarginV=${vertical ? 40 : 18},MarginL=12,MarginR=12`;
+          filters.push(`subtitles=subs.srt:force_style='${style}'`);
+        }
         await runFfmpeg(
           [
             "-i",
             joined,
             "-vf",
-            `subtitles=subs.srt:force_style='${style}'`,
+            filters.join(","),
             "-c:v",
             "libx264",
             "-preset",
@@ -205,9 +223,12 @@ export async function assembleEpisode(
           ],
           { cwd: work },
         );
-        burned = true;
+        burned = burnSubs;
+        overlaysBurned = overlays.length;
       } else {
-        warnings.push("This ffmpeg can't burn in subtitles (it lacks libass); subtitles.srt is written next to the episode instead.");
+        warnings.push(
+          "This ffmpeg can't draw text (it lacks libass): subtitles.srt is written next to the episode, and on-screen text is left out.",
+        );
         copyFileSync(joined, episodeFile);
       }
     } else {
@@ -233,7 +254,7 @@ export async function assembleEpisode(
         2,
       ),
     );
-    return { dir: opts.outDir, episodeFile, shots: out, skipped, subtitlesBurned: burned, warnings, durationS: t };
+    return { dir: opts.outDir, episodeFile, shots: out, skipped, subtitlesBurned: burned, overlaysBurned, warnings, durationS: t };
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
@@ -275,4 +296,44 @@ export function toEdl(title: string, shots: AssembledShot[]): string {
     lines.push("");
   }
   return lines.join("\n");
+}
+
+/** On-screen text as an ASS script: centred in a dark box, sized to the frame. */
+export function toAss(items: { start: number; end: number; text: string }[], w: number, h: number): string {
+  const t = (s: number) => {
+    const cs = Math.max(0, Math.round(s * 100));
+    const hh = Math.floor(cs / 360000);
+    const mm = Math.floor((cs % 360000) / 6000);
+    const ss = Math.floor((cs % 6000) / 100);
+    return `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}.${String(cs % 100).padStart(2, "0")}`;
+  };
+  const size = Math.round(Math.min(w, h) * 0.058);
+  const esc = (x: string) => x.replace(/\\/g, "\\\\").replace(/[{}]/g, "").replace(/\r?\n/g, "\\N");
+  return [
+    "[Script Info]",
+    "ScriptType: v4.00+",
+    `PlayResX: ${w}`,
+    `PlayResY: ${h}`,
+    "WrapStyle: 0",
+    "",
+    "[V4+ Styles]",
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+    `Style: Card,DejaVu Serif,${size},&H00FFFFFF,&H00FFFFFF,&H64000000,&H64000000,0,0,0,0,100,100,0,0,3,${Math.round(size * 0.45)},0,5,${Math.round(w * 0.1)},${Math.round(w * 0.1)},0,1`,
+    "",
+    "[Events]",
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ...items.map((i) => `Dialogue: 0,${t(i.start)},${t(i.end)},Card,,0,0,0,,{\\fad(250,250)}${esc(i.text)}`),
+    "",
+  ].join("\n");
+}
+
+/** libass draws nothing, silently, when no fonts are installed (a bare Alpine image, say). */
+function fontsAvailable(): boolean {
+  if (process.platform !== "linux") return true;
+  for (const dir of ["/usr/share/fonts", "/usr/local/share/fonts"]) {
+    try {
+      if (readdirSync(dir, { recursive: true }).some((f) => /\.(ttf|otf|ttc)$/i.test(String(f)))) return true;
+    } catch {}
+  }
+  return false;
 }
