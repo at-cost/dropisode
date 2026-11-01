@@ -28,6 +28,7 @@ export const CAMERA_PRESETS = [
   "orbit around subject",
 ] as const;
 
+/** maxTokens includes the model's reasoning (mandatory on Gemini 3.8 Flash), so it is generous; we pay for what is used. */
 export interface LlmPrompt {
   system: string;
   prompt: string;
@@ -55,7 +56,7 @@ export function scriptPrompt(p: { idea: string; targetSeconds: number; aspect: A
       "",
       "Every character who appears must be in CAST with a description precise enough to draw the same person every time.",
     ].join("\n"),
-    maxTokens: 1500,
+    maxTokens: 8000,
   };
 }
 
@@ -69,7 +70,7 @@ export function castExtractPrompt(script: string): LlmPrompt {
       "SCRIPT:",
       script.slice(0, 30_000),
     ].join("\n"),
-    maxTokens: 1500,
+    maxTokens: 8000,
   };
 }
 
@@ -96,7 +97,7 @@ export function storyboardPrompt(p: {
       `Camera: pick from ${CAMERA_PRESETS.join("; ")}, or describe your own.`,
       'Answer as {"shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":5}]}.',
     ].join("\n"),
-    maxTokens: 3000,
+    maxTokens: 10000,
   };
 }
 

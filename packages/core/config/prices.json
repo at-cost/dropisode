@@ -702,7 +702,8 @@
         "maxTokens": "max_tokens",
         "extra": {
           "model": "google/gemini-3.8-flash",
-          "temperature": 0.8
+          "temperature": 0.8,
+          "reasoning": true
         }
       },
       "output": {
