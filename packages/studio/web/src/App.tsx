@@ -389,7 +389,7 @@ export function App() {
             <div className="spacer" />
             {runCount > 0 && firstRun && (
               <a
-                className="running"
+                className="running-pill"
                 href={`#/p/${firstRun.projectId}/storyboard`}
                 title={dash?.running.map((r) => `${r.projectName}: ${r.count}`).join(", ")}
               >

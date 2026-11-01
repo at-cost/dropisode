@@ -174,16 +174,16 @@ describe("full customer journey (mocked providers)", () => {
       const board = page.getByRole("button", { name: /Storyboard this scene/ });
       await pw(board.first()).toBeEnabled({ timeout: 30_000 });
       await board.first().click();
-      await pw(page.getByRole("button", { name: /^Draft/ }).first()).toBeVisible({ timeout: 30_000 });
+      await pw(page.getByRole("button", { name: /^Make draft/ }).first()).toBeVisible({ timeout: 30_000 });
     });
 
     await step("draft every shot and approve them", async () => {
       const all = page.getByRole("button", { name: /^Draft (all|\d+ untried)/ });
       if (await all.count()) await all.first().click();
       else
-        for (let i = 0; i < 30 && (await page.getByRole("button", { name: /^Draft/ }).count()) > 0; i++)
+        for (let i = 0; i < 30 && (await page.getByRole("button", { name: /^Make draft/ }).count()) > 0; i++)
           await page
-            .getByRole("button", { name: /^Draft/ })
+            .getByRole("button", { name: /^Make draft/ })
             .first()
             .click();
       const approve = page.getByRole("button", { name: "Approve shot" });
@@ -198,7 +198,7 @@ describe("full customer journey (mocked providers)", () => {
       const notFinal = () => page.locator(".tile").filter({ hasNotText: "Final ready" });
       const ready = () =>
         notFinal()
-          .getByRole("button", { name: /^Final/ })
+          .getByRole("button", { name: /^Make final/ })
           .and(page.locator("button:enabled"));
       for (let i = 0; i < 60 && (await notFinal().count()) > 0; i++) {
         if (await ready().count()) await ready().first().click();

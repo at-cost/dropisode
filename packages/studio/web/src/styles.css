@@ -2990,7 +2990,7 @@ button.final-ready {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.running {
+.running-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3001,7 +3001,7 @@ button.final-ready {
   font-size: 13px;
   white-space: nowrap;
 }
-.running .spinner,
+.running-pill .spinner,
 .queue-strip .spinner {
   color: var(--gold);
 }
@@ -3118,7 +3118,7 @@ main {
   .banner {
     margin: 0 16px 8px;
   }
-  .running {
+  .running-pill {
     padding: 4px 10px;
   }
 }

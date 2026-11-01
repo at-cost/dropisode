@@ -553,6 +553,8 @@ function GenButtons({
 }) {
   // A current final exists: rendering again is the exception, not the next step.
   const rendered = approved && hasFinalTake(shot);
+  // Say what the button does: make the first one, or remake it.
+  const drafted = shot.takes.some((t) => t.tier === "draft");
   return (
     <div className={`gen-row${compact ? " compact" : ""}`}>
       <button
@@ -563,7 +565,7 @@ function GenButtons({
           c.gen("draft");
         }}
       >
-        Draft <Ticket micro={c.est?.draft} />
+        {drafted ? "Remake draft" : "Make draft"} <Ticket micro={c.est?.draft} />
       </button>
       {(!compact || approved) && (
         <button
@@ -576,7 +578,7 @@ function GenButtons({
             c.gen("final");
           }}
         >
-          {rendered ? "Re-render final" : "Final"} <Ticket micro={c.est?.final} />
+          {rendered ? "Remake final" : "Make final"} <Ticket micro={c.est?.final} />
         </button>
       )}
     </div>
