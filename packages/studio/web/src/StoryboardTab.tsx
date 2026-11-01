@@ -74,7 +74,7 @@ export function StoryboardTab() {
   const allFinal = shots.length > 0 && counts.final === shots.length;
   const seconds = shots.reduce((a, s) => a + s.durationS, 0);
   const found = selected ? findShot(ep, selected) : null;
-  // The inspector sits beside the list on wide screens; on the board it slides over.
+  // The episode summary sits beside the list on wide screens; a selected shot always opens in a panel that slides over from the right.
   const docked = mode === "list" && wide;
   const sel: Selection = { id: found ? selected : null, set: setSelected };
   return (
@@ -117,11 +117,11 @@ export function StoryboardTab() {
           ))}
         </div>
         {docked && (
-          <aside className="inspector" aria-label="Shot inspector">
-            {found ? <Inspector key={found.shot.id} ep={ep} {...found} onClose={() => setSelected(null)} /> : <EpisodeSummary ep={ep} />}
+          <aside className="inspector" aria-label="Episode summary">
+            <EpisodeSummary ep={ep} />
           </aside>
         )}
-        {!docked && found && (
+        {found && (
           <>
             <button
               type="button"
@@ -413,11 +413,11 @@ function pickTake(shot: Shot): Take | undefined {
   );
 }
 
-function Preview({ pid, take, aspect }: { pid: string; take: Take | undefined; aspect: string }) {
+function Preview({ pid, take, aspect, clickToOpen }: { pid: string; take: Take | undefined; aspect: string; clickToOpen?: boolean }) {
   const cls = `preview ${aspect === "16:9" ? "wide" : "tall"}`;
   if (take?.videoMediaId)
     return (
-      <div className={cls} title="Hover to play, click for sound">
+      <div className={cls} title={clickToOpen ? "Hover to play, click to open" : "Hover to play, click for sound"}>
         <video
           src={mediaUrl(pid, take.videoMediaId)}
           poster={take.frameMediaId ? mediaUrl(pid, take.frameMediaId) : undefined}
@@ -431,6 +431,7 @@ function Preview({ pid, take, aspect }: { pid: string; take: Take | undefined; a
             e.currentTarget.muted = true;
           }}
           onClick={(e) => {
+            if (clickToOpen) return;
             const v = e.currentTarget;
             v.muted = !v.muted;
             if (v.paused) void v.play().catch(() => {});
@@ -697,7 +698,15 @@ function ShotTile({
   const isSel = sel.id === shot.id;
   const open = () => sel.set(isSel ? null : shot.id);
   return (
-    <article className={`tile v-${variant}${isSel ? " selected" : ""}${a.approved ? " approved" : ""}`}>
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the card's own "Edit this shot" button is the keyboard route
+    <article
+      className={`tile v-${variant}${isSel ? " selected" : ""}${a.approved ? " approved" : ""}`}
+      onClick={(e) => {
+        // Anywhere on the card opens it, except its own buttons and fields.
+        if ((e.target as HTMLElement).closest("button, a, input, select, textarea, label")) return;
+        open();
+      }}
+    >
       <div className="tile-top">
         <strong>Shot {c.label}</strong>
         <span className={`tile-status ${status.tone}`}>
@@ -710,7 +719,7 @@ function ShotTile({
           className="tile-frame"
           style={c.take?.frameMediaId ? ({ "--frame-bg": `url("${mediaUrl(c.pid, c.take.frameMediaId)}")` } as CSSProperties) : undefined}
         >
-          <Preview pid={c.pid} take={c.take} aspect={c.p.aspect} />
+          <Preview pid={c.pid} take={c.take} aspect={c.p.aspect} clickToOpen />
         </div>
         <div className="tile-info">
           <button type="button" className="tile-open" aria-expanded={isSel} onClick={open} title="Edit this shot">
@@ -732,6 +741,32 @@ function ShotTile({
 }
 
 /** The selected shot's editor, beside the list (wide screens) or over the board. */
+/** The inspector's player: big, with sound and controls, and a full-screen button. */
+function ShotPlayer({ pid, take, aspect }: { pid: string; take: Take; aspect: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  return (
+    <div className={`shot-player ${aspect === "16:9" ? "wide" : "tall"}`}>
+      <video
+        ref={ref}
+        key={take.videoMediaId}
+        src={mediaUrl(pid, take.videoMediaId!)}
+        poster={take.frameMediaId ? mediaUrl(pid, take.frameMediaId) : undefined}
+        controls
+        playsInline
+        preload="metadata"
+      />
+      <div className="shot-player-bar">
+        <span className="muted small-text">
+          <Icon name="film" size={12} /> {take.tier === "final" ? "Final" : "Draft"} take
+        </span>
+        <button type="button" className="small" onClick={() => void ref.current?.requestFullscreen?.().catch(() => {})}>
+          Full screen
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Scene; shot: Shot; index: number; onClose(): void }) {
   const app = useApp();
   const c = useShot(ep, scene, shot, index);
@@ -750,7 +785,11 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
         {ep.title} · Scene {sceneN}
       </p>
       <div className="insp-preview">
-        <Preview pid={c.pid} take={c.take} aspect={c.p.aspect} />
+        {c.take?.videoMediaId ? (
+          <ShotPlayer pid={c.pid} take={c.take} aspect={c.p.aspect} />
+        ) : (
+          <Preview pid={c.pid} take={c.take} aspect={c.p.aspect} />
+        )}
       </div>
       {a.approved && <p className="insp-note">Editing direction, camera, length, people or lines clears this shot's approval.</p>}
       <label className="insp-field">
