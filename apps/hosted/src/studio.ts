@@ -185,7 +185,8 @@ export function hostedStudioContext(deps: Deps, workspaceId: string, userId: str
         ...f,
         url: await deps.blobs.signedUrl(
           exportKey(workspaceId, projectId, row.id, f.name),
-          ttl,
+          // Long enough to watch an episode through; the player re-fetches links if one still lapses.
+          Math.max(ttl, 3600),
           f.name.endsWith(".mp4") ? {} : { download: f.name.split("/").pop()! },
         ),
       })),

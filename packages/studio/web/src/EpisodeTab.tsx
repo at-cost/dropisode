@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { type ExportInfo, api } from "./api";
 import { useProject } from "./ProjectView";
 import { EpisodePicker, shotLabel, useEpisodeChoice } from "./StoryboardTab";
@@ -107,13 +107,7 @@ export function EpisodeTab() {
               <section key={x.id} className="panel export">
                 <div className="export-body">
                   {video && i === 0 ? (
-                    <video
-                      className={`player ${view.project.aspect === "16:9" ? "wide" : "tall"}`}
-                      src={video.url}
-                      controls
-                      playsInline
-                      preload="metadata"
-                    />
+                    <ExportPlayer url={video.url} aspect={view.project.aspect} preload="metadata" onExpired={load} />
                   ) : null}
                   <div className="export-info">
                     <h3>
@@ -126,13 +120,7 @@ export function EpisodeTab() {
                     {video && i > 0 && (
                       <details>
                         <summary>Play</summary>
-                        <video
-                          className={`player ${view.project.aspect === "16:9" ? "wide" : "tall"}`}
-                          src={video.url}
-                          controls
-                          playsInline
-                          preload="none"
-                        />
+                        <ExportPlayer url={video.url} aspect={view.project.aspect} preload="none" onExpired={load} />
                       </details>
                     )}
                     <ul className="files">
@@ -174,5 +162,41 @@ export function EpisodeTab() {
             );
           })}
     </div>
+  );
+}
+
+/**
+ * Plays an export from a signed link. The browser fetches the video in pieces as it plays,
+ * so a link that expires mid-way stops playback where the buffer ends. On that error we
+ * fetch fresh links and carry on from the same second.
+ */
+function ExportPlayer({ url, aspect, preload, onExpired }: { url: string; aspect: string; preload: "metadata" | "none"; onExpired(): Promise<void> | void }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const resume = useRef<{ at: number; play: boolean } | null>(null);
+  const lastRetry = useRef(0);
+  return (
+    <video
+      ref={ref}
+      className={`player ${aspect === "16:9" ? "wide" : "tall"}`}
+      src={url}
+      controls
+      playsInline
+      preload={preload}
+      onError={() => {
+        const v = ref.current;
+        if (!v || Date.now() - lastRetry.current < 10_000) return;
+        lastRetry.current = Date.now();
+        resume.current = { at: v.currentTime, play: !v.paused || v.currentTime > 0 };
+        void onExpired();
+      }}
+      onLoadedMetadata={() => {
+        const v = ref.current;
+        const r = resume.current;
+        if (!v || !r) return;
+        resume.current = null;
+        v.currentTime = r.at;
+        if (r.play) void v.play().catch(() => {});
+      }}
+    />
   );
 }
