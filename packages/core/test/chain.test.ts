@@ -38,6 +38,17 @@ describe("continue from the previous shot", () => {
     expect(frame.contentType).toBe("image/jpeg");
   });
 
+  it("a continued draft started alongside the previous one waits for it, as 'draft all' does", async () => {
+    const t = await twoShots();
+    await t.studio.generateTake(t.projectId, t.a, "draft");
+    const waiting = await t.studio.generateTake(t.projectId, t.b, "draft");
+    expect(waiting.status).toBe("queued");
+    await drain(t.studio, t.projectId, 40);
+    const take = (await shotOf(t, t.b)).takes[0]!;
+    expect(take.status).toBe("done");
+    expect((await t.store.get(t.projectId)).media.find((m) => m.id === take.frameMediaId)!.source).toMatch(/^chain_/);
+  });
+
   it("asks for a draft of the previous shot first", async () => {
     const t = await twoShots();
     await expect(t.studio.generateTake(t.projectId, t.b, "draft")).rejects.toThrow(/make a draft of that shot first/);

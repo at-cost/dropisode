@@ -346,11 +346,8 @@ export class Studio {
     };
     const prev = continuesFrom(project, shotId);
     const source = prev ? chainSource(prev, tier) : undefined;
-    if (
-      prev &&
-      !source &&
-      !(tier === "final" && prev.takes.some((t) => t.tier === "final" && (t.status === "running" || t.status === "queued")))
-    )
+    // No clip to start from yet: wait for one of the same tier that's on its way, else ask for it.
+    if (prev && !source && !prev.takes.some((t) => t.tier === tier && (t.status === "running" || t.status === "queued")))
       throw new EditError(
         tier === "final"
           ? "This shot continues from the one before it: make that shot's final first"
@@ -483,9 +480,9 @@ export class Studio {
     await this.startVideo(projectId, shotId, takeId, owner);
   }
 
-  /** When a final finishes, start any continued finals that were waiting for it (or fail them if it failed). */
+  /** When a clip finishes, start the continued takes of its tier that were waiting for it (or fail them if it failed). */
   private async releaseWaiting(job: JobRecord): Promise<void> {
-    if (job.tier !== "final") return;
+    const tier: Tier = job.tier === "final" ? "final" : "draft";
     const project = await this.projects.get(job.projectId);
     let prev: Shot;
     try {
@@ -493,18 +490,18 @@ export class Studio {
     } catch {
       return;
     }
-    const source = job.state === "done" ? chainSource(prev, "final") : undefined;
+    const source = job.state === "done" ? chainSource(prev, tier) : undefined;
     for (const sc of project.episodes.flatMap((e) => e.scenes))
       for (const sh of sc.shots)
         for (const t of sh.takes) {
-          if (t.status !== "queued" || t.waitsForShotId !== prev.id) continue;
+          if (t.status !== "queued" || t.waitsForShotId !== prev.id || t.tier !== tier) continue;
           if (source) await this.startChained(job.projectId, sh.id, t.id, source, job.owner);
           else if (job.state !== "done")
             await this.projects.mutate(job.projectId, (proj) => {
               const x = findShot(proj, sh.id).shot.takes.find((y) => y.id === t.id);
               if (x) {
                 x.status = "failed";
-                x.error = "The shot before this one failed its final, so this one had nothing to continue from.";
+                x.error = "The shot before this one failed, so this one had nothing to continue from. Remake that shot, then this one.";
                 delete x.waitsForShotId;
               }
             });
