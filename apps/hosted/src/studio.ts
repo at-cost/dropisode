@@ -27,6 +27,7 @@ import { sql } from "kysely";
 import { BilledProvider } from "./billing/provider";
 import { walletState } from "./billing/wallet";
 import type { Config } from "./config";
+import { type BalanceMonitor, balanceMonitor } from "./billing/providerBalance";
 import type { Deps } from "./context";
 import { hmac } from "./lib/ids";
 import { HttpError } from "./lib/errors";
@@ -44,7 +45,34 @@ export function providerFactory(config: Config, catalog: Deps["catalog"]): Provi
     return () => mock;
   }
   const fal = new FalProvider({ key: config.FAL_KEY, catalog, ...(config.FAL_BILLING_KEY ? { billingKey: config.FAL_BILLING_KEY } : {}) });
-  return () => fal;
+  const funded = new FundedProvider(fal, balanceMonitor(config));
+  return () => funded;
+}
+
+/** Sends nothing to fal while its prepaid credit is known to be empty. */
+export class FundedProvider implements Provider {
+  readonly id: string;
+  readonly lookupCost?: (job: JobRecord) => Promise<{ costMicro: number } | null>;
+  constructor(
+    private inner: Provider,
+    private balance: BalanceMonitor,
+  ) {
+    this.id = inner.id;
+    if (inner.lookupCost) this.lookupCost = (j) => inner.lookupCost!(j);
+  }
+  async submit(job: JobRecord, input: ProviderInput, opts?: { webhookUrl?: string }) {
+    await this.balance.ensureFunded();
+    return this.inner.submit(job, input, opts);
+  }
+  check(job: JobRecord) {
+    return this.inner.check(job);
+  }
+  download(url: string) {
+    return this.inner.download(url);
+  }
+  finalize(job: JobRecord, outcome: JobOutcome) {
+    return this.inner.finalize?.(job, outcome) ?? Promise.resolve();
+  }
 }
 
 /** Moderation runs first, so a blocked request never places a hold or reaches the provider. */

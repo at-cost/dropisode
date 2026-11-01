@@ -19,6 +19,11 @@ const schema = z.object({
   FAL_KEY: z.string().default(""),
   /** A fal key with the BILLING preset: real per-request costs from fal's billing events. */
   FAL_BILLING_KEY: z.string().default(""),
+  /** Alert the operator when fal's prepaid credit falls below this (USD). Needs FAL_BILLING_KEY. */
+  FAL_LOW_BALANCE_USD: z.coerce.number().min(0).default(20),
+  /** Operator alerts (optional). The same bot the server alarms use. */
+  TELEGRAM_BOT_TOKEN: z.string().default(""),
+  TELEGRAM_CHAT_ID: z.string().default(""),
   /** Public base URL fal can reach for webhooks. Defaults to APP_URL. Must be HTTPS and public. */
   WEBHOOK_BASE_URL: z.string().default(""),
 
