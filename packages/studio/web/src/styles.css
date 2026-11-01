@@ -2154,8 +2154,9 @@ h2,
   color: var(--placeholder);
   opacity: 1;
 }
+/* Use wide screens: the storyboard and cast grids add columns as the page grows. */
 main {
-  max-width: 1240px;
+  max-width: 1760px;
 }
 
 /* Selects: custom chevron, like the site */
@@ -3013,7 +3014,7 @@ button.final-ready {
 }
 main {
   width: 100%;
-  max-width: 1240px;
+  max-width: 1760px;
   margin: 0 auto;
   padding: 6px 32px 64px;
 }
