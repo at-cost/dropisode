@@ -41,7 +41,6 @@ export function EpisodePicker({ ep, onPick }: { ep: Episode | undefined; onPick(
 type ViewMode = "list" | "board";
 
 export function StoryboardTab() {
-  const app = useApp();
   const { pid, view } = useProject();
   const [ep, pick] = useEpisodeChoice();
   const [mode, setModeState] = useState<ViewMode>(() => (store.get("dropisode.storyboard") === "board" ? "board" : "list"));
@@ -79,11 +78,6 @@ export function StoryboardTab() {
   const sel: Selection = { id: found ? selected : null, set: setSelected };
   return (
     <div className="storyboard">
-      <datalist id="camera-presets">
-        {app.config.cameraPresets.map((c) => (
-          <option key={c} value={c} />
-        ))}
-      </datalist>
       <div className="sb-toolbar">
         <EpisodePicker ep={ep} onPick={pick} />
         <span className="muted small-text">
@@ -741,6 +735,53 @@ function ShotTile({
 }
 
 /** The selected shot's editor, beside the list (wide screens) or over the board. */
+const CUSTOM = "__custom";
+
+/** Every camera preset in a dropdown, plus "Custom…" for anything else (typed, saved on blur). */
+function CameraField({ value, presets, onSave }: { value: string; presets: string[]; onSave(v: string): void }) {
+  const isPreset = presets.includes(value.trim());
+  const [custom, setCustom] = useState(!isPreset && value.trim() !== "");
+  return (
+    <div className="insp-field">
+      <label htmlFor="shot-camera">Camera</label>
+      <select
+        id="shot-camera"
+        value={custom ? CUSTOM : isPreset ? value.trim() : ""}
+        onChange={(e) => {
+          if (e.target.value === CUSTOM) {
+            setCustom(true);
+            return;
+          }
+          setCustom(false);
+          if (e.target.value !== value) onSave(e.target.value);
+        }}
+      >
+        <option value="">No camera set</option>
+        {presets.map((p) => (
+          <option key={p} value={p}>
+            {p.charAt(0).toUpperCase() + p.slice(1)}
+          </option>
+        ))}
+        <option value={CUSTOM}>Custom…</option>
+      </select>
+      {custom && (
+        <input
+          aria-label="Custom camera"
+          defaultValue={isPreset ? "" : value}
+          maxLength={500}
+          placeholder="e.g. Slow crane up over the umbrellas"
+          // biome-ignore lint/a11y/noAutofocus: only after the user picks "Custom…"
+          autoFocus={!value || isPreset}
+          onBlur={(e) => {
+            const v = e.target.value.trim();
+            if (v && v !== value) onSave(v);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 /** The inspector's player: big, with sound and controls, and a full-screen button. */
 function ShotPlayer({ pid, take, aspect }: { pid: string; take: Take; aspect: string }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -805,19 +846,7 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
           }}
         />
       </label>
-      <label className="insp-field">
-        <span>Camera</span>
-        <input
-          key={shot.camera}
-          list="camera-presets"
-          defaultValue={shot.camera}
-          maxLength={500}
-          placeholder="e.g. Medium, slow push in"
-          onBlur={(e) => {
-            if (e.target.value !== shot.camera) void c.patch({ camera: e.target.value });
-          }}
-        />
-      </label>
+      <CameraField key={shot.id} value={shot.camera} presets={app.config.cameraPresets} onSave={(camera) => void c.patch({ camera })} />
       <div className="insp-pair">
         <label className="insp-field">
           <span>Seconds</span>
