@@ -80,6 +80,8 @@ export function storyboardPrompt(p: {
   cast: CastMember[];
   targetSeconds?: number;
   durations: number[];
+  /** The video model makes silent clips; every line becomes a voice-over afterwards. */
+  silentVideo?: boolean;
 }): LlmPrompt {
   const durations = p.durations.length ? p.durations.join(", ") : "5";
   return {
@@ -94,6 +96,14 @@ export function storyboardPrompt(p: {
       "",
       `Break the scene into shots${p.targetSeconds ? ` totalling about ${p.targetSeconds} seconds` : ""}. Each shot's duration must be one of: ${durations} seconds.`,
       "Put each line of dialogue in the shot where it is spoken, with its speaker.",
+      "Speakers: use the speaker the script names. If that speaker is not in the cast list (a voice from a memory, a crowd, an announcer), set speaker to null. Never give a line to a different character.",
+      "Keep every concrete detail the script gives in the description: on-screen text quoted exactly as written, props, clothes, injuries, weather, who faces which way.",
+      "Each description must stand alone: a video model sees only that description and the cast's reference images.",
+      ...(p.silentVideo
+        ? [
+            "The video is silent and every line is added afterwards as a voice-over, so nobody may be seen speaking. Stage each speaker from behind, off screen, out of focus or in shadow, and say in the description that everyone visible keeps their mouth closed.",
+          ]
+        : []),
       `Camera: pick from ${CAMERA_PRESETS.join("; ")}, or describe your own.`,
       'Answer as {"shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":5}]}.',
     ].join("\n"),
@@ -104,7 +114,14 @@ export function storyboardPrompt(p: {
 const describe = (c: CastMember) => `${c.name}: ${c.description}`.trim();
 
 /** The first-frame prompt. Every cast member's fixed description goes in, every time. */
-export function framePrompt(p: { shot: Shot; cast: CastMember[]; location?: CastMember | undefined; aspect: Aspect }): string {
+export function framePrompt(p: {
+  shot: Shot;
+  cast: CastMember[];
+  location?: CastMember | undefined;
+  aspect: Aspect;
+  /** The shot's lines are a voice-over added later: nobody on screen may look mid-word. */
+  voiceOver?: boolean;
+}): string {
   const people = p.cast.filter((c) => c.kind !== "location");
   const place = p.location ?? p.cast.find((c) => c.kind === "location");
   return [
@@ -113,7 +130,8 @@ export function framePrompt(p: { shot: Shot; cast: CastMember[]; location?: Cast
     p.shot.camera ? `Camera: ${p.shot.camera}.` : "",
     people.length ? `Characters (keep them exactly as in the reference images): ${people.map(describe).join(" | ")}` : "",
     place ? `Setting: ${describe(place)}` : "",
-    "No text, captions or watermarks.",
+    p.voiceOver ? "Nobody in the frame is speaking: every mouth is closed." : "",
+    "No captions, subtitles or watermarks. Show only text the shot itself describes.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -133,6 +151,7 @@ export function videoPrompt(p: { shot: Shot; cast: CastMember[]; nativeAudio: bo
     p.shot.camera ? `Camera: ${p.shot.camera}.` : "",
     p.nativeAudio && lines.length ? lines.join(" ") : "",
     p.nativeAudio ? "Natural ambient sound. No music." : "",
+    !p.nativeAudio && lines.length ? "Nobody speaks on screen: every mouth stays closed." : "",
     "Keep faces and wardrobe consistent with the first frame. Smooth, realistic motion.",
   ]
     .filter(Boolean)
@@ -241,4 +260,39 @@ export function scriptDialogue(text: string): { speaker: string; text: string }[
     if (m && !/^(TITLE|CAST|SCENE|INT|EXT)\b/.test(m[1]!)) out.push({ speaker: m[1]!.trim(), text: m[2]!.trim() });
   }
   return out;
+}
+
+/** Matches a script line like `NORA (V.O.): That's me.` or `TWO GIRLS (V.O., faint): ...`. */
+const SPOKEN = /^\s*([A-Z][A-Z0-9 .'&-]{0,40}?)\s*(?:\([^)]*\))?\s*:\s*(.+)$/;
+const normLine = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Who the script says speaks each line, keyed by the line's text. The storyboard model is
+ * told to keep speakers, but this makes it certain: a line the script gives to someone
+ * outside the cast (a memory, a crowd) can't end up with a cast member's voice.
+ */
+export function scriptSpeakers(script: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const line of script.split(/\r?\n/)) {
+    const m = SPOKEN.exec(line);
+    if (m) out.set(normLine(m[2]!), m[1]!.trim());
+  }
+  return out;
+}
+
+/** The speaker the script gives a line, if the script has that line. */
+export function scriptSpeakerFor(speakers: Map<string, string>, text: string): string | undefined {
+  const n = normLine(text);
+  if (!n) return undefined;
+  const exact = speakers.get(n);
+  if (exact) return exact;
+  for (const [line, who] of speakers) if (line.length > 12 && (line.includes(n) || n.includes(line))) return who;
+  return undefined;
+}
+
+/** An episode runs 60 to 75 seconds; a scene gets its share by script length. */
+export const EPISODE_TARGET_SECONDS = 65;
+export function sceneTargetSeconds(sceneScript: string, episodeScripts: string[]): number {
+  const total = episodeScripts.reduce((a, s) => a + s.length, 0) || 1;
+  return Math.max(10, Math.round((EPISODE_TARGET_SECONDS * sceneScript.length) / total));
 }

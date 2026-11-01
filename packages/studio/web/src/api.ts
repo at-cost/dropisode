@@ -150,7 +150,9 @@ export interface Config {
   priceLabel: string;
   cameraPresets: string[];
   /** The model catalog, for human labels. */
-  models?: { id: string; kind: string; label: string; unit: string }[];
+  models?: { id: string; kind: string; label: string; unit: string; nativeAudio?: boolean }[];
+  /** Default models per tier (the final video model decides whether "native audio" means anything). */
+  defaults?: { final?: { video?: string } };
   wallet: Wallet | null;
   /** Hosted only: the signed-in person, for the profile menu. */
   account: { name: string; email: string; workspace: string; isAdmin: boolean } | null;

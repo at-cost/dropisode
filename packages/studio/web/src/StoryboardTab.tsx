@@ -662,8 +662,15 @@ function Takes({ shot, c, small }: { shot: Shot; c: ShotCtl; small?: boolean }) 
   );
 }
 
-const setupLine = (shot: Shot) =>
-  `${cap(shot.camera.trim()) || "No camera set"} · ${round(shot.durationS)} s · ${AUDIO[shot.audio] ?? shot.audio}`;
+/** What the shot will actually sound like: a silent video model voices lines with text to speech. */
+function audioLabel(shot: Shot, silentVideo: boolean): string {
+  if (shot.audio === "none") return AUDIO.none!;
+  if (shot.audio === "native" && !silentVideo) return AUDIO.native!;
+  return shot.dialogue.some((l) => l.text.trim()) ? "Voice-over" : "Silent";
+}
+
+const setupLine = (shot: Shot, silentVideo: boolean) =>
+  `${cap(shot.camera.trim()) || "No camera set"} · ${round(shot.durationS)} s · ${audioLabel(shot, silentVideo)}`;
 
 /** A compact shot for the wide list and the board; editing happens in the inspector. */
 function ShotTile({
@@ -681,6 +688,9 @@ function ShotTile({
   variant: "list" | "board";
   sel: Selection;
 }) {
+  const { config } = useApp();
+  const finalVideo = config.models?.find((m) => m.id === config.defaults?.final?.video);
+  const silentVideo = finalVideo ? !finalVideo.nativeAudio : false;
   const c = useShot(ep, scene, shot, index);
   const a = useApproval(shot, c);
   const status = shotStatus({ ...shot, approved: a.approved }, c.generating);
@@ -705,7 +715,7 @@ function ShotTile({
         <div className="tile-info">
           <button type="button" className="tile-open" aria-expanded={isSel} onClick={open} title="Edit this shot">
             <span className="tile-desc">{shot.description.trim() || "No direction yet"}</span>
-            <span className="tile-meta">{setupLine(shot)}</span>
+            <span className="tile-meta">{setupLine(shot, silentVideo)}</span>
           </button>
           {shot.takes.length > 0 && (
             <div className="tile-takes">

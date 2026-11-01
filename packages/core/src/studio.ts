@@ -19,6 +19,9 @@ import {
   scriptPrompt,
   storyboardPrompt,
   videoPrompt,
+  scriptSpeakers,
+  scriptSpeakerFor,
+  sceneTargetSeconds,
 } from "./prompts";
 import type { JobRecord, MediaInput } from "./providers/types";
 
@@ -214,6 +217,12 @@ export class Studio {
     const { scene, episode } = findScene(project, sceneId);
     assertNothingRunning(scene.shots);
     const video = this.catalog.get(this.catalog.defaultsFor("final").video);
+    const targetSeconds =
+      p.targetSeconds ??
+      sceneTargetSeconds(
+        scene.script,
+        episode.scenes.map((s) => s.script),
+      );
     const { text: answer } = await this.llm(
       projectId,
       "storyboard",
@@ -222,12 +231,14 @@ export class Studio {
         heading: scene.heading,
         cast: project.cast,
         durations: video.durations,
-        ...(p.targetSeconds ? { targetSeconds: p.targetSeconds } : {}),
+        targetSeconds,
+        silentVideo: !video.nativeAudio,
       }),
       { episodeId: episode.id, sceneId },
       p.owner,
     );
     const shots = parseStoryboard(answer);
+    const speakers = scriptSpeakers(scene.script);
     return this.projects.mutate(projectId, (proj) => {
       const { scene: sc } = findScene(proj, sceneId);
       assertNothingRunning(sc.shots);
@@ -239,7 +250,11 @@ export class Studio {
           description: s.description,
           camera: s.camera ?? "",
           castIds,
-          dialogue: (s.dialogue ?? []).map((d) => ({ castId: d.speaker ? (castByName(proj, d.speaker)?.id ?? null) : null, text: d.text })),
+          dialogue: (s.dialogue ?? []).map((d) => {
+            // The script's speaker wins; someone outside the cast is the narrator.
+            const who = scriptSpeakerFor(speakers, d.text) ?? d.speaker;
+            return { castId: who ? (castByName(proj, who)?.id ?? null) : null, text: d.text };
+          }),
           durationS: s.duration ?? 5,
         });
       }
@@ -340,7 +355,13 @@ export class Studio {
         tier,
         refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId: take.id },
         input: {
-          prompt: framePrompt({ shot, cast, location, aspect: project.aspect }),
+          prompt: framePrompt({
+            shot,
+            cast,
+            location,
+            aspect: project.aspect,
+            voiceOver: shot.dialogue.length > 0 && this.audioPlan(shot.audio, this.catalog.get(this.catalog.defaultsFor(tier).video), true) !== "native",
+          }),
           aspect: project.aspect,
           ...(refs.length ? { images: refs } : {}),
         },
