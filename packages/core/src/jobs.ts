@@ -532,3 +532,16 @@ function settleLine(line: CostLine, job: JobRecord): CostLine {
 }
 
 export const errMessage = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+/**
+ * A job error as a user should read it. A provider account that is out of credit is our
+ * problem, not theirs, so it says so instead of echoing the provider's message.
+ */
+export function plainJobError(error: string, notBilled: boolean): string {
+  const nothing = notBilled ? " Nothing was charged." : "";
+  if (/exhausted balance|insufficient (funds|balance|credit)|out of credit|user is locked|billing/i.test(error)) {
+    return `Generation is paused on our side: our image and video provider needs a top-up.${nothing} Please try again later.`;
+  }
+  const clean = error.replace(/^Not accepted by the provider: /, "").slice(0, 300);
+  return `That didn't work: ${clean}.${nothing}`.replace(/\.\./g, ".");
+}

@@ -192,6 +192,11 @@ function CastCard({ c, hint }: { c: CastMember; hint: string }) {
           </button>
         )}
       </div>
+      {c.error && !generating && (
+        <p className="danger-text small-text" role="alert">
+          {c.error}
+        </p>
+      )}
       {asking && (
         <div className="consent">
           <label className="check">

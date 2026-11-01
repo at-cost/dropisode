@@ -40,6 +40,8 @@ export const CastMember = z.object({
   refImageIds: z.array(z.string()).default([]),
   /** The uploader confirmed they have consent from any real person shown in uploaded photos. */
   consentConfirmed: z.boolean().optional(),
+  /** Why the last generated image failed, in plain words. Cleared on the next try. */
+  error: z.string().max(500).optional(),
 });
 export type CastMember = z.infer<typeof CastMember>;
 

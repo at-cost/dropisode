@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import { type Catalog, type CatalogModel, type Estimate, billedDuration, estimate, roughTokens, supportsAspect } from "./catalog";
 import { EditError, addCast, addEpisode, addScene, addShot, castByName, findCast, findEpisode, findScene, findShot, newId } from "./edit";
-import { JobRunner, type RunnerDeps } from "./jobs";
+import { JobRunner, plainJobError, type RunnerDeps } from "./jobs";
 import type { CastMember, MediaRef, Project, Take, Tier } from "./project";
 import {
   type LlmPrompt,
@@ -257,6 +257,12 @@ export class Studio {
     const project = await this.projects.get(projectId);
     const member = findCast(project, castId);
     const modelId = p.modelId ?? this.catalog.config.defaults.castImage;
+    if (member.error) {
+      await this.projects.mutate(projectId, (pr) => {
+        const c = pr.cast.find((x) => x.id === castId);
+        if (c) delete c.error;
+      });
+    }
     return this.runner.start({
       projectId,
       kind: "image",
@@ -489,14 +495,19 @@ export class Studio {
       const t = takeOf(project, job);
       if (t && t.status !== "done") {
         t.status = "failed";
-        t.error = error;
+        t.error = plainJobError(error, job.providerBilled === false);
       }
     };
 
     this.runner.on("cast_image", {
       apply: (project, job, r) => {
         const c = project.cast.find((x) => x.id === job.refs.castId);
+        if (c) delete c.error;
         if (c && r.media && !c.refImageIds.includes(r.media.id)) c.refImageIds.unshift(r.media.id);
+      },
+      fail: (project, job, error) => {
+        const c = project.cast.find((x) => x.id === job.refs.castId);
+        if (c) c.error = plainJobError(error, job.providerBilled === false);
       },
     });
     this.runner.on("frame", {

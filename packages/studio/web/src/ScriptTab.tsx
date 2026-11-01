@@ -1,8 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { type Episode, type View, api } from "./api";
 import { useProject } from "./ProjectView";
 import { PLACEHOLDER_NAME } from "./progress";
 import { Icon, Spinner, Ticket, Why, money, plural, useApp } from "./ui";
+
+type StartMode = "ai" | "paste";
+const MODE_KEY = "studio.newEpisodeMode";
+
+function readMode(): StartMode {
+  try {
+    return localStorage.getItem(MODE_KEY) === "paste" ? "paste" : "ai";
+  } catch {
+    return "ai";
+  }
+}
+
+/** Grows a textarea to fit its text, up to 70% of the window, then it scrolls. */
+function useAutoGrow(value: string) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-measure whenever the text changes
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const max = Math.round(window.innerHeight * 0.7);
+    const want = el.scrollHeight + 2;
+    el.style.height = `${Math.min(want, max)}px`;
+    el.style.overflowY = want > max ? "auto" : "hidden";
+  }, [value]);
+  return ref;
+}
 
 export function ScriptTab() {
   const { pid, view, estimates, act, isBusy } = useProject();
@@ -41,6 +68,17 @@ export function ScriptTab() {
   const [adding, setAdding] = useState(false);
   const showNew = !hasEpisodes || adding || writing || pasting;
   const price = scriptPrice ?? estimates?.script;
+  const [mode, setModeState] = useState<StartMode>(readMode);
+  const setMode = (m: StartMode) => {
+    setModeState(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {}
+  };
+  const pasteRef = useAutoGrow(paste);
+  const ideaRef = useAutoGrow(idea);
+  // Whatever is running stays visible.
+  const shown: StartMode = writing ? "ai" : pasting ? "paste" : mode;
 
   return (
     <div className="script-tab">
@@ -68,10 +106,28 @@ export function ScriptTab() {
               </button>
             </div>
           )}
-          <p className="choose-h">Start this episode one of two ways</p>
-          <div className="choice">
+          <div className="mode-toggle">
+            <button
+              type="button"
+              aria-pressed={shown === "ai"}
+              className={shown === "ai" ? "on" : ""}
+              disabled={writing || pasting}
+              onClick={() => setMode("ai")}
+            >
+              Let AI write it
+            </button>
+            <button
+              type="button"
+              aria-pressed={shown === "paste"}
+              className={shown === "paste" ? "on" : ""}
+              disabled={writing || pasting}
+              onClick={() => setMode("paste")}
+            >
+              Use your own script
+            </button>
+          </div>
+          {shown === "ai" ? (
             <section className="panel">
-              <p className="choice-tag">Option A</p>
               <h2>Let AI write it</h2>
               <p className="muted small-text choice-sub">Give a one-line idea. The script and the cast list are written for you.</p>
               <form
@@ -99,6 +155,7 @@ export function ScriptTab() {
                 <label>
                   Idea
                   <textarea
+                    ref={ideaRef}
                     value={idea}
                     onChange={(e) => setIdea(e.target.value)}
                     rows={4}
@@ -135,13 +192,8 @@ export function ScriptTab() {
                 </div>
               </form>
             </section>
-
-            <div className="choice-or" aria-hidden="true">
-              <span>or</span>
-            </div>
-
+          ) : (
             <section className="panel">
-              <p className="choice-tag">Option B</p>
               <h2>Use your own script</h2>
               <p className="muted small-text choice-sub">Already have one? Paste it and it's split into scenes and cast for free.</p>
               <form
@@ -170,6 +222,7 @@ export function ScriptTab() {
                 <label>
                   Script
                   <textarea
+                    ref={pasteRef}
                     value={paste}
                     onChange={(e) => setPaste(e.target.value)}
                     rows={6}
@@ -185,7 +238,7 @@ export function ScriptTab() {
                 </div>
               </form>
             </section>
-          </div>
+          )}
         </div>
       )}
     </div>

@@ -22,6 +22,8 @@ export interface CastMember {
   description: string;
   refImageIds: string[];
   consentConfirmed?: boolean;
+  /** Why the last generated image failed, in plain words. */
+  error?: string;
 }
 
 export interface DialogueLine {

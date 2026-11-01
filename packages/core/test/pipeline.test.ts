@@ -5,6 +5,7 @@ import { exportProject, importInto, readArchive } from "../src/archive";
 import { assembleEpisode } from "../src/assemble";
 import { addCast, addEpisode, addScene, addShot, createProject, findShot, projectTotals, updateShot } from "../src/edit";
 import { mediaDuration } from "../src/ffmpeg";
+import { plainJobError } from "../src/jobs";
 import { MockProvider } from "../src/providers/mock";
 import { BlockedError, type JobOutcome, type JobRecord, type Provider } from "../src/providers/types";
 import { drain, setup } from "./helpers";
@@ -126,6 +127,30 @@ describe("failures and refunds", () => {
     expect(take.status).toBe("failed");
     // No video job was started for a failed frame.
     expect(t.mock.submitted.filter((x) => x.job.purpose === "video")).toHaveLength(0);
+  });
+
+  it("a failed cast image tells the user why on the card, and the next try clears it", async () => {
+    const t = await storyboarded();
+    const castId = (await t.store.get(t.projectId)).cast[0]!.id;
+    t.mock.failNext(1, "unbilled");
+    await t.studio.generateCastImage(t.projectId, castId);
+    await drain(t.studio, t.projectId);
+    const failed = (await t.store.get(t.projectId)).cast.find((c) => c.id === castId)!;
+    expect(failed.refImageIds).toHaveLength(0);
+    expect(failed.error).toMatch(/didn't work/);
+    expect(failed.error).toMatch(/Nothing was charged/);
+    await t.studio.generateCastImage(t.projectId, castId);
+    await drain(t.studio, t.projectId);
+    const ok = (await t.store.get(t.projectId)).cast.find((c) => c.id === castId)!;
+    expect(ok.error).toBeUndefined();
+    expect(ok.refImageIds).toHaveLength(1);
+  });
+
+  it("a provider account out of credit reads as our problem, not the user's", () => {
+    const msg = plainJobError("Not accepted by the provider: fal 403: User is locked. Reason: Exhausted balance.", true);
+    expect(msg).toMatch(/paused on our side/);
+    expect(msg).toMatch(/Nothing was charged/);
+    expect(msg).not.toMatch(/fal/);
   });
 
   it("a failure the provider billed is charged and says so", async () => {

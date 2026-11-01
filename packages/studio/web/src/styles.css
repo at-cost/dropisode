@@ -4416,61 +4416,46 @@ button.danger-solid {
   }
 }
 
-/* Script tab: two ways to start an episode, clearly either/or */
-.choose-h {
-  margin: 4px 0 10px;
-  font-weight: 700;
-  font-size: 15px;
+/* Script tab: pick how to start the episode, then one form */
+.mode-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 4px 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  max-width: 100%;
 }
-.choice {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: 14px;
-  align-items: stretch;
+.mode-toggle button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 7px 16px;
+  white-space: nowrap;
 }
-.choice > .panel {
-  margin: 0;
+.mode-toggle button:hover:not(:disabled):not(.on) {
+  color: var(--text);
+  background: var(--accent-soft);
 }
-.choice-tag {
-  margin: 0 0 2px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
+.mode-toggle button.on {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.mode-toggle button:disabled:not(.on) {
+  opacity: 0.5;
 }
 .choice-sub {
   margin: 4px 0 12px;
 }
-.choice-or {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--muted);
-  font-weight: 700;
-  text-transform: uppercase;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-}
-.choice-or::before,
-.choice-or::after {
-  content: "";
-  flex: 1;
-  width: 1px;
-  background: var(--border);
-}
-@media (max-width: 900px) {
-  .choice {
-    grid-template-columns: minmax(0, 1fr);
+@media (max-width: 480px) {
+  .mode-toggle {
+    display: flex;
   }
-  .choice-or {
-    flex-direction: row;
-  }
-  .choice-or::before,
-  .choice-or::after {
-    width: auto;
-    height: 1px;
+  .mode-toggle button {
+    flex: 1;
+    padding: 7px 8px;
   }
 }
