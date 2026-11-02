@@ -40,6 +40,8 @@ export interface AssembleResult {
   overlaysBurned: number;
   /** Reaction cutaways laid over the speaking shot before them. */
   cutaways: number;
+  /** The subtitle cues, for a player to show or hide. */
+  subtitles: { start: number; end: number; text: string }[];
   warnings: string[];
   durationS: number;
 }
@@ -200,7 +202,8 @@ export async function assembleEpisode(
     const episodeFile = join(opts.outDir, "episode.mp4");
     let burned = false;
     let overlaysBurned = 0;
-    const burnSubs = (opts.burnSubtitles ?? true) && subs.length > 0;
+    // Off unless asked: players show the cues themselves, with an on/off switch.
+    const burnSubs = (opts.burnSubtitles ?? false) && subs.length > 0;
     if (burnSubs || overlays.length) {
       if (ff.subtitles) {
         if (!fontsAvailable())
@@ -277,6 +280,7 @@ export async function assembleEpisode(
       subtitlesBurned: burned,
       overlaysBurned,
       cutaways,
+      subtitles: subs,
       warnings,
       durationS: t,
     };

@@ -211,6 +211,8 @@ export interface ExportInfo {
   files: { name: string; url: string; bytes: number }[];
   skipped: { shotId: string; reason: string }[];
   warnings: string[];
+  subtitles?: { start: number; end: number; text: string }[];
+  subtitlesBurned?: boolean;
 }
 
 export class ApiError extends Error {

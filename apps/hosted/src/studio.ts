@@ -214,7 +214,7 @@ export function hostedStudioContext(deps: Deps, workspaceId: string, userId: str
       importInto(readArchive(zip, IMPORT_LIMITS), { ...media, mutate: (id, fn) => stores.mutate(id, fn) }, (p) => stores.create(p)),
     exportArchive: async (id) => exportProject(await stores.get(id), stores),
     serveMedia: async (c, projectId, ref) => c.redirect(await stores.signedMediaUrl(projectId, ref.id, ttl), 302),
-    assemble: async (projectId, episodeId, source) => {
+    assemble: async (projectId, episodeId, source, opts = {}) => {
       // Nothing unreviewed goes into an episode people can download and share.
       if (deps.moderation.reviewsOutputs) {
         const pending = await deps.db
@@ -230,7 +230,11 @@ export function hostedStudioContext(deps: Deps, workspaceId: string, userId: str
       const id = newId("x");
       const outDir = mkdtempSync(join(tmpdir(), "reel-export-"));
       try {
-        const res = await assembleEpisode({ projects: stores, media: stores }, projectId, episodeId, { source, outDir });
+        const res = await assembleEpisode({ projects: stores, media: stores }, projectId, episodeId, {
+          source,
+          outDir,
+          burnSubtitles: !!opts.burnSubtitles,
+        });
         const names = listFiles(outDir);
         let bytes = 0;
         const files = [];
@@ -249,6 +253,8 @@ export function hostedStudioContext(deps: Deps, workspaceId: string, userId: str
           files,
           skipped: res.skipped,
           warnings: res.warnings,
+          subtitles: res.subtitles,
+          subtitlesBurned: res.subtitlesBurned,
         };
         // Which media went in, so the export is withdrawn if any of it is hidden later.
         const project = await stores.get(projectId);

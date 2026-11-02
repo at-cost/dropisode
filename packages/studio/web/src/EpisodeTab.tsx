@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type ExportInfo, api } from "./api";
 import { useProject } from "./ProjectView";
 import { EpisodePicker, shotLabel, useEpisodeChoice } from "./StoryboardTab";
@@ -10,15 +10,19 @@ export function EpisodeTab() {
   const [ep, pick] = useEpisodeChoice();
   const [exports, setExports] = useState<ExportInfo[] | null>(null);
   const { busy, run } = useBusy();
+  const [burn, setBurn] = useState(false);
+  // Only the project id decides when to reload: fresh links mid-play would restart the player.
+  const appRef = useRef(app);
+  appRef.current = app;
 
   const load = useCallback(async () => {
     try {
       setExports(await api.get<ExportInfo[]>(`/projects/${pid}/exports`));
     } catch (err) {
-      app.fail(err);
+      appRef.current.fail(err);
       setExports([]);
     }
-  }, [pid, app]);
+  }, [pid]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -33,7 +37,7 @@ export function EpisodeTab() {
 
   const assemble = (source: "rough" | "final") =>
     run(source, async () => {
-      await api.post<ExportInfo>(`/projects/${pid}/episodes/${ep.id}/assemble`, { source });
+      await api.post<ExportInfo>(`/projects/${pid}/episodes/${ep.id}/assemble`, { source, burnSubtitles: burn });
       await load();
       refreshExports();
     });
@@ -88,6 +92,13 @@ export function EpisodeTab() {
             </Why>
           )}
         </div>
+        <label className="insp-check">
+          <input type="checkbox" checked={burn} onChange={(e) => setBurn(e.target.checked)} />
+          <span>
+            Burn subtitles into the video
+            <small className="muted">Off: the player shows them with its CC switch, and the video file stays clean.</small>
+          </span>
+        </label>
         {busy && <p className="muted small-text">Joining shots. About a minute.</p>}
         <p className="muted small-text">Assembling is free. The final episode needs a final take of every shot.</p>
       </section>
@@ -107,7 +118,14 @@ export function EpisodeTab() {
               <section key={x.id} className="panel export">
                 <div className="export-body">
                   {video && i === 0 ? (
-                    <ExportPlayer url={video.url} aspect={view.project.aspect} preload="metadata" onExpired={load} />
+                    <ExportPlayer
+                      key={x.id}
+                      url={video.url}
+                      cues={x.subtitlesBurned ? [] : (x.subtitles ?? [])}
+                      aspect={view.project.aspect}
+                      preload="metadata"
+                      onExpired={load}
+                    />
                   ) : null}
                   <div className="export-info">
                     <h3>
@@ -120,7 +138,14 @@ export function EpisodeTab() {
                     {video && i > 0 && (
                       <details>
                         <summary>Play</summary>
-                        <ExportPlayer url={video.url} aspect={view.project.aspect} preload="none" onExpired={load} />
+                        <ExportPlayer
+                          key={x.id}
+                          url={video.url}
+                          cues={x.subtitlesBurned ? [] : (x.subtitles ?? [])}
+                          aspect={view.project.aspect}
+                          preload="none"
+                          onExpired={load}
+                        />
                       </details>
                     )}
                     <ul className="files">
@@ -170,33 +195,98 @@ export function EpisodeTab() {
  * so a link that expires mid-way stops playback where the buffer ends. On that error we
  * fetch fresh links and carry on from the same second.
  */
-function ExportPlayer({ url, aspect, preload, onExpired }: { url: string; aspect: string; preload: "metadata" | "none"; onExpired(): Promise<void> | void }) {
+function ExportPlayer({
+  url,
+  cues,
+  aspect,
+  preload,
+  onExpired,
+}: {
+  url: string;
+  cues: { start: number; end: number; text: string }[];
+  aspect: string;
+  preload: "metadata" | "none";
+  onExpired(): Promise<void> | void;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
   const resume = useRef<{ at: number; play: boolean } | null>(null);
   const lastRetry = useRef(0);
+  // The link the player is using. A newer link only replaces it after this one has failed:
+  // swapping the source while playing would start the video again from the top.
+  const [src, setSrc] = useState(url);
+  const wantFresh = useRef(false);
+  useEffect(() => {
+    if (wantFresh.current && url !== src) {
+      wantFresh.current = false;
+      setSrc(url);
+    }
+  }, [url, src]);
+  const [cc, setCc] = useState(() => {
+    try {
+      return localStorage.getItem("reel.cc") !== "off";
+    } catch {
+      return true;
+    }
+  });
+  // A captions track built here from the cues: it shows in full screen too, and needs no extra download.
+  const vtt = useMemo(() => (cues.length ? URL.createObjectURL(new Blob([toVtt(cues)], { type: "text/vtt" })) : null), [cues]);
+  useEffect(() => () => void (vtt && URL.revokeObjectURL(vtt)), [vtt]);
+  useEffect(() => {
+    const t = ref.current?.textTracks[0];
+    if (t) t.mode = cc ? "showing" : "hidden";
+  });
+  const toggleCc = () => {
+    const next = !cc;
+    setCc(next);
+    try {
+      localStorage.setItem("reel.cc", next ? "on" : "off");
+    } catch {}
+  };
   return (
-    <video
-      ref={ref}
-      className={`player ${aspect === "16:9" ? "wide" : "tall"}`}
-      src={url}
-      controls
-      playsInline
-      preload={preload}
-      onError={() => {
-        const v = ref.current;
-        if (!v || Date.now() - lastRetry.current < 10_000) return;
-        lastRetry.current = Date.now();
-        resume.current = { at: v.currentTime, play: !v.paused || v.currentTime > 0 };
-        void onExpired();
-      }}
-      onLoadedMetadata={() => {
-        const v = ref.current;
-        const r = resume.current;
-        if (!v || !r) return;
-        resume.current = null;
-        v.currentTime = r.at;
-        if (r.play) void v.play().catch(() => {});
-      }}
-    />
+    <div className={`player-wrap ${aspect === "16:9" ? "wide" : "tall"}`}>
+      <video
+        ref={ref}
+        className={`player ${aspect === "16:9" ? "wide" : "tall"}`}
+        src={src}
+        controls
+        playsInline
+        preload={preload}
+        onError={() => {
+          const v = ref.current;
+          if (!v || Date.now() - lastRetry.current < 10_000) return;
+          lastRetry.current = Date.now();
+          resume.current = { at: v.currentTime, play: !v.paused || v.currentTime > 0 };
+          wantFresh.current = true;
+          void onExpired();
+        }}
+        onLoadedMetadata={() => {
+          const v = ref.current;
+          const r = resume.current;
+          if (!v || !r) return;
+          resume.current = null;
+          v.currentTime = r.at;
+          if (r.play) void v.play().catch(() => {});
+        }}
+      >
+        {vtt && <track kind="subtitles" label="English" srcLang="en" src={vtt} default={cc} />}
+      </video>
+      {cues.length > 0 && (
+        <button type="button" className={`cc-toggle ${cc ? "on" : ""}`} aria-pressed={cc} onClick={toggleCc} title="Subtitles on or off">
+          CC
+        </button>
+      )}
+    </div>
   );
+}
+
+/** Subtitle cues as WebVTT. */
+export function toVtt(cues: { start: number; end: number; text: string }[]): string {
+  const t = (x: number) => {
+    const ms = Math.max(0, Math.round(x * 1000));
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const sec = Math.floor((ms % 60000) / 1000);
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}.${String(ms % 1000).padStart(3, "0")}`;
+  };
+  return `WEBVTT\n\n${cues.map((c) => `${t(c.start)} --> ${t(c.end)}\n${c.text.replace(/-->/g, "->")}`).join("\n\n")}\n`;
 }

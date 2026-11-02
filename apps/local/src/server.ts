@@ -127,11 +127,15 @@ export function createLocalApp(opts: LocalOptions) {
     importArchive: async (zip) => importInto(readArchive(zip), store, (p) => store.create(p)),
     exportArchive: async (id) => exportProject(await store.get(id), store),
     serveMedia: async (c, projectId, ref) => sendFile(c, store.localPath(projectId, ref), ref.contentType),
-    assemble: async (projectId, episodeId, source) => {
+    assemble: async (projectId, episodeId, source, opts = {}) => {
       const id = `${new Date().toISOString().replace(/[:.]/g, "-")}-${source}`;
       const outDir = join(exportsDir(projectId), id);
       mkdirSync(outDir, { recursive: true });
-      const res = await assembleEpisode({ projects: store, media: store }, projectId, episodeId, { source, outDir });
+      const res = await assembleEpisode({ projects: store, media: store }, projectId, episodeId, {
+        source,
+        outDir,
+        burnSubtitles: !!opts.burnSubtitles,
+      });
       const files = listFiles(outDir).map((rel) => ({
         name: rel,
         url: `/api/local/projects/${projectId}/exports/${id}/${rel}`,
@@ -146,6 +150,8 @@ export function createLocalApp(opts: LocalOptions) {
         files,
         skipped: res.skipped,
         warnings: res.warnings,
+        subtitles: res.subtitles,
+        subtitlesBurned: res.subtitlesBurned,
       };
       writeFileSync(join(outDir, "export.json"), JSON.stringify(info, null, 2));
       return info;

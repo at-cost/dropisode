@@ -46,6 +46,10 @@ export interface ExportInfo {
   files: ExportFile[];
   skipped: { shotId: string; reason: string }[];
   warnings: string[];
+  /** Subtitle cues, shown by the player when switched on. */
+  subtitles?: { start: number; end: number; text: string }[];
+  /** Whether the subtitles are burned into the video itself. */
+  subtitlesBurned?: boolean;
 }
 
 export interface StudioContext {
@@ -64,7 +68,7 @@ export interface StudioContext {
   exportArchive(projectId: string): Promise<Uint8Array>;
   /** Streams or redirects to a media file. */
   serveMedia(c: Context, projectId: string, ref: MediaRef): Promise<Response>;
-  assemble(projectId: string, episodeId: string, source: "final" | "rough"): Promise<ExportInfo>;
+  assemble(projectId: string, episodeId: string, source: "final" | "rough", opts?: { burnSubtitles?: boolean }): Promise<ExportInfo>;
   listExports(projectId: string): Promise<ExportInfo[]>;
   /** Hosted: wallet state for the header. */
   wallet?(): Promise<{ balanceMicro: number; heldMicro: number; blocked: boolean; message?: string }>;
@@ -611,8 +615,8 @@ export function createStudioApi(resolve: ResolveContext): Hono {
   app.post("/projects/:pid/episodes/:eid/assemble", async (c) => {
     const ctx = await resolve(c);
     await project(c, ctx);
-    const b = await body(c, z.object({ source: z.enum(["final", "rough"]).default("final") }));
-    return c.json(await ctx.assemble(c.req.param("pid"), c.req.param("eid"), b.source), 201);
+    const b = await body(c, z.object({ source: z.enum(["final", "rough"]).default("final"), burnSubtitles: z.boolean().default(false) }));
+    return c.json(await ctx.assemble(c.req.param("pid"), c.req.param("eid"), b.source, { burnSubtitles: b.burnSubtitles }), 201);
   });
 
   app.get("/projects/:pid/exports", async (c) => {
