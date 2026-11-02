@@ -484,6 +484,13 @@ export function createStudioApi(resolve: ResolveContext): Hono {
     return c.json(await view(ctx, await project(c, ctx)), 202);
   });
 
+  app.post("/projects/:pid/scenes/:scid/master", async (c) => {
+    const ctx = await resolve(c);
+    await project(c, ctx);
+    await ctx.studio.makeSceneMaster(c.req.param("pid"), c.req.param("scid"), ctx.owner);
+    return c.json(await view(ctx, await project(c, ctx)), 202);
+  });
+
   app.post("/projects/:pid/scenes/:scid/storyboard", async (c) => {
     const ctx = await resolve(c);
     await project(c, ctx);

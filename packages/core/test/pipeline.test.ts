@@ -32,11 +32,10 @@ describe("idea to episode", () => {
     const maya = p.cast.find((c) => c.name === "MAYA")!;
     expect(shots[1]!.castIds).toContain(maya.id);
     expect(shots[1]!.dialogue[0]!.castId).toBe(maya.id);
-    // Two LLM calls (script, storyboard), both in the cost log.
-    expect(p.costLog.map((l) => [l.purpose, l.status])).toEqual([
-      ["script", "charged"],
-      ["storyboard", "charged"],
-    ]);
+    // Two LLM calls (script, storyboard), then the scene's master still, all in the cost log.
+    expect(p.costLog.map((l) => l.purpose)).toEqual(["script", "storyboard", "scene_master"]);
+    expect(p.costLog.slice(0, 2).map((l) => l.status)).toEqual(["charged", "charged"]);
+    expect(p.episodes[0]!.scenes[0]!.master?.status).toBe("running");
   });
 
   it("drafts, approves, finals and assembles a playable MP4 with every file and an edit list", async () => {
@@ -82,9 +81,9 @@ describe("idea to episode", () => {
     expect(readFileSync(join(outDir, "edit-list.edl"), "utf8")).toMatch(/^006 {2}SHOT006/m);
 
     // Every try has a cost line: 2 LLM + 3 cast images + 6×2 frames + 6×2 videos,
-    // + voices lifted out of the 3 finals that speak (the draft model here is silent).
+    // + voices lifted out of the 3 finals that speak (the draft model here is silent), + the scene's master still.
     const totals = projectTotals(p);
-    expect(totals.tries).toBe(2 + 3 + 24 + 3);
+    expect(totals.tries).toBe(2 + 3 + 24 + 3 + 1);
     expect(p.costLog.filter((l) => l.purpose === "isolate")).toHaveLength(3);
     expect(totals.pending).toBe(0);
     const sum = p.costLog.reduce((a, l) => a + l.estimateMicro, 0);
@@ -148,6 +147,27 @@ describe("failures and refunds", () => {
     expect(ok.refImageIds).toHaveLength(1);
   });
 
+  it("drafts started before the master still wait for it, then start from it", async () => {
+    const t = await storyboarded();
+    const shot = (await t.store.get(t.projectId)).episodes[0]!.scenes[0]!.shots[1]!;
+    const before = t.mock.submitted.length;
+    const take = await t.studio.generateTake(t.projectId, shot.id, "draft");
+    expect(take.status).toBe("queued");
+    expect(t.mock.submitted.length).toBe(before);
+    await drain(t.studio, t.projectId, 60);
+    const p = await t.store.get(t.projectId);
+    expect(p.episodes[0]!.scenes[0]!.master?.status).toBe("done");
+    const done = p.episodes[0]!.scenes[0]!.shots[1]!.takes[0]!;
+    expect(done.status).toBe("done");
+    expect(done.waitsForMaster).toBeUndefined();
+    const frame = t.mock.submitted.find((x) => x.job.purpose === "frame")!;
+    expect(frame.input.images?.[0]?.name).toMatch(/^SCENE\./);
+    expect(frame.input.prompt).toMatch(/this scene's master shot/);
+    const master = t.mock.submitted.find((x) => x.job.purpose === "scene_master")!;
+    expect(master.input.prompt).toMatch(/master shot of this scene/);
+    expect(master.input.prompt).toMatch(/MAYA/);
+  });
+
   it("a provider account out of credit reads as our problem, not the user's", () => {
     const msg = plainJobError("Not accepted by the provider: fal 403: User is locked. Reason: Exhausted balance.", true);
     expect(msg).toMatch(/paused on our side/);
@@ -157,6 +177,7 @@ describe("failures and refunds", () => {
 
   it("a failure the provider billed is charged and says so", async () => {
     const t = await storyboarded();
+    await drain(t.studio, t.projectId); // the scene's master still
     const shot = (await t.store.get(t.projectId)).episodes[0]!.scenes[0]!.shots[0]!;
     await t.studio.generateTake(t.projectId, shot.id, "draft");
     t.mock.failNext(1, "billed"); // the video, after the frame

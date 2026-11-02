@@ -135,6 +135,8 @@ export function framePrompt(p: {
   aspect: Aspect;
   /** The shot's lines are a voice-over added later: nobody on screen may look mid-word. */
   voiceOver?: boolean;
+  /** The first reference image is the scene's master still. */
+  fromMaster?: boolean;
 }): string {
   const people = p.cast.filter((c) => c.kind !== "location");
   const place = p.location ?? p.cast.find((c) => c.kind === "location");
@@ -144,11 +146,41 @@ export function framePrompt(p: {
     p.shot.camera ? `Camera: ${p.shot.camera}.` : "",
     people.length ? `Characters (keep them exactly as in the reference images): ${people.map(describe).join(" | ")}` : "",
     place ? `Setting: ${describe(place)}` : "",
+    p.fromMaster
+      ? "The first reference image is this scene's master shot: keep its place, light, weather, time of day and everyone's clothes exactly. Make a new camera position on it, as this shot describes (closer, or from another side). Never copy the master's framing. The other reference images show faces only."
+      : "",
     ...framing(p.shot, people.length > 0, !!place),
     p.shot.onScreenText?.trim() ? "Any card, sign, paper or screen in the shot is blank: its text is added afterwards." : "",
     p.voiceOver ? "Nobody in the frame is speaking: every mouth is closed." : "",
     ...speakerFacing(p.shot, people, !!p.voiceOver),
     "No captions, subtitles or watermarks. Show only text the shot itself describes.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** The scene's master still: everyone in the place at the start of the scene, lit by it. */
+export function sceneMasterPrompt(p: {
+  heading: string;
+  script: string;
+  place?: CastMember | undefined;
+  people: CastMember[];
+  aspect: Aspect;
+}): string {
+  const staging = p.script
+    .split(/\r?\n/)
+    .filter((l) => l.trim() && !SPOKEN.test(l))
+    .join(" ")
+    .slice(0, 900);
+  return [
+    `A single cinematic establishing film still, ${p.aspect === "9:16" ? "vertical 9:16" : "horizontal 16:9"} frame, photorealistic, natural light: the master shot of this scene.`,
+    `Scene: ${p.heading}.`,
+    p.place ? `Place: ${describe(p.place)}` : "",
+    p.people.length ? `Everyone in the scene is here, where the scene starts: ${p.people.map(describe).join(" | ")}` : "",
+    staging ? `What happens (stage them for its opening moment): ${staging}` : "",
+    "They are real people in this place: lit by its light and weather (wet hair and clothes if it rains), at natural scale, standing or seated on the ground, faces recognisable.",
+    "The reference images show the place and who each person is. Do not copy their framing, plain backgrounds or studio lighting.",
+    "No captions, subtitles, text or watermarks.",
   ]
     .filter(Boolean)
     .join("\n");

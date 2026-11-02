@@ -341,6 +341,7 @@ function SceneBlock({ ep, scene, n, mode, sel }: { ep: Episode; scene: Scene; n:
           )}
         </div>
       </div>
+      {scene.shots.length > 0 && <SceneStill scene={scene} />}
       {scene.script.trim() && (
         <details className="scene-script">
           <summary>Scene script</summary>
@@ -1115,6 +1116,36 @@ function Dialogue({ shot, onSave }: { shot: Shot; onSave(lines: LineEdit[]): voi
       <button type="button" className="link small-text" onClick={() => setLines([...lines, { castId: speakers[0]?.id ?? null, text: "" }])}>
         <Icon name="plus" size={11} /> Line
       </button>
+    </div>
+  );
+}
+
+/** The scene's master still: everyone in the place. Each shot's first frame is a new camera angle on it. */
+function SceneStill({ scene }: { scene: Scene }) {
+  const { pid, act, isBusy } = useProject();
+  const m = scene.master;
+  const busy = isBusy(`master-${scene.id}`) || m?.status === "running";
+  const remake = () => void act(`master-${scene.id}`, () => api.post<View>(`/projects/${pid}/scenes/${scene.id}/master`), { kick: true });
+  return (
+    <div className="scene-still">
+      <div className="scene-still-img">
+        {m?.status === "done" && m.mediaId ? <img src={mediaUrl(pid, m.mediaId)} alt="Scene still" /> : busy ? <Spinner /> : null}
+      </div>
+      <div className="scene-still-text">
+        <strong>Scene still</strong>
+        <span className="muted small-text">
+          {m?.status === "done"
+            ? "Everyone in the place. Each shot is a new camera angle on this, so people belong in the scene. Remake it before drafting if it's wrong."
+            : busy
+              ? "Making the scene still. Shots you draft now start from it when it's ready."
+              : m?.status === "failed"
+                ? `Couldn't make it${m.error ? `: ${m.error}` : ""}. Shots will be made from the cast pictures instead.`
+                : "Not made yet. Shots are made from the cast pictures until it is."}
+        </span>
+        <button type="button" disabled={busy} onClick={remake}>
+          {busy && <Spinner />} {m?.status === "done" ? "Remake scene still" : "Make scene still"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -44,6 +44,7 @@ export interface Take {
   error?: string;
   /** A continued final waiting for the previous shot's final. */
   waitsForShotId?: string;
+  waitsForMaster?: boolean;
   createdAt: string;
 }
 
@@ -70,6 +71,8 @@ export interface Scene {
   locationId: string | null;
   shots: Shot[];
   ambience?: SoundBed | null;
+  /** Everyone in the place, lit by it: every shot's first frame is a new angle on it. */
+  master?: SoundBed | null;
 }
 
 export interface SoundBed {

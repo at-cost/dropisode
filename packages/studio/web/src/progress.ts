@@ -59,6 +59,7 @@ export function shotStage(s: Shot): Stage {
 
 export function shotStatus(s: Shot, generating: boolean): { label: string; tone: string } {
   if (s.takes.some((t) => t.status === "queued" && t.waitsForShotId)) return { label: "Waits for the shot before", tone: "live" };
+  if (s.takes.some((t) => t.status === "queued" && t.waitsForMaster)) return { label: "Waits for the scene still", tone: "live" };
   if (generating) return { label: "Rendering", tone: "live" };
   const stage = shotStage(s);
   if (stage === "final") return { label: "Final ready", tone: "ok" };

@@ -11,7 +11,7 @@ import { type Catalog, type CatalogModel, type Estimate, billedDuration, estimat
 import { EditError, addCast, addEpisode, addScene, addShot, castByName, findCast, findEpisode, findScene, findShot, newId } from "./edit";
 import { hasAudio, mediaDuration, runFfmpeg } from "./ffmpeg";
 import { JobRunner, plainJobError, type RunnerDeps } from "./jobs";
-import type { CastMember, MediaRef, Project, Shot, SoundBed, Take, Tier } from "./project";
+import type { CastMember, MediaRef, Project, Scene, Shot, SoundBed, Take, Tier } from "./project";
 import {
   type LlmPrompt,
   castExtractPrompt,
@@ -29,6 +29,7 @@ import {
   normalizeLine,
   scriptVoiceOvers,
   isWideShot,
+  sceneMasterPrompt,
 } from "./prompts";
 import type { JobRecord, MediaInput } from "./providers/types";
 
@@ -254,7 +255,7 @@ export class Studio {
     const shots = parseStoryboard(answer);
     const speakers = scriptSpeakers(scene.script);
     const voiceOvers = scriptVoiceOvers(scene.script);
-    return this.projects.mutate(projectId, (proj) => {
+    const n = await this.projects.mutate(projectId, (proj) => {
       const { scene: sc } = findScene(proj, sceneId);
       assertNothingRunning(sc.shots);
       sc.shots = [];
@@ -282,8 +283,12 @@ export class Studio {
           cutaway: s.cutaway && !lines.length && prevSpeaks ? { atS: s.cutaway.at, lengthS: s.cutaway.length } : null,
         });
       }
+      sc.master = null;
       return sc.shots.length;
     });
+    // A fresh master still for the new staging; shots drafted meanwhile wait for it.
+    await this.makeSceneMaster(projectId, sceneId, p.owner).catch(() => {});
+    return n;
   }
 
   // Cast images
@@ -381,56 +386,16 @@ export class Studio {
       return { ...take, status: source ? "running" : "queued" };
     }
 
-    // The place's picture only for wide shots: closer in, the model pastes people onto it as a backdrop.
-    const refs = await this.referenceImages(
-      project,
-      shot.castIds,
-      isWideShot(shot) ? scene.locationId : null,
-      image.maxRefImages,
-      !isWideShot(shot),
-    );
-    const cast = shot.castIds.map((id) => project.cast.find((c) => c.id === id)).filter((c): c is CastMember => !!c);
-    const location = scene.locationId ? project.cast.find((c) => c.id === scene.locationId) : undefined;
-    let job: JobRecord;
-    try {
-      job = await this.runner.start({
-        id: `job_f_${take.id}`,
-        projectId,
-        kind: "image",
-        purpose: "frame",
-        modelId: image.id,
-        tier,
-        refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId: take.id },
-        input: {
-          prompt: framePrompt({
-            shot,
-            cast,
-            location,
-            aspect: project.aspect,
-            voiceOver:
-              shot.dialogue.length > 0 &&
-              this.audioPlan(shot.audio, this.catalog.get(this.catalog.defaultsFor(tier).video), true) !== "native",
-          }),
-          aspect: project.aspect,
-          ...(refs.length ? { images: refs } : {}),
-        },
-        estimateInput: { images: 1 },
-        ...(p.owner ? { owner: p.owner } : {}),
-      });
-    } catch (err) {
-      // Nothing was sent: remove the take.
+    // The scene's master still is on its way: this take starts from it when it lands.
+    if (scene.master?.status === "running") {
       await this.projects.mutate(projectId, (proj) => {
-        const s = findShot(proj, shotId).shot;
-        s.takes = s.takes.filter((x) => x.id !== take.id);
+        const t = findShot(proj, shotId).shot.takes.find((x) => x.id === take.id);
+        if (t) t.waitsForMaster = true;
       });
-      throw err;
+      if (est.audio === "tts") await this.generateMissingTts(projectId, shotId, p.owner).catch(() => {});
+      return { ...take, status: "queued", waitsForMaster: true };
     }
-    await this.projects.mutate(projectId, (proj) => {
-      const t = findShot(proj, shotId).shot.takes.find((x) => x.id === take.id);
-      if (!t) return;
-      t.frameJobId = job.id;
-      if (t.status === "queued") t.status = "running";
-    });
+    await this.startFrame(projectId, shotId, take.id, p.owner, { removeOnError: true });
     // The frame is on its way (and may be charged), so the take stays whatever happens to the voice lines.
     if (est.audio === "tts") {
       try {
@@ -443,6 +408,154 @@ export class Studio {
       }
     }
     return { ...take, status: "running" };
+  }
+
+  /**
+   * Starts a take's first frame. With the scene's master still, the frame is a new camera angle on it
+   * (character pictures hold the faces); without one, it is built from the cast and place pictures.
+   */
+  private async startFrame(
+    projectId: string,
+    shotId: string,
+    takeId: string,
+    owner: Record<string, string> | undefined,
+    o: { removeOnError: boolean },
+  ): Promise<void> {
+    const project = await this.projects.get(projectId);
+    const { shot, episode, scene } = findShot(project, shotId);
+    const take = shot.takes.find((t) => t.id === takeId);
+    if (!take) return;
+    const image = this.catalog.get(take.imageModel);
+    const master =
+      scene.master?.status === "done" && scene.master.mediaId ? project.media.find((m) => m.id === scene.master!.mediaId) : undefined;
+    const fromMaster = !!master && !master.hidden;
+    // The place's picture only for wide shots without a master: closer in, the model pastes people onto it as a backdrop.
+    const castRefs = await this.referenceImages(
+      project,
+      shot.castIds,
+      !fromMaster && isWideShot(shot) ? scene.locationId : null,
+      Math.max(0, image.maxRefImages - (fromMaster ? 1 : 0)),
+      fromMaster || !isWideShot(shot),
+    );
+    const refs: MediaInput[] = fromMaster
+      ? [
+          {
+            bytes: await this.deps.media.read(projectId, master!),
+            contentType: master!.contentType,
+            name: `SCENE.${master!.path.split(".").pop()}`,
+            origin: "generated",
+          },
+          ...castRefs,
+        ]
+      : castRefs;
+    const cast = shot.castIds.map((id) => project.cast.find((c) => c.id === id)).filter((c): c is CastMember => !!c);
+    const location = scene.locationId ? project.cast.find((c) => c.id === scene.locationId) : undefined;
+    let job: JobRecord;
+    try {
+      job = await this.runner.start({
+        id: `job_f_${take.id}`,
+        projectId,
+        kind: "image",
+        purpose: "frame",
+        modelId: image.id,
+        tier: take.tier,
+        refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId: take.id },
+        input: {
+          prompt: framePrompt({
+            shot,
+            cast,
+            location,
+            aspect: project.aspect,
+            fromMaster,
+            voiceOver:
+              shot.dialogue.length > 0 &&
+              this.audioPlan(shot.audio, this.catalog.get(this.catalog.defaultsFor(take.tier).video), true) !== "native",
+          }),
+          aspect: project.aspect,
+          ...(refs.length ? { images: refs } : {}),
+        },
+        estimateInput: { images: 1 },
+        ...(owner ? { owner } : {}),
+      });
+    } catch (err) {
+      await this.projects.mutate(projectId, (proj) => {
+        const s = findShot(proj, shotId).shot;
+        if (o.removeOnError) s.takes = s.takes.filter((x) => x.id !== take.id);
+        else {
+          const t = s.takes.find((x) => x.id === take.id);
+          if (t) {
+            t.status = "failed";
+            t.error = plainJobError((err as Error).message, true);
+          }
+        }
+      });
+      if (o.removeOnError) throw err;
+      return;
+    }
+    await this.projects.mutate(projectId, (proj) => {
+      const t = findShot(proj, shotId).shot.takes.find((x) => x.id === take.id);
+      if (!t) return;
+      t.frameJobId = job.id;
+      delete t.waitsForMaster;
+      if (t.status === "queued") t.status = "running";
+    });
+  }
+
+  /** Makes (or remakes) a scene's master still: the whole cast in the place, lit by it. */
+  async makeSceneMaster(projectId: string, sceneId: string, owner?: Record<string, string>): Promise<void> {
+    const project = await this.projects.get(projectId);
+    const { scene, episode } = findScene(project, sceneId);
+    if (scene.master?.status === "running") return;
+    const image = this.catalog.get(this.catalog.defaultsFor("draft").image);
+    const peopleIds = [...new Set(scene.shots.flatMap((s) => s.castIds))].filter(
+      (id) => project.cast.find((c) => c.id === id)?.kind === "character",
+    );
+    const people = peopleIds.map((id) => project.cast.find((c) => c.id === id)!).slice(0, 8);
+    const place = scene.locationId ? project.cast.find((c) => c.id === scene.locationId) : undefined;
+    const refs = await this.referenceImages(project, peopleIds, scene.locationId, image.maxRefImages);
+    const jobId = `job_sm_${newId("sm")}`;
+    const prompt = sceneMasterPrompt({ heading: scene.heading, script: scene.script, place, people, aspect: project.aspect });
+    await this.projects.mutate(projectId, (proj) => {
+      findScene(proj, sceneId).scene.master = { prompt: prompt.slice(0, 2000), status: "running", jobId };
+    });
+    try {
+      await this.runner.start({
+        id: jobId,
+        projectId,
+        kind: "image",
+        purpose: "scene_master",
+        modelId: image.id,
+        tier: null,
+        refs: { episodeId: episode.id, sceneId },
+        input: { prompt, aspect: project.aspect, ...(refs.length ? { images: refs } : {}) },
+        estimateInput: { images: 1 },
+        ...(owner ? { owner } : {}),
+      });
+    } catch (err) {
+      await this.projects.mutate(projectId, (proj) => {
+        const m = findScene(proj, sceneId).scene.master;
+        if (m && m.jobId === jobId) {
+          m.status = "failed";
+          m.error = (err as Error).message;
+        }
+      });
+      await this.releaseForMaster(projectId, sceneId, owner);
+      throw err;
+    }
+  }
+
+  /** Starts the takes that were waiting for a scene's master still (from it, or without it if it failed). */
+  private async releaseForMaster(projectId: string, sceneId: string, owner?: Record<string, string>): Promise<void> {
+    const project = await this.projects.get(projectId);
+    let scene: Scene;
+    try {
+      scene = findScene(project, sceneId).scene;
+    } catch {
+      return;
+    }
+    for (const sh of scene.shots)
+      for (const t of sh.takes)
+        if (t.status === "queued" && t.waitsForMaster) await this.startFrame(projectId, sh.id, t.id, owner, { removeOnError: false });
   }
 
   private async referenceImages(
@@ -835,6 +948,28 @@ export class Studio {
       after: async (job) => {
         if (job.state === "done" || job.state === "failed") await this.releaseWaiting(job);
         if (job.state === "done") await this.isolateVoices(job).catch(() => {});
+      },
+    });
+    this.runner.on("scene_master", {
+      apply: (project, job, r) => {
+        try {
+          const m = findScene(project, job.refs.sceneId!).scene.master;
+          if (!m || m.jobId !== job.id || !r.media) return;
+          m.mediaId = r.media.id;
+          m.status = "done";
+          delete m.error;
+        } catch {}
+      },
+      fail: (project, job, error) => {
+        try {
+          const m = findScene(project, job.refs.sceneId!).scene.master;
+          if (!m || m.jobId !== job.id) return;
+          m.status = "failed";
+          m.error = plainJobError(error, job.providerBilled === false);
+        } catch {}
+      },
+      after: async (job) => {
+        if (job.state === "done" || job.state === "failed") await this.releaseForMaster(job.projectId, job.refs.sceneId!, job.owner);
       },
     });
     this.runner.on("isolate", {

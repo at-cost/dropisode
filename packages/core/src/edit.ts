@@ -97,6 +97,7 @@ export function addScene(episode: Episode, p: { heading: string; script?: string
     locationId: p.locationId ?? null,
     shots: [],
     ambience: null,
+    master: null,
   };
   episode.scenes.push(scene);
   return scene;

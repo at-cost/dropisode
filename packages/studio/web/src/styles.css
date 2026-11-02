@@ -4594,3 +4594,32 @@ button.danger-solid {
 .status-chip.failed {
   color: var(--danger, #e5484d);
 }
+
+/* Storyboard: the scene's master still */
+.scene-still {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin: 10px 0 14px;
+}
+.scene-still-img {
+  width: 90px;
+  aspect-ratio: 9 / 16;
+  flex: none;
+  border-radius: 6px;
+  background: var(--surface-2);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.scene-still-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.scene-still-text {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  max-width: 520px;
+}

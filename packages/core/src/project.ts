@@ -72,6 +72,8 @@ export const Take = z.object({
   videoJobId: z.string().optional(),
   frameMediaId: z.string().optional(),
   videoMediaId: z.string().optional(),
+  /** Waiting for the scene's master still before its first frame is made. */
+  waitsForMaster: z.boolean().optional(),
   /** The clip's voices on their own (background removed), for a steady mix under the cuts. */
   voiceMediaId: z.string().optional(),
   error: z.string().optional(),
@@ -128,6 +130,11 @@ export const Scene = z.object({
   shots: z.array(Shot).default([]),
   /** One continuous background under the whole scene, so the room doesn't change at every cut. */
   ambience: SoundBed.nullable().default(null),
+  /**
+   * The scene's master still: everyone in the place, lit by it. Every shot's first frame is a new
+   * camera angle on it, so people belong in the place instead of being pasted onto a backdrop.
+   */
+  master: SoundBed.nullable().default(null),
 });
 export type Scene = z.infer<typeof Scene>;
 
