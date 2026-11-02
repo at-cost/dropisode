@@ -98,6 +98,26 @@ describe("storyboard", () => {
     expect(prompt).not.toMatch(/onScreenText/);
   });
 
+  it("the first frame of a speaking shot shows the speaker's face, never their back", () => {
+    const cast = [{ id: "c1", name: "CELESTE", kind: "character", description: "", status: "ready" }] as never;
+    const shot = {
+      id: "s",
+      description: "Celeste faces the mourners.",
+      camera: "",
+      castIds: ["c1"],
+      dialogue: [{ id: "l", castId: "c1", text: "We're getting married." }],
+      durationS: 4,
+      audio: "native" as const,
+      approved: false,
+      takes: [],
+      continueFromPrevious: false,
+      onScreenText: "",
+      cutaway: null,
+    };
+    expect(framePrompt({ shot, cast, aspect: "9:16" })).toMatch(/CELESTE is speaking in this shot: show their face to the camera/);
+    expect(framePrompt({ shot, cast, aspect: "9:16", voiceOver: true })).not.toMatch(/is speaking in this shot/);
+  });
+
   it("a speaking shot gets its lines spoken on camera; a voice-over shot gets room sound only", () => {
     const cast = [{ id: "c1", name: "CELESTE", kind: "character" as const, description: "", status: "ready" as const }];
     const shot = {

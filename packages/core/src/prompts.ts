@@ -149,10 +149,24 @@ export function framePrompt(p: {
       : "",
     p.shot.onScreenText?.trim() ? "Any card, sign, paper or screen in the shot is blank: its text is added afterwards." : "",
     p.voiceOver ? "Nobody in the frame is speaking: every mouth is closed." : "",
+    ...speakerFacing(p.shot, people, !!p.voiceOver),
     "No captions, subtitles or watermarks. Show only text the shot itself describes.",
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/** Whoever speaks on camera must be seen saying it: face to the camera, never their back. */
+function speakerFacing(shot: Shot, people: CastMember[], voiceOver: boolean): string[] {
+  if (voiceOver) return [];
+  const names = [
+    ...new Set(shot.dialogue.filter((l) => l.text.trim() && l.castId).map((l) => people.find((c) => c.id === l.castId)?.name)),
+  ].filter((n): n is string => !!n);
+  return names.length
+    ? [
+        `${names.join(" and ")} is speaking in this shot: show their face to the camera, front or three-quarter on, eyes and mouth clearly visible and lips parted mid-word. Never from behind.`,
+      ]
+    : [];
 }
 
 /** The image-to-video prompt. Native-audio models get the dialogue to speak. */
