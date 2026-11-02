@@ -9,9 +9,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Catalog, type CatalogModel, type Estimate, billedDuration, estimate, roughTokens, supportsAspect } from "./catalog";
 import { EditError, addCast, addEpisode, addScene, addShot, castByName, findCast, findEpisode, findScene, findShot, newId } from "./edit";
-import { runFfmpeg } from "./ffmpeg";
+import { hasAudio, mediaDuration, runFfmpeg } from "./ffmpeg";
 import { JobRunner, plainJobError, type RunnerDeps } from "./jobs";
-import type { CastMember, MediaRef, Project, Shot, Take, Tier } from "./project";
+import type { CastMember, MediaRef, Project, Shot, SoundBed, Take, Tier } from "./project";
 import {
   type LlmPrompt,
   castExtractPrompt,
@@ -461,6 +461,161 @@ export class Studio {
     return out;
   }
 
+  // Sound: voices lifted out of each clip, a background bed per scene, music under the episode
+
+  /** Lifts the voices out of a finished clip that speaks, so the edit can lay one steady background under it. */
+  private async isolateVoices(job: JobRecord): Promise<void> {
+    await this.isolateTake(job.projectId, job.refs.shotId!, job.refs.takeId!, job.owner);
+  }
+
+  private async isolateTake(projectId: string, shotId: string, takeId: string, owner?: Record<string, string>): Promise<void> {
+    const modelId = this.catalog.config.defaults.voiceIsolation;
+    if (!modelId) return;
+    const project = await this.projects.get(projectId);
+    const { shot, episode, scene } = findShot(project, shotId);
+    const take = shot.takes.find((t) => t.id === takeId);
+    if (!take?.videoMediaId || take.voiceMediaId) return;
+    const speaks = shot.audio === "native" && shot.dialogue.some((l) => l.text.trim());
+    if (!speaks) return;
+    const clipRef = project.media.find((m) => m.id === take.videoMediaId);
+    if (!clipRef) return;
+    const audio = await clipAudioTrack(await this.deps.media.read(projectId, clipRef));
+    if (!audio) return;
+    const model = this.catalog.get(modelId);
+    await this.runner.start({
+      id: `job_i_${take.id}`,
+      projectId,
+      kind: "audio",
+      purpose: "isolate",
+      modelId: model.id,
+      tier: take.tier,
+      refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId },
+      input: { media: { bytes: audio.bytes, contentType: "audio/wav", name: "voice.wav" }, durationS: audio.seconds },
+      estimateInput: { durationS: audio.seconds },
+      ...(owner ? { owner } : {}),
+    });
+  }
+
+  /** The default descriptions for an episode's music and a scene's background. */
+  soundPrompts(project: Project, episodeId: string): { music: string; ambience: Record<string, string> } {
+    const ep = findEpisode(project, episodeId);
+    const ambience: Record<string, string> = {};
+    for (const sc of ep.scenes) {
+      const place = sc.locationId ? project.cast.find((c) => c.id === sc.locationId) : undefined;
+      ambience[sc.id] =
+        sc.ambience?.prompt ||
+        `Continuous background ambience for this scene: ${sc.heading}.${place ? ` ${sentence(place.description)}` : ""} Only the place's natural sound and weather, steady and even: no voices, no music, no sudden or loud sounds.`;
+    }
+    const music =
+      ep.music?.prompt ||
+      `Instrumental underscore for a tense, emotional vertical drama episode, "${ep.title}" (${ep.scenes.map((s) => s.heading).join("; ")}). Sparse and cinematic: low strings, soft piano, a slow pulse. One steady mood that builds gently to an unresolved ending. No vocals, no drum kit, no big drops: it sits quietly under dialogue.`;
+    return { music, ambience };
+  }
+
+  /** The seconds the episode runs on screen (cutaways add none). */
+  episodeSeconds(project: Project, episodeId: string): number {
+    const ep = findEpisode(project, episodeId);
+    return ep.scenes.flatMap((s) => s.shots).reduce((a, s) => a + (s.cutaway ? 0 : s.durationS), 0);
+  }
+
+  estimateSound(project: Project, episodeId: string): { music: Estimate | null; ambience: Estimate | null; scenes: number } {
+    const d = this.catalog.config.defaults;
+    const ep = findEpisode(project, episodeId);
+    const secs = Math.max(30, Math.min(300, Math.ceil(this.episodeSeconds(project, episodeId))));
+    return {
+      music: d.music ? estimate(this.catalog.get(d.music), { durationS: secs }) : null,
+      ambience: d.ambience ? estimate(this.catalog.get(d.ambience), { durationS: AMBIENCE_SECONDS * ep.scenes.length }) : null,
+      scenes: ep.scenes.length,
+    };
+  }
+
+  /** Makes the music and every scene's background (or just the ones asked for), with the given or default descriptions. */
+  async generateSound(
+    projectId: string,
+    episodeId: string,
+    p: {
+      music?: boolean;
+      sceneIds?: string[];
+      prompts?: { music?: string; ambience?: Record<string, string> };
+      owner?: Record<string, string>;
+    } = {},
+  ): Promise<void> {
+    const d = this.catalog.config.defaults;
+    const project = await this.projects.get(projectId);
+    const ep = findEpisode(project, episodeId);
+    const defaults = this.soundPrompts(project, episodeId);
+    const wantMusic = p.music ?? !p.sceneIds;
+    const scenes = p.sceneIds ?? (p.music ? [] : ep.scenes.map((s) => s.id));
+    const starts: { purpose: "music" | "ambience"; sceneId?: string; prompt: string; jobId: string; seconds: number; model: string }[] = [];
+    if (wantMusic && d.music) {
+      const busy = ep.music?.status === "running";
+      if (!busy)
+        starts.push({
+          purpose: "music",
+          prompt: (p.prompts?.music ?? defaults.music).slice(0, 2000),
+          jobId: `job_m_${newId("snd")}`,
+          seconds: Math.max(30, Math.min(300, Math.ceil(this.episodeSeconds(project, episodeId)) + 2)),
+          model: d.music,
+        });
+    }
+    if (d.ambience)
+      for (const sid of scenes) {
+        const sc = ep.scenes.find((s) => s.id === sid);
+        if (!sc || sc.ambience?.status === "running") continue;
+        starts.push({
+          purpose: "ambience",
+          sceneId: sid,
+          prompt: (p.prompts?.ambience?.[sid] ?? defaults.ambience[sid]!).slice(0, 2000),
+          jobId: `job_a_${newId("snd")}`,
+          seconds: AMBIENCE_SECONDS,
+          model: d.ambience,
+        });
+      }
+    // Clips made before the sound pass existed get their voices lifted out too.
+    for (const sh of ep.scenes.flatMap((s) => s.shots))
+      for (const t of sh.takes)
+        if (t.status === "done" && t.videoMediaId && !t.voiceMediaId && (t.id === sh.selectedTakeId || t.tier === "final"))
+          await this.isolateTake(projectId, sh.id, t.id, p.owner).catch(() => {});
+    if (!starts.length) return;
+    await this.projects.mutate(projectId, (proj) => {
+      const e = findEpisode(proj, episodeId);
+      for (const s of starts) {
+        const bed: SoundBed = { prompt: s.prompt, status: "running", jobId: s.jobId };
+        if (s.purpose === "music") e.music = bed;
+        else {
+          const sc = e.scenes.find((x) => x.id === s.sceneId);
+          if (sc) sc.ambience = bed;
+        }
+      }
+    });
+    for (const s of starts) {
+      try {
+        await this.runner.start({
+          id: s.jobId,
+          projectId,
+          kind: "audio",
+          purpose: s.purpose,
+          modelId: s.model,
+          tier: null,
+          refs: { episodeId, ...(s.sceneId ? { sceneId: s.sceneId } : {}) },
+          input: { prompt: s.prompt, durationS: s.seconds },
+          estimateInput: { durationS: s.seconds },
+          ...(p.owner ? { owner: p.owner } : {}),
+        });
+      } catch (err) {
+        await this.projects.mutate(projectId, (proj) => {
+          const e = findEpisode(proj, episodeId);
+          const bed = s.purpose === "music" ? e.music : e.scenes.find((x) => x.id === s.sceneId)?.ambience;
+          if (bed && bed.jobId === s.jobId) {
+            bed.status = "failed";
+            bed.error = (err as Error).message;
+          }
+        });
+        if (err instanceof EditError || (err as { status?: number }).status === 402) throw err;
+      }
+    }
+  }
+
   /** A continued take: the previous clip's last frame becomes this take's first, then image-to-video. */
   private async startChained(
     projectId: string,
@@ -665,8 +820,39 @@ export class Studio {
       fail: failTake,
       after: async (job) => {
         if (job.state === "done" || job.state === "failed") await this.releaseWaiting(job);
+        if (job.state === "done") await this.isolateVoices(job).catch(() => {});
       },
     });
+    this.runner.on("isolate", {
+      apply: (project, job, r) => {
+        const t = takeOf(project, job);
+        if (t && r.media) t.voiceMediaId = r.media.id;
+      },
+    });
+    const bedOf = (project: Project, job: JobRecord): SoundBed | null | undefined => {
+      try {
+        if (job.purpose === "music") return findEpisode(project, job.refs.episodeId!).music;
+        return findScene(project, job.refs.sceneId!).scene.ambience;
+      } catch {
+        return undefined;
+      }
+    };
+    for (const purpose of ["music", "ambience"])
+      this.runner.on(purpose, {
+        apply: (project, job, r) => {
+          const bed = bedOf(project, job);
+          if (!bed || bed.jobId !== job.id || !r.media) return;
+          bed.mediaId = r.media.id;
+          bed.status = "done";
+          delete bed.error;
+        },
+        fail: (project, job, error) => {
+          const bed = bedOf(project, job);
+          if (!bed || bed.jobId !== job.id) return;
+          bed.status = "failed";
+          bed.error = plainJobError(error, job.providerBilled === false);
+        },
+      });
     this.runner.on("tts", {
       apply: (project, job, r) => {
         try {
@@ -721,3 +907,27 @@ async function lastFrame(clip: Uint8Array): Promise<Uint8Array> {
     rmSync(dir, { recursive: true, force: true });
   }
 }
+
+/** ElevenLabs sound effects top out at 22 s; the loop tiles it under a scene of any length. */
+const AMBIENCE_SECONDS = 22;
+
+/** A clip's soundtrack as WAV, or null when it has none. */
+async function clipAudioTrack(clip: Uint8Array): Promise<{ bytes: Uint8Array; seconds: number } | null> {
+  const dir = mkdtempSync(join(tmpdir(), "reel-voice-"));
+  try {
+    const src = join(dir, "clip.mp4");
+    const out = join(dir, "audio.wav");
+    writeFileSync(src, clip);
+    if (!(await hasAudio(src))) return null;
+    await runFfmpeg(["-i", src, "-vn", "-ac", "2", "-ar", "44100", out]);
+    return { bytes: new Uint8Array(readFileSync(out)), seconds: Math.max(1, Math.ceil(await mediaDuration(out))) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** "an old church" -> "An old church." */
+const sentence = (t: string) => {
+  const x = t.trim().replace(/[.!?]*$/, "");
+  return x ? `${x.charAt(0).toUpperCase()}${x.slice(1)}.` : "";
+};

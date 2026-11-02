@@ -86,6 +86,11 @@ export class MockProvider implements Provider {
         return { state: "done", output: this.serve(await mockVideo(input), "video/mp4") };
       case "tts":
         return { state: "done", output: this.serve(await mockTone(input.text ?? "", 0.06 * (input.text ?? "").length + 0.5), "audio/wav") };
+      case "audio":
+        return {
+          state: "done",
+          output: this.serve(await mockTone(`${job.purpose}${input.prompt ?? ""}`, input.durationS ?? 10), "audio/wav"),
+        };
     }
   }
 

@@ -4571,3 +4571,26 @@ button.danger-solid {
   color: #fff;
   border-color: #fff;
 }
+
+/* Episode tab: sound beds */
+.sound-panel .sound-row {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+.sound-panel .sound-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sound-panel textarea {
+  width: 100%;
+  resize: vertical;
+}
+.sound-panel .sound-row button {
+  justify-self: start;
+}
+.status-chip.failed {
+  color: var(--danger, #e5484d);
+}

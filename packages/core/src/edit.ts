@@ -84,13 +84,20 @@ export function findCast(project: Project, castId: string): CastMember {
 // Episodes and scenes
 
 export function addEpisode(project: Project, p: { title: string; script?: string }): Episode {
-  const ep: Episode = { id: newId("ep"), title: p.title, script: p.script ?? "", scenes: [] };
+  const ep: Episode = { id: newId("ep"), title: p.title, script: p.script ?? "", scenes: [], music: null };
   project.episodes.push(ep);
   return ep;
 }
 
 export function addScene(episode: Episode, p: { heading: string; script?: string; locationId?: string | null }): Scene {
-  const scene: Scene = { id: newId("sc"), heading: p.heading, script: p.script ?? "", locationId: p.locationId ?? null, shots: [] };
+  const scene: Scene = {
+    id: newId("sc"),
+    heading: p.heading,
+    script: p.script ?? "",
+    locationId: p.locationId ?? null,
+    shots: [],
+    ambience: null,
+  };
   episode.scenes.push(scene);
   return scene;
 }

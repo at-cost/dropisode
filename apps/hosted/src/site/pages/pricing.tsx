@@ -82,7 +82,13 @@ function unitPrices(m: CatalogModel, markup: { markup: number }): { fal: string[
   return { fal, you };
 }
 
-const kindLabel = { video: "Video", image: "Image", tts: "Text to speech", llm: "Script and storyboard" } as const;
+const kindLabel = {
+  video: "Video",
+  image: "Image",
+  tts: "Text to speech",
+  llm: "Script and storyboard",
+  audio: "Music, background sound and voice clean-up",
+} as const;
 
 function Breakdown(p: { cost: EpisodeCost }) {
   return (

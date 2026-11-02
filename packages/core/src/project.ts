@@ -72,6 +72,8 @@ export const Take = z.object({
   videoJobId: z.string().optional(),
   frameMediaId: z.string().optional(),
   videoMediaId: z.string().optional(),
+  /** The clip's voices on their own (background removed), for a steady mix under the cuts. */
+  voiceMediaId: z.string().optional(),
   error: z.string().optional(),
   /** A continued shot's final waits for the shot before it to finish its own final. */
   waitsForShotId: z.string().optional(),
@@ -107,6 +109,16 @@ export const Shot = z.object({
 });
 export type Shot = z.infer<typeof Shot>;
 
+/** A sound bed made for the edit: an episode's music, a scene's background. */
+export const SoundBed = z.object({
+  prompt: z.string().max(2000),
+  status: z.enum(["running", "done", "failed"]),
+  mediaId: z.string().optional(),
+  jobId: z.string().optional(),
+  error: z.string().optional(),
+});
+export type SoundBed = z.infer<typeof SoundBed>;
+
 export const Scene = z.object({
   id: z.string(),
   heading: z.string().max(300),
@@ -114,6 +126,8 @@ export const Scene = z.object({
   script: z.string().max(40_000).default(""),
   locationId: z.string().nullable().default(null),
   shots: z.array(Shot).default([]),
+  /** One continuous background under the whole scene, so the room doesn't change at every cut. */
+  ambience: SoundBed.nullable().default(null),
 });
 export type Scene = z.infer<typeof Scene>;
 
@@ -122,6 +136,8 @@ export const Episode = z.object({
   title: z.string().max(300),
   script: z.string().max(200_000).default(""),
   scenes: z.array(Scene).default([]),
+  /** An instrumental bed under the episode, ducked under the dialogue. */
+  music: SoundBed.nullable().default(null),
 });
 export type Episode = z.infer<typeof Episode>;
 
@@ -130,7 +146,7 @@ export const CostLine = z.object({
   id: z.string(),
   jobId: z.string(),
   at: z.string(),
-  kind: z.enum(["image", "video", "tts", "llm"]),
+  kind: z.enum(["image", "video", "tts", "llm", "audio"]),
   purpose: z.string(),
   model: z.string(),
   provider: z.string(),

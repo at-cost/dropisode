@@ -448,6 +448,42 @@ export function createStudioApi(resolve: ResolveContext): Hono {
     return c.json(await view(ctx, await project(c, ctx)));
   });
 
+  // Sound: music under the episode, a background under each scene
+
+  app.get("/projects/:pid/episodes/:eid/sound", async (c) => {
+    const ctx = await resolve(c);
+    const p = await project(c, ctx);
+    const eid = c.req.param("eid");
+    const e = ctx.studio.estimateSound(p, eid);
+    return c.json({
+      prompts: ctx.studio.soundPrompts(p, eid),
+      musicMicro: e.music ? ctx.price(e.music.providerCostMicro) : 0,
+      ambienceMicro: e.ambience ? ctx.price(e.ambience.providerCostMicro) : 0,
+    });
+  });
+
+  app.post("/projects/:pid/episodes/:eid/sound", async (c) => {
+    const ctx = await resolve(c);
+    await project(c, ctx);
+    const b = await body(
+      c,
+      z.object({
+        music: z.boolean().optional(),
+        sceneIds: z.array(z.string()).max(200).optional(),
+        prompts: z
+          .object({ music: z.string().min(1).max(2000).optional(), ambience: z.record(z.string(), z.string().min(1).max(2000)).optional() })
+          .optional(),
+      }),
+    );
+    await ctx.studio.generateSound(c.req.param("pid"), c.req.param("eid"), {
+      ...(b.music !== undefined ? { music: b.music } : {}),
+      ...(b.sceneIds ? { sceneIds: b.sceneIds } : {}),
+      ...(b.prompts ? { prompts: b.prompts } : {}),
+      ...(ctx.owner ? { owner: ctx.owner } : {}),
+    });
+    return c.json(await view(ctx, await project(c, ctx)), 202);
+  });
+
   app.post("/projects/:pid/scenes/:scid/storyboard", async (c) => {
     const ctx = await resolve(c);
     await project(c, ctx);

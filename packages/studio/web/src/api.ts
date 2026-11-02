@@ -69,6 +69,14 @@ export interface Scene {
   script: string;
   locationId: string | null;
   shots: Shot[];
+  ambience?: SoundBed | null;
+}
+
+export interface SoundBed {
+  prompt: string;
+  status: "running" | "done" | "failed";
+  mediaId?: string;
+  error?: string;
 }
 
 export interface Episode {
@@ -76,13 +84,14 @@ export interface Episode {
   title: string;
   script: string;
   scenes: Scene[];
+  music?: SoundBed | null;
 }
 
 export interface CostLine {
   id: string;
   jobId: string;
   at: string;
-  kind: "image" | "video" | "tts" | "llm";
+  kind: "image" | "video" | "tts" | "llm" | "audio";
   purpose: string;
   model: string;
   provider: string;

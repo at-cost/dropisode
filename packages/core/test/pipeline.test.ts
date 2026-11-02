@@ -81,9 +81,11 @@ describe("idea to episode", () => {
     expect(readFileSync(join(outDir, "subtitles.srt"), "utf8")).toContain("tomorrow's date");
     expect(readFileSync(join(outDir, "edit-list.edl"), "utf8")).toMatch(/^006 {2}SHOT006/m);
 
-    // Every try has a cost line: 2 LLM + 3 cast images + 6×2 frames + 6×2 videos.
+    // Every try has a cost line: 2 LLM + 3 cast images + 6×2 frames + 6×2 videos,
+    // + voices lifted out of the 3 finals that speak (the draft model here is silent).
     const totals = projectTotals(p);
-    expect(totals.tries).toBe(2 + 3 + 24);
+    expect(totals.tries).toBe(2 + 3 + 24 + 3);
+    expect(p.costLog.filter((l) => l.purpose === "isolate")).toHaveLength(3);
     expect(totals.pending).toBe(0);
     const sum = p.costLog.reduce((a, l) => a + l.estimateMicro, 0);
     const llm = p.costLog.filter((l) => l.kind === "llm").reduce((a, l) => a + l.estimateMicro, 0);

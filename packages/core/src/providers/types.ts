@@ -30,6 +30,8 @@ export interface ProviderInput {
   durationS?: number;
   aspect?: Aspect;
   audio?: boolean;
+  /** An audio file to process (voice isolation). */
+  media?: MediaInput;
   /** TTS text. */
   text?: string;
   voice?: string;
@@ -64,7 +66,7 @@ export type ProviderStatus =
       actualCostMicro?: number;
     };
 
-export type JobKind = "image" | "video" | "tts" | "llm";
+export type JobKind = "image" | "video" | "tts" | "llm" | "audio";
 export type JobState = "created" | "submitted" | "done" | "failed" | "blocked";
 
 /** One request to a provider. Written before submission so a crash never loses a charge or a refund. */

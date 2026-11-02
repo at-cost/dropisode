@@ -812,6 +812,99 @@
         "outputTokens": "usage.completion_tokens",
         "costUsd": "usage.cost"
       }
+    },
+    {
+      "id": "demucs-vocals",
+      "kind": "audio",
+      "label": "Demucs voice isolation",
+      "provider": "fal",
+      "endpoint": "fal-ai/demucs",
+      "tiers": [],
+      "durations": [],
+      "price": {
+        "unit": "second",
+        "usd": 0.0007,
+        "source": "https://fal.ai/models/fal-ai/demucs",
+        "verifiedOn": "2026-11-02",
+        "status": "verified",
+        "notes": "Billed per second of input audio."
+      },
+      "input": {
+        
+        "media": "audio_url",
+        "extra": {
+          "model": "htdemucs",
+          "stems": [
+            "vocals"
+          ],
+          "output_format": "wav"
+        }
+      },
+      "output": {
+        "url": "vocals.url"
+      }
+    },
+    {
+      "id": "elevenlabs-sfx-v2",
+      "kind": "audio",
+      "label": "ElevenLabs Sound Effects v2",
+      "provider": "fal",
+      "endpoint": "fal-ai/elevenlabs/sound-effects/v2",
+      "tiers": [],
+      "durations": [],
+      "price": {
+        "unit": "second",
+        "usd": 0.002,
+        "source": "https://fal.ai/models/fal-ai/elevenlabs/sound-effects/v2",
+        "verifiedOn": "2026-11-02",
+        "status": "verified",
+        "notes": "0.5 to 22 seconds; loop makes it tile seamlessly."
+      },
+      "input": {
+        "prompt": "text",
+        "duration": "duration_seconds",
+        "extra": {
+          "loop": true,
+          "prompt_influence": 0.5
+        }
+      },
+      "output": {
+        "url": "audio.url"
+      }
+    },
+    {
+      "id": "elevenlabs-music",
+      "kind": "audio",
+      "label": "ElevenLabs Music",
+      "provider": "fal",
+      "endpoint": "fal-ai/elevenlabs/music",
+      "tiers": [],
+      "durations": [
+        60,
+        120,
+        180,
+        240,
+        300
+      ],
+      "price": {
+        "unit": "second",
+        "usd": 0.01,
+        "source": "https://fal.ai/models/fal-ai/elevenlabs/music",
+        "verifiedOn": "2026-11-02",
+        "status": "verified",
+        "notes": "$0.60 per minute, rounded up to the minute."
+      },
+      "input": {
+        "prompt": "prompt",
+        "duration": "music_length_ms",
+        "durationFormat": "ms",
+        "extra": {
+          "force_instrumental": true
+        }
+      },
+      "output": {
+        "url": "audio.url"
+      }
     }
   ],
   "defaults": {
@@ -826,7 +919,10 @@
     "castImage": "seedream-4.5",
     "tts": "minimax-speech-2.8-turbo",
     "llm": "gemini-3.8-flash",
-    "draftAudio": true
+    "draftAudio": true,
+    "music": "elevenlabs-music",
+    "ambience": "elevenlabs-sfx-v2",
+    "voiceIsolation": "demucs-vocals"
   },
   "services": {
     "r2_storage": {

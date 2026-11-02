@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type ExportInfo, api } from "./api";
+import { type Episode, type ExportInfo, type SoundBed, type View, api } from "./api";
 import { useProject } from "./ProjectView";
 import { EpisodePicker, shotLabel, useEpisodeChoice } from "./StoryboardTab";
-import { Empty, Icon, Spinner, When, Why, bytes, plural, useApp, useBusy } from "./ui";
+import { Empty, Icon, Spinner, When, Why, bytes, money, plural, useApp, useBusy } from "./ui";
 
 export function EpisodeTab() {
   const app = useApp();
@@ -49,6 +49,7 @@ export function EpisodeTab() {
       <div className="row">
         <EpisodePicker ep={ep} onPick={pick} />
       </div>
+      <SoundPanel ep={ep} />
       <section className="panel">
         <h2>Assemble</h2>
         <div className="progress-line">
@@ -289,4 +290,94 @@ export function toVtt(cues: { start: number; end: number; text: string }[]): str
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}.${String(ms % 1000).padStart(3, "0")}`;
   };
   return `WEBVTT\n\n${cues.map((c) => `${t(c.start)} --> ${t(c.end)}\n${c.text.replace(/-->/g, "->")}`).join("\n\n")}\n`;
+}
+
+/** Music under the episode and a steady background under each scene, laid in when the episode is put together. */
+function SoundPanel({ ep }: { ep: Episode }) {
+  const { pid, act, isBusy } = useProject();
+  const [info, setInfo] = useState<{
+    prompts: { music: string; ambience: Record<string, string> };
+    musicMicro: number;
+    ambienceMicro: number;
+  } | null>(null);
+  const [music, setMusic] = useState("");
+  const [amb, setAmb] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let live = true;
+    void api
+      .get<NonNullable<typeof info>>(`/projects/${pid}/episodes/${ep.id}/sound`)
+      .then((r) => {
+        if (!live) return;
+        setInfo(r);
+        setMusic(r.prompts.music);
+        setAmb(r.prompts.ambience);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [pid, ep.id]);
+  const perScene = info && ep.scenes.length ? Math.round(info.ambienceMicro / ep.scenes.length) : 0;
+  const make = (key: string, body: Record<string, unknown>) =>
+    act(key, () => api.post<View>(`/projects/${pid}/episodes/${ep.id}/sound`, body), { kick: true });
+  const prompts = { music, ambience: amb };
+  const anyRunning = ep.music?.status === "running" || ep.scenes.some((s) => s.ambience?.status === "running");
+  return (
+    <section className="panel sound-panel">
+      <h2>Sound</h2>
+      <p className="muted small-text">
+        Music under the whole episode, and one steady background under each scene, so the room doesn't change at every cut. Voices are
+        lifted out of each clip and laid on top. Both go in at the next rough cut or final.
+      </p>
+      <div className="sound-row">
+        <div className="sound-head">
+          <strong>Music</strong> <BedStatus bed={ep.music} />
+        </div>
+        <textarea rows={3} value={music} maxLength={2000} onChange={(e) => setMusic(e.target.value)} />
+        <button
+          type="button"
+          disabled={!info || !music.trim() || ep.music?.status === "running" || isBusy("snd-music")}
+          onClick={() => void make("snd-music", { music: true, prompts: { music } })}
+        >
+          {isBusy("snd-music") && <Spinner />} {ep.music?.status === "done" ? "Remake music" : "Make music"}
+          {info ? ` ${money(info.musicMicro)}` : ""}
+        </button>
+      </div>
+      {ep.scenes.map((sc, i) => (
+        <div key={sc.id} className="sound-row">
+          <div className="sound-head">
+            <strong>Scene {i + 1} background</strong> <span className="muted">{sc.heading}</span> <BedStatus bed={sc.ambience} />
+          </div>
+          <textarea rows={2} value={amb[sc.id] ?? ""} maxLength={2000} onChange={(e) => setAmb({ ...amb, [sc.id]: e.target.value })} />
+          <button
+            type="button"
+            disabled={!info || !(amb[sc.id] ?? "").trim() || sc.ambience?.status === "running" || isBusy(`snd-${sc.id}`)}
+            onClick={() => void make(`snd-${sc.id}`, { music: false, sceneIds: [sc.id], prompts: { ambience: { [sc.id]: amb[sc.id] } } })}
+          >
+            {isBusy(`snd-${sc.id}`) && <Spinner />} {sc.ambience?.status === "done" ? "Remake background" : "Make background"}
+            {info ? ` ${money(perScene)}` : ""}
+          </button>
+        </div>
+      ))}
+      <div className="row">
+        <button
+          type="button"
+          className="primary"
+          disabled={!info || anyRunning || isBusy("snd-all")}
+          onClick={() => void make("snd-all", { music: true, sceneIds: ep.scenes.map((s) => s.id), prompts })}
+        >
+          {isBusy("snd-all") && <Spinner />} {ep.music?.status === "done" ? "Remake all sound" : "Make all sound"}
+          {info ? ` ${money(info.musicMicro + info.ambienceMicro)}` : ""}
+        </button>
+        {anyRunning && <span className="muted small-text">Making sound. Under a minute.</span>}
+      </div>
+    </section>
+  );
+}
+
+function BedStatus({ bed }: { bed: SoundBed | null | undefined }) {
+  if (!bed) return <span className="status-chip">Not made</span>;
+  if (bed.status === "running") return <span className="status-chip live">Making</span>;
+  if (bed.status === "failed") return <span className="status-chip failed">Failed{bed.error ? `: ${bed.error}` : ""}</span>;
+  return <span className="status-chip ok">Ready</span>;
 }

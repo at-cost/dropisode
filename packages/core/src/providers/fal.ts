@@ -154,11 +154,21 @@ export class FalProvider implements Provider {
     }
     if (input.durationS !== undefined && map.duration) {
       const d = input.durationS;
-      set(map.duration, map.durationFormat === "number" ? d : map.durationFormat === "string_s" ? `${d}s` : String(d));
+      set(
+        map.duration,
+        map.durationFormat === "number"
+          ? d
+          : map.durationFormat === "ms"
+            ? Math.round(d * 1000)
+            : map.durationFormat === "string_s"
+              ? `${d}s`
+              : String(d),
+      );
     }
     if (input.aspect && map.aspect) set(map.aspect, map.aspectValues?.[input.aspect] ?? input.aspect);
     if (input.audio !== undefined && map.audio) set(map.audio, input.audio);
     if (input.text !== undefined && map.text) set(map.text, input.text);
+    if (input.media && map.media) set(map.media, await this.upload(input.media));
     if (input.voice && map.voice) set(map.voice, input.voice);
     return out;
   }

@@ -40,6 +40,8 @@ export interface AssembleResult {
   overlaysBurned: number;
   /** Reaction cutaways laid over the speaking shot before them. */
   cutaways: number;
+  /** Music and background beds mixed under the episode. */
+  soundBeds: number;
   /** The subtitle cues, for a player to show or hide. */
   subtitles: { start: number; end: number; text: string }[];
   warnings: string[];
@@ -91,8 +93,13 @@ export async function assembleEpisode(
     const overlays: { start: number; end: number; text: string }[] = [];
     let t = 0;
     let cutaways = 0;
+    let soundBeds = 0;
     const all = episode.scenes.flatMap((s) => s.shots);
     const firstInScene = new Set(episode.scenes.map((s) => s.shots[0]?.id));
+    const sceneOf = new Map(episode.scenes.flatMap((sc) => sc.shots.map((sh) => [sh.id, sc] as const)));
+    // A finished bed: the scene's own background, laid under it in the mix.
+    const bedRef = (b: { status: string; mediaId?: string } | null | undefined) =>
+      b?.status === "done" && b.mediaId ? mediaById.get(b.mediaId) : undefined;
     // The speaking shot a cutaway lays its picture over: the last shot in this scene that wasn't one.
     let speaking: AssembledShot | undefined;
     for (const shot of all) {
@@ -117,8 +124,15 @@ export async function assembleEpisode(
 
       // Audio: the clip's own sound, plus text-to-speech lines when the clip doesn't speak them
       // (TTS mode, or a model without native audio). Never both: that would double the voice.
-      const clipAudio = shot.audio !== "none" && (await hasAudio(clip));
-      const useTts = shot.audio === "tts" || (shot.audio === "native" && !clipAudio);
+      const hasClipAudio = shot.audio !== "none" && (await hasAudio(clip));
+      const useTts = shot.audio === "tts" || (shot.audio === "native" && !hasClipAudio);
+      // With a background bed under the scene, each clip gives only its voices (lifted out of the clip),
+      // so the room sound doesn't change at every cut. Without a bed, or without lifted voices, the clip's own sound.
+      const sceneBed = bedRef(sceneOf.get(shot.id)?.ambience);
+      const voiceRef = sceneBed && pick.voiceMediaId ? mediaById.get(pick.voiceMediaId) : undefined;
+      const voicePath = voiceRef ? await pathOf(voiceRef) : undefined;
+      const speaksNatively = shot.audio === "native" && hasClipAudio && shot.dialogue.some((l) => l.text.trim());
+      const clipAudio = hasClipAudio && !voicePath && !(sceneBed && !speaksNatively);
       const timed: { at: number; len: number; text: string; path?: string }[] = [];
       let cursor = 0.3;
       for (const line of shot.dialogue) {
@@ -136,16 +150,17 @@ export async function assembleEpisode(
       const tts = timed.filter((x): x is { at: number; len: number; text: string; path: string } => !!x.path);
       const args = ["-i", clip];
       for (const x of tts) args.push("-i", x.path);
-      if (!clipAudio) args.push("-f", "lavfi", "-t", String(dur), "-i", "anullsrc=r=48000:cl=stereo");
+      if (voicePath) args.push("-i", voicePath);
+      else if (!clipAudio) args.push("-f", "lavfi", "-t", String(dur), "-i", "anullsrc=r=48000:cl=stereo");
       const base = clipAudio ? "0:a" : `${tts.length + 1}:a`;
       const vf = `[0:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${FPS},format=yuv420p[v]`;
       const af = [
-        `[${base}]aresample=48000,aformat=channel_layouts=stereo[a0]`,
+        `[${base}]aresample=48000,aformat=channel_layouts=stereo,apad[a0]`,
         ...tts.map(
           (x, i) =>
             `[${i + 1}:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${Math.round(x.at * 1000)}|${Math.round(x.at * 1000)}[t${i}]`,
         ),
-        `[a0]${tts.map((_, i) => `[t${i}]`).join("")}amix=inputs=${tts.length + 1}:duration=first:normalize=0[a]`,
+        `[a0]${tts.map((_, i) => `[t${i}]`).join("")}amix=inputs=${tts.length + 1}:duration=first:normalize=0,atrim=0:${dur.toFixed(3)},afade=t=in:d=0.015,afade=t=out:st=${Math.max(0, dur - 0.03).toFixed(3)}:d=0.03[a]`,
       ];
       args.push("-filter_complex", [vf, ...af].join(";"), "-map", "[v]", "-map", "[a]", "-t", dur.toFixed(3));
       args.push(
@@ -194,8 +209,27 @@ export async function assembleEpisode(
     // Join (all clips share codec settings, so stream copy is exact).
     const list = join(work, "list.txt");
     writeFileSync(list, out.map((s) => `file '${s.file.replace(/'/g, "'\\''")}'`).join("\n"));
-    const joined = join(work, "joined.mp4");
+    let joined = join(work, "joined.mp4");
     await runFfmpeg(["-f", "concat", "-safe", "0", "-i", list, "-c", "copy", "-movflags", "+faststart", joined]);
+
+    // The sound pass: each scene's background bed under its shots, the music under everything
+    // (dipping whenever someone speaks), and one even loudness for the whole episode.
+    const beds: { path: string; start: number; len: number }[] = [];
+    for (const sc of episode.scenes) {
+      const ref = bedRef(sc.ambience);
+      const mine = out.filter((o) => sceneOf.get(o.shotId)?.id === sc.id);
+      if (!ref || !mine.length) continue;
+      const start = mine[0]!.startS;
+      const end = mine[mine.length - 1]!.startS + mine[mine.length - 1]!.durationS;
+      beds.push({ path: await pathOf(ref), start, len: end - start });
+    }
+    const musicRef = bedRef(episode.music);
+    if (beds.length || musicRef) {
+      const mixed = join(work, "mixed.mp4");
+      await runFfmpeg(mixArgs(joined, beds, musicRef ? await pathOf(musicRef) : undefined, t, mixed));
+      joined = mixed;
+      soundBeds = beds.length + (musicRef ? 1 : 0);
+    }
 
     const srt = toSrt(subs);
     writeFileSync(join(opts.outDir, "subtitles.srt"), srt);
@@ -280,6 +314,7 @@ export async function assembleEpisode(
       subtitlesBurned: burned,
       overlaysBurned,
       cutaways,
+      soundBeds,
       subtitles: subs,
       warnings,
       durationS: t,
@@ -422,4 +457,65 @@ async function spliceCutaway(
   ]);
   copyFileSync(tmp, base.file);
   return true;
+}
+
+/** ffmpeg arguments for the sound pass over the joined episode. */
+export function mixArgs(
+  joined: string,
+  beds: { path: string; start: number; len: number }[],
+  music: string | undefined,
+  total: number,
+  out: string,
+): string[] {
+  const args = ["-i", joined];
+  const f: string[] = [];
+  const fmt = "aresample=48000,aformat=channel_layouts=stereo";
+  // Dialogue: levelled so every shot speaks at the same loudness.
+  f.push(`[0:a]${fmt},dynaudnorm=f=250:g=15:p=0.9,loudnorm=I=-18:TP=-2:LRA=9[dlg]`);
+  const mixIn = ["[dlgm]"];
+  beds.forEach((b, i) => {
+    args.push("-stream_loop", "-1", "-i", b.path);
+    const ms = Math.round(b.start * 1000);
+    const fade = Math.min(0.4, b.len / 4);
+    f.push(
+      `[${i + 1}:a]${fmt},loudnorm=I=-34:TP=-9:LRA=7,atrim=0:${b.len.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=${fade.toFixed(2)},afade=t=out:st=${Math.max(0, b.len - fade).toFixed(3)}:d=${fade.toFixed(2)},adelay=${ms}|${ms}[bed${i}]`,
+    );
+    mixIn.push(`[bed${i}]`);
+  });
+  if (music) {
+    const k = beds.length + 1;
+    args.push("-stream_loop", "-1", "-i", music);
+    f.push(
+      `[${k}:a]${fmt},loudnorm=I=-28:TP=-9:LRA=7,atrim=0:${total.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=1.5,afade=t=out:st=${Math.max(0, total - 2.5).toFixed(3)}:d=2.5[mus]`,
+    );
+    f.push("[dlg]asplit=2[dlgm][key]");
+    // Ducking: the music dips while anyone speaks and comes back up between lines.
+    f.push("[mus][key]sidechaincompress=threshold=0.02:ratio=8:attack=15:release=450:makeup=1[musd]");
+    mixIn.push("[musd]");
+  } else {
+    f.push("[dlg]anull[dlgm]");
+  }
+  f.push(`${mixIn.join("")}amix=inputs=${mixIn.length}:duration=first:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11,alimiter=limit=0.95[mix]`);
+  return [
+    ...args,
+    "-filter_complex",
+    f.join(";"),
+    "-map",
+    "0:v",
+    "-map",
+    "[mix]",
+    "-c:v",
+    "copy",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "192k",
+    "-ar",
+    "48000",
+    "-t",
+    total.toFixed(3),
+    "-movflags",
+    "+faststart",
+    out,
+  ];
 }

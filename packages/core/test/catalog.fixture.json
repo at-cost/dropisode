@@ -9,9 +9,21 @@
       "endpoint": "fal-ai/test-image",
       "tiers": ["draft", "final"],
       "maxRefImages": 4,
-      "price": { "unit": "image", "usd": 0.039, "source": "https://example.com/img", "verifiedOn": "2026-10-29", "status": "verified" },
-      "input": { "prompt": "prompt", "images": "image_urls", "aspect": "aspect_ratio" },
-      "output": { "url": "images.0.url" }
+      "price": {
+        "unit": "image",
+        "usd": 0.039,
+        "source": "https://example.com/img",
+        "verifiedOn": "2026-10-29",
+        "status": "verified"
+      },
+      "input": {
+        "prompt": "prompt",
+        "images": "image_urls",
+        "aspect": "aspect_ratio"
+      },
+      "output": {
+        "url": "images.0.url"
+      }
     },
     {
       "id": "vid-draft",
@@ -21,9 +33,23 @@
       "endpoint": "fal-ai/test-draft",
       "tiers": ["draft"],
       "durations": [5, 10],
-      "price": { "unit": "second", "usd": 0.05, "source": "https://example.com/draft", "verifiedOn": "2026-10-29", "status": "verified" },
-      "input": { "prompt": "prompt", "image": "image_url", "duration": "duration", "durationFormat": "string", "aspect": "aspect_ratio" },
-      "output": { "url": "video.url" }
+      "price": {
+        "unit": "second",
+        "usd": 0.05,
+        "source": "https://example.com/draft",
+        "verifiedOn": "2026-10-29",
+        "status": "verified"
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "string",
+        "aspect": "aspect_ratio"
+      },
+      "output": {
+        "url": "video.url"
+      }
     },
     {
       "id": "vid-final",
@@ -50,7 +76,9 @@
         "aspect": "aspect_ratio",
         "audio": "generate_audio"
       },
-      "output": { "url": "video.url" }
+      "output": {
+        "url": "video.url"
+      }
     },
     {
       "id": "vid-clip",
@@ -62,13 +90,22 @@
       "durations": [6, 10],
       "price": {
         "unit": "video",
-        "byDurationUsd": { "6": 0.27, "10": 0.45 },
+        "byDurationUsd": {
+          "6": 0.27,
+          "10": 0.45
+        },
         "source": "https://example.com/clip",
         "verifiedOn": "2026-10-29",
         "status": "verified"
       },
-      "input": { "prompt": "prompt", "image": "image_url", "duration": "duration" },
-      "output": { "url": "video.url" }
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration"
+      },
+      "output": {
+        "url": "video.url"
+      }
     },
     {
       "id": "tts",
@@ -76,9 +113,20 @@
       "label": "Test TTS",
       "provider": "fal",
       "endpoint": "fal-ai/test-tts",
-      "price": { "unit": "1k_chars", "usd": 0.1, "source": "https://example.com/tts", "verifiedOn": "2026-10-29", "status": "verified" },
-      "input": { "prompt": "prompt", "text": "text" },
-      "output": { "url": "audio.url" }
+      "price": {
+        "unit": "1k_chars",
+        "usd": 0.1,
+        "source": "https://example.com/tts",
+        "verifiedOn": "2026-10-29",
+        "status": "verified"
+      },
+      "input": {
+        "prompt": "prompt",
+        "text": "text"
+      },
+      "output": {
+        "url": "audio.url"
+      }
     },
     {
       "id": "llm",
@@ -94,18 +142,127 @@
         "verifiedOn": "2026-10-29",
         "status": "verified"
       },
-      "input": { "prompt": "prompt", "extra": { "model": "test/model" } },
-      "output": { "url": "output", "text": "output", "inputTokens": "usage.prompt_tokens", "outputTokens": "usage.completion_tokens" }
+      "input": {
+        "prompt": "prompt",
+        "extra": {
+          "model": "test/model"
+        }
+      },
+      "output": {
+        "url": "output",
+        "text": "output",
+        "inputTokens": "usage.prompt_tokens",
+        "outputTokens": "usage.completion_tokens"
+      }
+    },
+    {
+      "id": "demucs-vocals",
+      "kind": "audio",
+      "label": "Demucs voice isolation",
+      "provider": "fal",
+      "endpoint": "fal-ai/demucs",
+      "tiers": [],
+      "durations": [],
+      "price": {
+        "unit": "second",
+        "usd": 0.0007,
+        "source": "https://fal.ai/models/fal-ai/demucs",
+        "verifiedOn": "2026-11-02",
+        "status": "verified",
+        "notes": "Billed per second of input audio."
+      },
+      "input": {
+        "media": "audio_url",
+        "extra": {
+          "model": "htdemucs",
+          "stems": ["vocals"],
+          "output_format": "wav"
+        }
+      },
+      "output": {
+        "url": "vocals.url"
+      }
+    },
+    {
+      "id": "elevenlabs-sfx-v2",
+      "kind": "audio",
+      "label": "ElevenLabs Sound Effects v2",
+      "provider": "fal",
+      "endpoint": "fal-ai/elevenlabs/sound-effects/v2",
+      "tiers": [],
+      "durations": [],
+      "price": {
+        "unit": "second",
+        "usd": 0.002,
+        "source": "https://fal.ai/models/fal-ai/elevenlabs/sound-effects/v2",
+        "verifiedOn": "2026-11-02",
+        "status": "verified",
+        "notes": "0.5 to 22 seconds; loop makes it tile seamlessly."
+      },
+      "input": {
+        "prompt": "text",
+        "duration": "duration_seconds",
+        "extra": {
+          "loop": true,
+          "prompt_influence": 0.5
+        }
+      },
+      "output": {
+        "url": "audio.url"
+      }
+    },
+    {
+      "id": "elevenlabs-music",
+      "kind": "audio",
+      "label": "ElevenLabs Music",
+      "provider": "fal",
+      "endpoint": "fal-ai/elevenlabs/music",
+      "tiers": [],
+      "durations": [60, 120, 180, 240, 300],
+      "price": {
+        "unit": "second",
+        "usd": 0.01,
+        "source": "https://fal.ai/models/fal-ai/elevenlabs/music",
+        "verifiedOn": "2026-11-02",
+        "status": "verified",
+        "notes": "$0.60 per minute, rounded up to the minute."
+      },
+      "input": {
+        "prompt": "prompt",
+        "duration": "music_length_ms",
+        "durationFormat": "ms",
+        "extra": {
+          "force_instrumental": true
+        }
+      },
+      "output": {
+        "url": "audio.url"
+      }
     }
   ],
   "defaults": {
-    "draft": { "image": "img-cheap", "video": "vid-draft" },
-    "final": { "image": "img-cheap", "video": "vid-final" },
+    "draft": {
+      "image": "img-cheap",
+      "video": "vid-draft"
+    },
+    "final": {
+      "image": "img-cheap",
+      "video": "vid-final"
+    },
     "castImage": "img-cheap",
     "tts": "tts",
-    "llm": "llm"
+    "llm": "llm",
+    "music": "elevenlabs-music",
+    "ambience": "elevenlabs-sfx-v2",
+    "voiceIsolation": "demucs-vocals"
   },
   "services": {
-    "r2_storage": { "usd": 0.015, "unit": "gb_month", "source": "https://example.com/r2", "verifiedOn": "2026-10-29", "status": "verified" }
+    "r2_storage": {
+      "usd": 0.015,
+      "unit": "gb_month",
+      "source": "https://example.com/r2",
+      "verifiedOn": "2026-10-29",
+      "status": "verified"
+    }
   }
 }

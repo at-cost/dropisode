@@ -42,7 +42,9 @@ export const InputMap = z.object({
   images: z.string().optional(),
   duration: z.string().optional(),
   /** How the duration is sent: a number, or a string like "5" or "5s". */
-  durationFormat: z.enum(["number", "string", "string_s"]).default("number"),
+  durationFormat: z.enum(["number", "string", "string_s", "ms"]).default("number"),
+  /** An audio file to process (voice isolation): its URL goes in this field. */
+  media: z.string().optional(),
   aspect: z.string().optional(),
   /** Values to send for each aspect, when the endpoint doesn't take "9:16"/"16:9" (e.g. "portrait_16_9"). */
   aspectValues: z.record(z.string(), z.string()).optional(),
@@ -71,7 +73,7 @@ export const OutputMap = z.object({
   costUsd: z.string().optional(),
 });
 
-export const ModelKind = z.enum(["video", "image", "tts", "llm"]);
+export const ModelKind = z.enum(["video", "image", "tts", "llm", "audio"]);
 export type ModelKind = z.infer<typeof ModelKind>;
 
 export const CatalogModel = z.object({
@@ -122,6 +124,10 @@ export const PricesConfig = z.object({
     llm: z.string(),
     /** Drafts are about the picture: generate them without audio unless this is true. */
     draftAudio: z.boolean().default(false),
+    /** The sound pass: an instrumental bed per episode, a background bed per scene, voices lifted out of each clip. */
+    music: z.string().optional(),
+    ambience: z.string().optional(),
+    voiceIsolation: z.string().optional(),
   }),
   /** Non-model prices used by hosted billing (storage, moderation). Same rules: source + date. */
   services: z.record(
