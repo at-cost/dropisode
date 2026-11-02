@@ -21,6 +21,7 @@ import {
   importInto,
   newId,
   readArchive,
+  ProviderRejected,
 } from "@reel/core";
 import type { ExportInfo, StudioContext } from "@reel/studio";
 import { sql } from "kysely";
@@ -56,12 +57,24 @@ export class FundedProvider implements Provider {
   constructor(
     private inner: Provider,
     private balance: BalanceMonitor,
+    private wait: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {
     this.id = inner.id;
     if (inner.lookupCost) this.lookupCost = (j) => inner.lookupCost!(j);
   }
   async submit(job: JobRecord, input: ProviderInput, opts?: { webhookUrl?: string }) {
     await this.balance.ensureFunded();
+    // fal sometimes refuses a burst of requests as "locked / exhausted balance" while the account is
+    // well funded; a moment later it accepts them. A refused request never ran, so trying again is safe.
+    for (const ms of [4000, 8000, 15000]) {
+      try {
+        return await this.inner.submit(job, input, opts);
+      } catch (err) {
+        if (!(err instanceof ProviderRejected) || !isTransientLock(err)) throw err;
+        await this.wait(ms);
+        await this.balance.ensureFunded();
+      }
+    }
     return this.inner.submit(job, input, opts);
   }
   check(job: JobRecord) {
@@ -338,3 +351,6 @@ const contentTypeOf = (name: string) =>
       : name.endsWith(".srt") || name.endsWith(".edl")
         ? "text/plain; charset=utf-8"
         : "application/octet-stream";
+
+/** fal's account lock ("User is locked ... Exhausted balance"), which clears on its own when the account has credit. */
+export const isTransientLock = (err: Error & { status?: number }) => /locked|exhausted balance/i.test(err.message);

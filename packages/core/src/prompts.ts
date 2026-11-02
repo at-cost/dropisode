@@ -207,6 +207,9 @@ function framing(shot: Shot, hasPeople: boolean, hasPlace: boolean): string[] {
             ? "Wide shot: the whole place, people at natural size within it."
             : "";
   const out = scale ? [scale] : [];
+  out.push(
+    "Compose like a film, not a portrait: the subject off-centre on a third, the camera at a slight angle, and nothing planted in the middle of the foreground.",
+  );
   if (hasPeople)
     out.push(
       "The reference images show only who each person is (face, hair, clothes). Do not copy their pose, framing, lighting or plain background. Each person is really here: lit by this place's light and weather (wet hair and clothes if it rains), at natural scale, feet on the ground or seated, with the same lens depth of field as everything else. Never a cut-out pasted onto a background.",
@@ -227,7 +230,7 @@ function speakerFacing(shot: Shot, people: CastMember[], voiceOver: boolean): st
   ].filter((n): n is string => !!n);
   return names.length
     ? [
-        `${names.join(" and ")} is speaking in this shot: show their face to the camera, front or three-quarter on, eyes and mouth clearly visible and lips parted mid-word. Never from behind.`,
+        `${names.join(" and ")} is speaking in this shot: their face turned towards the camera, three-quarter on, mouth clearly visible and lips parted mid-word, eyes on the person they are talking to just beside the camera. Never from behind, and never looking straight into the lens.`,
       ]
     : [];
 }

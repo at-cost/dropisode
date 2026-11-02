@@ -136,7 +136,7 @@ describe("storyboard", () => {
       onScreenText: "",
       cutaway: null,
     };
-    expect(framePrompt({ shot, cast, aspect: "9:16" })).toMatch(/CELESTE is speaking in this shot: show their face to the camera/);
+    expect(framePrompt({ shot, cast, aspect: "9:16" })).toMatch(/CELESTE is speaking in this shot: their face turned towards the camera.*never looking straight into the lens/);
     expect(framePrompt({ shot, cast, aspect: "9:16", voiceOver: true })).not.toMatch(/is speaking in this shot/);
   });
 

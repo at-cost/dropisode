@@ -64,3 +64,42 @@ describe("fal balance monitor", () => {
     await expect(m.ensureFunded()).resolves.toBeUndefined();
   });
 });
+
+describe("fal's passing account lock", () => {
+  const job = { id: "j" } as never;
+  const input = {} as never;
+  const unfunded = new BalanceMonitor({ ...config, FAL_BILLING_KEY: "" });
+
+  it("retries a burst refused as 'locked' and goes through once fal accepts", async () => {
+    const { FundedProvider } = await import("../src/studio");
+    let calls = 0;
+    const inner = {
+      id: "fal",
+      submit: async () => {
+        calls++;
+        if (calls < 3) throw new ProviderRejected("fal 403: User is locked. Reason: Exhausted balance.", 403);
+        return { requestId: "r", endpoint: "e" };
+      },
+    } as never;
+    const waits: number[] = [];
+    const p = new FundedProvider(inner, unfunded, async (ms) => void waits.push(ms));
+    expect(await p.submit(job, input)).toEqual({ requestId: "r", endpoint: "e" });
+    expect(calls).toBe(3);
+    expect(waits).toEqual([4000, 8000]);
+  });
+
+  it("does not retry any other refusal", async () => {
+    const { FundedProvider } = await import("../src/studio");
+    let calls = 0;
+    const inner = {
+      id: "fal",
+      submit: async () => {
+        calls++;
+        throw new ProviderRejected("fal 422: prompt too long", 422);
+      },
+    } as never;
+    const p = new FundedProvider(inner, unfunded, async () => {});
+    await expect(p.submit(job, input)).rejects.toThrow(/prompt too long/);
+    expect(calls).toBe(1);
+  });
+});
