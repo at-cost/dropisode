@@ -144,9 +144,7 @@ export function framePrompt(p: {
     p.shot.camera ? `Camera: ${p.shot.camera}.` : "",
     people.length ? `Characters (keep them exactly as in the reference images): ${people.map(describe).join(" | ")}` : "",
     place ? `Setting: ${describe(place)}` : "",
-    place
-      ? "Use the setting's reference image for its look, light and weather only, not its layout: frame this shot from its own angle, as the camera note says."
-      : "",
+    ...framing(p.shot, people.length > 0, !!place),
     p.shot.onScreenText?.trim() ? "Any card, sign, paper or screen in the shot is blank: its text is added afterwards." : "",
     p.voiceOver ? "Nobody in the frame is speaking: every mouth is closed." : "",
     ...speakerFacing(p.shot, people, !!p.voiceOver),
@@ -154,6 +152,39 @@ export function framePrompt(p: {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/** Wide, establishing and full shots: the only ones that show the whole place. */
+export function isWideShot(shot: { camera: string; description?: string }): boolean {
+  const re = /\b(wide|establishing|long shot|full shot|full-body|aerial|crane|master shot|drone)\b/i;
+  return re.test(shot.camera) || re.test((shot.description ?? "").slice(0, 40));
+}
+
+/** How big people are in the frame, and how they belong in the place rather than being pasted onto it. */
+function framing(shot: Shot, hasPeople: boolean, hasPlace: boolean): string[] {
+  const cam = `${shot.camera} ${shot.description.slice(0, 40)}`.toLowerCase();
+  const scale = /extreme close|ecu|insert|macro/.test(cam)
+    ? "Extreme close-up: one detail fills the frame."
+    : /close/.test(cam) && !/medium close/.test(cam)
+      ? "Close-up: head and shoulders fill the frame, face at eye level, a little space above the head."
+      : /medium close|over.the.shoulder|ots|two.shot|two shot/.test(cam)
+        ? "Medium close-up: from the chest up, faces large in the frame."
+        : /medium/.test(cam)
+          ? "Medium shot: from the waist up."
+          : isWideShot(shot)
+            ? "Wide shot: the whole place, people at natural size within it."
+            : "";
+  const out = scale ? [scale] : [];
+  if (hasPeople)
+    out.push(
+      "The reference images show only who each person is (face, hair, clothes). Do not copy their pose, framing, lighting or plain background. Each person is really here: lit by this place's light and weather (wet hair and clothes if it rains), at natural scale, feet on the ground or seated, with the same lens depth of field as everything else. Never a cut-out pasted onto a background.",
+    );
+  if (hasPlace && !isWideShot(shot))
+    out.push(
+      "Behind them, the setting seen from this shot's own angle, soft and out of focus. Never the same view as an establishing shot.",
+    );
+  else if (hasPlace) out.push("Use the setting's reference image for its look, light and weather, framed from this shot's own angle.");
+  return out;
 }
 
 /** Whoever speaks on camera must be seen saying it: face to the camera, never their back. */
@@ -192,7 +223,7 @@ export function videoPrompt(p: {
     p.nativeAudio && (!speak || !lines.length) ? "Nobody speaks: every mouth stays closed. Natural ambient sound only, no music." : "",
     p.nativeAudio && speak && lines.length ? "Natural ambient sound under the voices. No music." : "",
     !p.nativeAudio && lines.length ? "Nobody speaks on screen: every mouth stays closed." : "",
-    "Keep faces and wardrobe consistent with the first frame. Smooth, realistic motion.",
+    "Keep faces and wardrobe consistent with the first frame. It is live action, never a still: people breathe, blink, shift their weight and react, the weather and the place move, and the camera drifts slowly (a gentle handheld sway or a slow push in) unless the camera note asks for a locked-off frame.",
   ]
     .filter(Boolean)
     .join(" ");

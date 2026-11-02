@@ -28,6 +28,7 @@ import {
   sceneTargetSeconds,
   normalizeLine,
   scriptVoiceOvers,
+  isWideShot,
 } from "./prompts";
 import type { JobRecord, MediaInput } from "./providers/types";
 
@@ -380,7 +381,14 @@ export class Studio {
       return { ...take, status: source ? "running" : "queued" };
     }
 
-    const refs = await this.referenceImages(project, shot.castIds, scene.locationId, image.maxRefImages);
+    // The place's picture only for wide shots: closer in, the model pastes people onto it as a backdrop.
+    const refs = await this.referenceImages(
+      project,
+      shot.castIds,
+      isWideShot(shot) ? scene.locationId : null,
+      image.maxRefImages,
+      !isWideShot(shot),
+    );
     const cast = shot.castIds.map((id) => project.cast.find((c) => c.id === id)).filter((c): c is CastMember => !!c);
     const location = scene.locationId ? project.cast.find((c) => c.id === scene.locationId) : undefined;
     let job: JobRecord;
@@ -437,9 +445,15 @@ export class Studio {
     return { ...take, status: "running" };
   }
 
-  private async referenceImages(project: Project, castIds: string[], locationId: string | null, max: number): Promise<MediaInput[]> {
+  private async referenceImages(
+    project: Project,
+    castIds: string[],
+    locationId: string | null,
+    max: number,
+    skipLocations = false,
+  ): Promise<MediaInput[]> {
     if (max <= 0) return [];
-    const ids = [...castIds];
+    const ids = castIds.filter((id) => !skipLocations || project.cast.find((c) => c.id === id)?.kind !== "location");
     if (locationId && !ids.includes(locationId)) ids.push(locationId);
     // Characters first: faces matter most for consistency.
     const order = { character: 0, prop: 1, location: 2 } as const;

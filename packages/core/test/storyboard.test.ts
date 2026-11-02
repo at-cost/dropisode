@@ -3,7 +3,7 @@ import { addCast, createProject } from "../src/edit";
 import { framePrompt, sceneTargetSeconds, scriptSpeakerFor, scriptSpeakers, storyboardPrompt, videoPrompt } from "../src/prompts";
 import { MockProvider } from "../src/providers/mock";
 import type { ProviderInput } from "../src/providers/types";
-import { setup } from "./helpers";
+import { drain, setup } from "./helpers";
 
 const SCRIPT = `TITLE: Test
 CAST:
@@ -98,6 +98,28 @@ describe("storyboard", () => {
     expect(prompt).not.toMatch(/onScreenText/);
   });
 
+  it("close shots put the place soft behind the people; wide shots use the place's picture", () => {
+    const place = { id: "l", name: "CHURCHYARD", kind: "location", description: "rainy churchyard", status: "ready" } as never;
+    const base = {
+      id: "s",
+      description: "Nora looks up.",
+      castIds: [],
+      dialogue: [],
+      durationS: 4,
+      audio: "native" as const,
+      approved: false,
+      takes: [],
+      continueFromPrevious: false,
+      onScreenText: "",
+      cutaway: null,
+    };
+    const close = framePrompt({ shot: { ...base, camera: "close-up" }, cast: [], location: place, aspect: "9:16" });
+    expect(close).toMatch(/soft and out of focus/);
+    const wide = framePrompt({ shot: { ...base, camera: "wide, static" }, cast: [], location: place, aspect: "9:16" });
+    expect(wide).toMatch(/Wide shot/);
+    expect(wide).toMatch(/setting's reference image/);
+  });
+
   it("the first frame of a speaking shot shows the speaker's face, never their back", () => {
     const cast = [{ id: "c1", name: "CELESTE", kind: "character", description: "", status: "ready" }] as never;
     const shot = {
@@ -116,6 +138,38 @@ describe("storyboard", () => {
     };
     expect(framePrompt({ shot, cast, aspect: "9:16" })).toMatch(/CELESTE is speaking in this shot: show their face to the camera/);
     expect(framePrompt({ shot, cast, aspect: "9:16", voiceOver: true })).not.toMatch(/is speaking in this shot/);
+  });
+
+  it("close shots get no location picture and a prompt that sets their scale and keeps people out of a pasted backdrop", async () => {
+    const t = setup();
+    const project = createProject({ name: "Refs" });
+    t.store.create(project);
+    await t.studio.importScript(project.id, { script: SCRIPT });
+    const p0 = await t.store.get(project.id);
+    const nora = p0.cast.find((c) => c.name === "NORA")!;
+    for (const c of p0.cast) await t.studio.generateCastImage(project.id, c.id);
+    await drain(t.studio, project.id, 40);
+    const sc = (await t.store.get(project.id)).episodes[0]!.scenes[0]!;
+    const loc = (await t.store.get(project.id)).cast.find((c) => c.kind === "location");
+    const { addShot } = await import("../src/edit");
+    const ids: string[] = [];
+    await t.store.mutate(project.id, (p) => {
+      const scene = p.episodes[0]!.scenes[0]!;
+      if (loc) scene.locationId = loc.id;
+      const castIds = [nora.id, ...(loc ? [loc.id] : [])];
+      ids.push(addShot(scene, { description: "Nora looks up.", camera: "close-up, static", castIds, durationS: 4 }).id);
+      ids.push(addShot(scene, { description: "The churchyard in rain.", camera: "wide, static", castIds, durationS: 4 }).id);
+    });
+    void sc;
+    const before = t.mock.submitted.length;
+    for (const id of ids) await t.studio.generateTake(project.id, id, "draft");
+    const frames = t.mock.submitted.slice(before).filter((x) => x.job.purpose === "frame");
+    const names = frames.map((f) => (f.input.images ?? []).map((i) => i.name.split(".")[0]));
+    expect(names[0]).toEqual(["NORA"]);
+    if (loc) expect(names[1]).toContain(loc.name);
+    expect(frames[0]!.input.prompt).toMatch(/Close-up: head and shoulders/);
+    expect(frames[0]!.input.prompt).toMatch(/Never a cut-out pasted onto a background/);
+    if (loc) expect(frames[0]!.input.prompt).toMatch(/soft and out of focus/);
   });
 
   it("a speaking shot gets its lines spoken on camera; a voice-over shot gets room sound only", () => {
