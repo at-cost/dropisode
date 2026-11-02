@@ -95,10 +95,19 @@ export function storyboardPrompt(p: {
       ...p.cast.map((c) => `- ${c.name} (${c.kind})`),
       "",
       `Break the scene into shots${p.targetSeconds ? ` totalling about ${p.targetSeconds} seconds` : ""}. Each shot's duration must be one of: ${durations} seconds.`,
-      "Prefer fewer, longer shots: 8 to 12 seconds wherever the action is continuous, shorter only for a sharp cut or a reveal. A minute of drama is usually 5 to 7 shots.",
-      "Plan the shots as one flowing scene, not separate pictures: establish where everyone is, then move closer; vary the angle from shot to shot (wide, closer, reverse, over the shoulder, insert) so the viewer always knows where they are.",
-      'When a shot picks up exactly where the previous one ends (same moment, same place, the camera simply carrying on), set "continues": true. Use it within a continuous moment; never across a jump in time or place.',
-      'Any text the viewer must read (a printed card, a sign, a message on a phone, a date) goes in "onScreenText", exactly as the script writes it; the studio draws it crisply over the shot. In the description, show the object itself with its text area blank.',
+      ...(p.silentVideo
+        ? [
+            "Plan the shots as one flowing scene: establish where everyone is, then move closer; vary the angle from shot to shot so the viewer always knows where they are.",
+          ]
+        : [
+            "Cut it the way vertical short dramas are cut: the picture changes every 2 to 4 seconds, and most shots are close-ups or medium close-ups of faces. Open on one establishing shot, then stay close.",
+            "Whoever speaks is seen saying the line: facing the camera or three-quarter on, mouth moving. One speaker per shot, and pick the shortest duration that fits their words (about 2.5 words a second).",
+            'The cut that makes it feel real: while someone is still talking, cut to the person listening (their face reacting) or to a detail (hands, a prop), and the line carries on underneath. Do it with a cutaway shot right after the speaking shot: "cutaway": {"at": seconds into the speaking shot where the picture cuts away, "length": 1.5 to 3}. A cutaway has no dialogue, nobody in it speaks, and its duration is the shortest allowed. Give most lines longer than 3 seconds a cutaway, and keep every cutaway inside its speaking shot.',
+            "Sometimes, instead, let the camera drift or pan off the speaker onto a listener while the speaker keeps talking: say so in the description and camera.",
+            'Lines the script marks V.O. or O.S. (inner thoughts, narration, a voice from a memory or off screen) are heard but not seen spoken: put them in their own shots with "voiceOver": true, and show the person thinking with their mouth closed, or what they are looking at. Never mix spoken and V.O. lines in one shot.',
+            'When a shot picks up exactly where the previous one ends (same moment, the camera simply carrying on), set "continues": true.',
+            "The video model can't write legible text: never rely on printed words being read on screen. Let a character say it, or keep it out of focus.",
+          ]),
       "Put each line of dialogue in the shot where it is spoken, with its speaker.",
       "Speakers: use the speaker the script names. If that speaker is not in the cast list (a voice from a memory, a crowd, an announcer), set speaker to null. Never give a line to a different character.",
       "Keep every concrete detail the script gives in the description: on-screen text quoted exactly as written, props, clothes, injuries, weather, who faces which way.",
@@ -106,10 +115,11 @@ export function storyboardPrompt(p: {
       ...(p.silentVideo
         ? [
             "The video is silent and every line is added afterwards as a voice-over, so nobody may be seen speaking. Stage each speaker from behind, off screen, out of focus or in shadow, and say in the description that everyone visible keeps their mouth closed.",
+            'When a shot picks up exactly where the previous one ends, set "continues": true.',
           ]
         : []),
       `Camera: pick from ${CAMERA_PRESETS.join("; ")}, or describe your own.`,
-      'Answer as {"shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":10,"continues":false,"onScreenText":""}]}.',
+      'Answer as {"shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":4,"continues":false,"voiceOver":false,"cutaway":null}]}.',
     ].join("\n"),
     maxTokens: 10000,
   };
@@ -146,7 +156,14 @@ export function framePrompt(p: {
 }
 
 /** The image-to-video prompt. Native-audio models get the dialogue to speak. */
-export function videoPrompt(p: { shot: Shot; cast: CastMember[]; nativeAudio: boolean }): string {
+export function videoPrompt(p: {
+  shot: Shot;
+  cast: CastMember[];
+  nativeAudio: boolean;
+  /** With native audio: whether the clip speaks its lines (false: room sound only, the lines are a voice-over). */
+  speak?: boolean;
+}): string {
+  const speak = p.speak ?? true;
   const byId = new Map(p.cast.map((c) => [c.id, c]));
   const lines = p.shot.dialogue
     .filter((l) => l.text.trim())
@@ -157,8 +174,9 @@ export function videoPrompt(p: { shot: Shot; cast: CastMember[]; nativeAudio: bo
   return [
     p.shot.description,
     p.shot.camera ? `Camera: ${p.shot.camera}.` : "",
-    p.nativeAudio && lines.length ? lines.join(" ") : "",
-    p.nativeAudio ? "Natural ambient sound. No music." : "",
+    p.nativeAudio && speak && lines.length ? `${lines.join(" ")} Each line is spoken once, clearly, by that person on camera.` : "",
+    p.nativeAudio && (!speak || !lines.length) ? "Nobody speaks: every mouth stays closed. Natural ambient sound only, no music." : "",
+    p.nativeAudio && speak && lines.length ? "Natural ambient sound under the voices. No music." : "",
     !p.nativeAudio && lines.length ? "Nobody speaks on screen: every mouth stays closed." : "",
     "Keep faces and wardrobe consistent with the first frame. Smooth, realistic motion.",
   ]
@@ -242,6 +260,8 @@ export interface BoardShot {
   duration?: number;
   continues?: boolean;
   onScreenText?: string;
+  voiceOver?: boolean;
+  cutaway?: { at: number; length: number } | null;
 }
 
 export function parseStoryboard(text: string): BoardShot[] {
@@ -261,6 +281,11 @@ export function parseStoryboard(text: string): BoardShot[] {
       duration: typeof s.duration === "number" && s.duration > 0 ? Math.min(30, s.duration) : 8,
       continues: s.continues === true,
       onScreenText: typeof s.onScreenText === "string" ? s.onScreenText.slice(0, 300) : "",
+      voiceOver: s.voiceOver === true,
+      cutaway:
+        s.cutaway && typeof s.cutaway.at === "number" && typeof s.cutaway.length === "number" && s.cutaway.length > 0
+          ? { at: Math.max(0, Math.min(60, s.cutaway.at)), length: Math.max(0.5, Math.min(8, s.cutaway.length)) }
+          : null,
     }));
 }
 
@@ -276,6 +301,7 @@ export function scriptDialogue(text: string): { speaker: string; text: string }[
 
 /** Matches a script line like `NORA (V.O.): That's me.` or `TWO GIRLS (V.O., faint): ...`. */
 const SPOKEN = /^\s*([A-Z][A-Z0-9 .'&-]{0,40}?)\s*(?:\([^)]*\))?\s*:\s*(.+)$/;
+export const normalizeLine = (t: string) => normLine(t);
 const normLine = (t: string) =>
   t
     .toLowerCase()
@@ -292,6 +318,16 @@ export function scriptSpeakers(script: string): Map<string, string> {
   for (const line of script.split(/\r?\n/)) {
     const m = SPOKEN.exec(line);
     if (m) out.set(normLine(m[2]!), m[1]!.trim());
+  }
+  return out;
+}
+
+/** Lines the script marks as heard but not seen spoken: (V.O.), (O.S.), (O.C.). */
+export function scriptVoiceOvers(script: string): Set<string> {
+  const out = new Set<string>();
+  for (const line of script.split(/\r?\n/)) {
+    const m = /^\s*[A-Z][A-Z0-9 .'&-]{0,40}?\s*\(([^)]*)\)\s*:\s*(.+)$/.exec(line);
+    if (m && /\b(V\.?\s?O|O\.?\s?S|O\.?\s?C)\b/i.test(m[1]!)) out.add(normLine(m[2]!));
   }
   return out;
 }

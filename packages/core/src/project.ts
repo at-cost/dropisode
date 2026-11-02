@@ -96,6 +96,14 @@ export const Shot = z.object({
   continueFromPrevious: z.boolean().default(false),
   /** Text the studio draws over the shot when the episode is assembled (a card, a sign, a date). */
   onScreenText: z.string().max(300).default(""),
+  /**
+   * A reaction cutaway: this shot's picture plays over the previous speaking shot's sound,
+   * cutting in `atS` seconds into it for `lengthS` seconds, so the line carries on over a listener.
+   */
+  cutaway: z
+    .object({ atS: z.number().min(0).max(60), lengthS: z.number().min(0.5).max(8) })
+    .nullable()
+    .default(null),
 });
 export type Shot = z.infer<typeof Shot>;
 

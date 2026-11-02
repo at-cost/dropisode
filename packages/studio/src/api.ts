@@ -491,6 +491,10 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         dialogue: z.array(Line).optional(),
         continueFromPrevious: z.boolean().optional(),
         onScreenText: z.string().max(300).optional(),
+        cutaway: z
+          .object({ atS: z.number().min(0).max(60), lengthS: z.number().min(0.5).max(8) })
+          .nullable()
+          .optional(),
       }),
     );
     await mutate(c, ctx, (p) => updateShot(p, c.req.param("sid"), b));

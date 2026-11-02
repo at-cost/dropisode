@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addCast, createProject } from "../src/edit";
-import { framePrompt, sceneTargetSeconds, scriptSpeakerFor, scriptSpeakers, storyboardPrompt } from "../src/prompts";
+import { framePrompt, sceneTargetSeconds, scriptSpeakerFor, scriptSpeakers, storyboardPrompt, videoPrompt } from "../src/prompts";
 import { MockProvider } from "../src/providers/mock";
 import type { ProviderInput } from "../src/providers/types";
 import { setup } from "./helpers";
@@ -58,7 +58,7 @@ describe("storyboard", () => {
     expect(prompt).toMatch(/on-screen text quoted exactly/);
   });
 
-  it("carries continues and on-screen text onto the shots, and asks for longer flowing shots", async () => {
+  it("cuts like a short drama: talking faces, cutaways over the line, V.O. as voice-over, no on-screen text", async () => {
     let prompt = "";
     const mock = new MockProvider({
       llm: (purpose: string, input: ProviderInput) => {
@@ -66,8 +66,17 @@ describe("storyboard", () => {
         prompt = input.prompt ?? "";
         return JSON.stringify({
           shots: [
-            { description: "A blank card in her hands.", duration: 10, continues: true, onScreenText: "Nora Ashby, 1992 to 2026" },
-            { description: "She looks up.", duration: 10, continues: true },
+            // A cutaway can't open a scene: nothing is speaking before it.
+            { description: "Rain on the card.", duration: 4, cutaway: { at: 1, length: 2 }, onScreenText: "Nora Ashby" },
+            { description: "Nora under her hood.", duration: 4, dialogue: [{ speaker: "NORA", text: "That's me. Six weeks dead." }] },
+            {
+              description: "Celeste faces the mourners.",
+              duration: 6,
+              dialogue: [{ speaker: "CELESTE", text: "Julian and I are getting married." }],
+              voiceOver: false,
+            },
+            { description: "Nora's face drops.", duration: 4, cutaway: { at: 2.5, length: 2 } },
+            { description: "Ring close-up.", duration: 4, continues: true },
           ],
         });
       },
@@ -79,11 +88,36 @@ describe("storyboard", () => {
     const scene = (await t.store.get(project.id)).episodes[0]!.scenes[0]!;
     await t.studio.storyboard(project.id, scene.id);
     const shots = (await t.store.get(project.id)).episodes[0]!.scenes[0]!.shots;
-    // The first shot of a scene has nothing to continue from.
-    expect(shots.map((s) => s.continueFromPrevious)).toEqual([false, true]);
-    expect(shots[0]!.onScreenText).toBe("Nora Ashby, 1992 to 2026");
-    expect(prompt).toMatch(/Prefer fewer, longer shots/);
-    expect(prompt).toMatch(/"continues": true/);
+    expect(shots.map((s) => s.cutaway)).toEqual([null, null, null, { atS: 2.5, lengthS: 2 }, null]);
+    // The script marks every one of these V.O., so they're voice-overs, not lines spoken on camera.
+    expect(shots.map((s) => s.audio)).toEqual(["native", "tts", "tts", "native", "native"]);
+    expect(shots.every((s) => s.onScreenText === "")).toBe(true);
+    expect(shots.map((s) => s.continueFromPrevious)).toEqual([false, false, false, false, true]);
+    expect(prompt).toMatch(/picture changes every 2 to 4 seconds/);
+    expect(prompt).toMatch(/"cutaway"/);
+    expect(prompt).not.toMatch(/onScreenText/);
+  });
+
+  it("a speaking shot gets its lines spoken on camera; a voice-over shot gets room sound only", () => {
+    const cast = [{ id: "c1", name: "CELESTE", kind: "character" as const, description: "", status: "ready" as const }];
+    const shot = {
+      id: "s",
+      description: "Celeste faces the mourners.",
+      camera: "",
+      castIds: ["c1"],
+      dialogue: [{ id: "l", castId: "c1", text: "We're getting married." }],
+      durationS: 4,
+      audio: "native" as const,
+      approved: false,
+      takes: [],
+      continueFromPrevious: false,
+      onScreenText: "",
+      cutaway: null,
+    };
+    expect(videoPrompt({ shot, cast: cast as never, nativeAudio: true })).toMatch(/CELESTE says: "We're getting married."/);
+    const vo = videoPrompt({ shot, cast: cast as never, nativeAudio: true, speak: false });
+    expect(vo).not.toMatch(/says/);
+    expect(vo).toMatch(/Nobody speaks/);
   });
 
   it("tells the storyboard nobody may be seen speaking when the video is silent", () => {

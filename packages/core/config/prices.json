@@ -817,16 +817,16 @@
   "defaults": {
     "draft": {
       "image": "seedream-4.5",
-      "video": "minimax-h3-max-turbo"
+      "video": "veo-3.1-lite"
     },
     "final": {
       "image": "seedream-4.5",
-      "video": "minimax-h3"
+      "video": "veo-3.1-fast"
     },
     "castImage": "seedream-4.5",
     "tts": "minimax-speech-2.8-turbo",
     "llm": "gemini-3.8-flash",
-    "draftAudio": false
+    "draftAudio": true
   },
   "services": {
     "r2_storage": {

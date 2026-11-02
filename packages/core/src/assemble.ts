@@ -3,7 +3,7 @@
  * plus every shot file and an edit list (CMX 3600 EDL and JSON) for finishing
  * in another editor.
  */
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { findEpisode } from "./edit";
@@ -38,6 +38,8 @@ export interface AssembleResult {
   subtitlesBurned: boolean;
   /** Shots whose on-screen text was drawn over the video. */
   overlaysBurned: number;
+  /** Reaction cutaways laid over the speaking shot before them. */
+  cutaways: number;
   warnings: string[];
   durationS: number;
 }
@@ -86,11 +88,17 @@ export async function assembleEpisode(
     const subs: { start: number; end: number; text: string }[] = [];
     const overlays: { start: number; end: number; text: string }[] = [];
     let t = 0;
+    let cutaways = 0;
     const all = episode.scenes.flatMap((s) => s.shots);
+    const firstInScene = new Set(episode.scenes.map((s) => s.shots[0]?.id));
+    // The speaking shot a cutaway lays its picture over: the last shot in this scene that wasn't one.
+    let speaking: AssembledShot | undefined;
     for (const shot of all) {
+      if (firstInScene.has(shot.id)) speaking = undefined;
       const pick = pickTake(shot, opts.source);
       if (typeof pick === "string") {
         skipped.push({ shotId: shot.id, reason: pick });
+        if (!shot.cutaway) speaking = undefined;
         continue;
       }
       const clipRef = mediaById.get(pick.videoMediaId!);
@@ -157,6 +165,11 @@ export async function assembleEpisode(
       );
       await runFfmpeg(args);
 
+      if (shot.cutaway && speaking && (await spliceCutaway(speaking, file, dur, shot.cutaway, work))) {
+        renameSync(file, join(shotsDir, `${String(speaking.index).padStart(2, "0")}c${++cutaways}_${shot.id}_cutaway.mp4`));
+        continue;
+      }
+
       // Subtitles: TTS lines at their own timings; the rest share the time left after the voiced lines.
       const untimed = timed.filter((x) => !x.path);
       for (const x of tts) subs.push({ start: t + x.at, end: Math.min(t + dur, t + x.at + x.len), text: x.text });
@@ -168,7 +181,9 @@ export async function assembleEpisode(
         });
       }
       if (shot.onScreenText?.trim()) overlays.push({ start: t + 0.2, end: t + dur - 0.1, text: shot.onScreenText.trim() });
-      out.push({ index, shotId: shot.id, takeId: pick.id, tier: pick.tier, file, startS: t, durationS: dur });
+      const entry = { index, shotId: shot.id, takeId: pick.id, tier: pick.tier, file, startS: t, durationS: dur };
+      out.push(entry);
+      if (!shot.cutaway) speaking = entry;
       t += dur;
     }
     if (out.length === 0)
@@ -254,7 +269,17 @@ export async function assembleEpisode(
         2,
       ),
     );
-    return { dir: opts.outDir, episodeFile, shots: out, skipped, subtitlesBurned: burned, overlaysBurned, warnings, durationS: t };
+    return {
+      dir: opts.outDir,
+      episodeFile,
+      shots: out,
+      skipped,
+      subtitlesBurned: burned,
+      overlaysBurned,
+      cutaways,
+      warnings,
+      durationS: t,
+    };
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
@@ -336,4 +361,61 @@ function fontsAvailable(): boolean {
     } catch {}
   }
   return false;
+}
+
+/**
+ * Lays a cutaway's picture over its speaking shot: the picture cuts away `atS` seconds in for
+ * `lengthS` seconds (and back, if the shot runs on), while the speaker's sound carries on
+ * underneath. Rewrites the speaking shot's file in place. False if there's no room for it.
+ */
+async function spliceCutaway(
+  base: AssembledShot,
+  cutFile: string,
+  cutLen: number,
+  c: { atS: number; lengthS: number },
+  work: string,
+): Promise<boolean> {
+  const fr = (x: number) => Math.round(x * FPS) / FPS;
+  // Skip the cutaway's first moment: image-to-video clips start on a still frame.
+  const off = cutLen >= c.lengthS + 0.6 ? 0.4 : 0;
+  const at = fr(Math.min(Math.max(0.3, c.atS), base.durationS - 0.5));
+  const len = fr(Math.min(c.lengthS, cutLen - off, base.durationS - at));
+  if (!(len >= 0.5)) return false;
+  const rest = base.durationS - (at + len) > 1 / FPS;
+  const graph = [
+    `[0:v]split=${rest ? 2 : 1}${rest ? "[s0][s1]" : "[s0]"}`,
+    `[s0]trim=end=${at.toFixed(3)},setpts=PTS-STARTPTS[p0]`,
+    `[1:v]trim=start=${off}:duration=${len.toFixed(3)},setpts=PTS-STARTPTS[p1]`,
+    ...(rest ? [`[s1]trim=start=${(at + len).toFixed(3)},setpts=PTS-STARTPTS[p2]`] : []),
+    `${rest ? "[p0][p1][p2]" : "[p0][p1]"}concat=n=${rest ? 3 : 2}:v=1:a=0,fps=${FPS},format=yuv420p[v]`,
+  ].join(";");
+  const tmp = join(work, `splice_${base.index}.mp4`);
+  await runFfmpeg([
+    "-y",
+    "-i",
+    base.file,
+    "-i",
+    cutFile,
+    "-filter_complex",
+    graph,
+    "-map",
+    "[v]",
+    "-map",
+    "0:a",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "18",
+    "-c:a",
+    "copy",
+    "-t",
+    base.durationS.toFixed(3),
+    "-movflags",
+    "+faststart",
+    tmp,
+  ]);
+  copyFileSync(tmp, base.file);
+  return true;
 }

@@ -141,7 +141,7 @@ describe("calculator", () => {
     const d = catalog.config.defaults;
     const e = episodeCost(catalog, S, { ...EXAMPLE_PLAN, draftVideo: d.draft.video, finalVideo: d.final.video, image: d.final.image });
     const frame = estimate(catalog.get(d.final.image), { images: 1 }).providerCostMicro;
-    const draft = estimate(catalog.get(d.draft.video), { durationS: 5, audio: false }).providerCostMicro;
+    const draft = estimate(catalog.get(d.draft.video), { durationS: 5, audio: d.draftAudio }).providerCostMicro;
     const final = estimate(catalog.get(d.final.video), { durationS: 5, audio: true }).providerCostMicro;
     expect(e.providerMicro).toBe(90 * frame + 90 * draft + 30 * frame + 30 * final);
     expect(e.chargeMicro).toBe(

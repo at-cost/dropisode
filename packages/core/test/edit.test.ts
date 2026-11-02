@@ -110,6 +110,18 @@ describe("parsers", () => {
 
   it("reads storyboard JSON inside code fences and drops junk", () => {
     const shots = parseStoryboard('Here:\n```json\n{"shots":[{"description":"x","duration":99,"cast":["A",3]},{"nope":1}]}\n```');
-    expect(shots).toEqual([{ description: "x", camera: "", cast: ["A"], dialogue: [], duration: 30, continues: false, onScreenText: "" }]);
+    expect(shots).toEqual([
+      {
+        description: "x",
+        camera: "",
+        cast: ["A"],
+        dialogue: [],
+        duration: 30,
+        continues: false,
+        onScreenText: "",
+        voiceOver: false,
+        cutaway: null,
+      },
+    ]);
   });
 });

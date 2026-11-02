@@ -102,7 +102,11 @@ describe("holds, settlement and refunds", () => {
     expect(end.heldMicro).toBe(0);
     const d = t.deps.catalog.config.defaults.draft;
     const frame = estimate(t.deps.catalog.get(d.image), { images: 1 }).providerCostMicro;
-    const clip = estimate(t.deps.catalog.get(d.video), { durationS: 5 }).providerCostMicro;
+    // Drafts speak (or carry room sound) when the catalog says drafts have audio.
+    const clip = estimate(t.deps.catalog.get(d.video), {
+      durationS: 5,
+      audio: t.deps.catalog.config.defaults.draftAudio,
+    }).providerCostMicro;
     expect(end.balanceMicro).toBe(usdToMicro(20) - generationCharge(frame, t.deps.platform) - generationCharge(clip, t.deps.platform));
     const view = (await (await t.request("GET", `/api/projects/${projectId}`, { cookie })).json()) as any;
     expect(view.costLog.map((l: any) => [l.purpose, l.status, l.paidMicro])).toEqual([
@@ -548,7 +552,14 @@ describe("Stripe fees", () => {
     let known: number | null = null;
     t.stripe.fetchFee = async () => known;
     await t.request("POST", "/webhooks/stripe", {
-      body: JSON.stringify({ sessionId: s.id, topupId: s.topupId, workspaceId: ws, amountCents: 1000, paymentIntentId: "pi_fee", paid: true }),
+      body: JSON.stringify({
+        sessionId: s.id,
+        topupId: s.topupId,
+        workspaceId: ws,
+        amountCents: 1000,
+        paymentIntentId: "pi_fee",
+        paid: true,
+      }),
       headers: { "stripe-signature": "fake-signature" },
     });
     const fee = () => t.deps.db.selectFrom("topups").select("feeCents").executeTakeFirstOrThrow();

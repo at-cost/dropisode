@@ -60,6 +60,7 @@ export interface Shot {
   selectedTakeId?: string;
   continueFromPrevious?: boolean;
   onScreenText?: string;
+  cutaway?: { atS: number; lengthS: number } | null;
 }
 
 export interface Scene {

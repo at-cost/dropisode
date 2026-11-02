@@ -133,6 +133,8 @@ export interface ShotInput {
   durationS: number;
   continueFromPrevious?: boolean;
   onScreenText?: string;
+  audio?: Shot["audio"];
+  cutaway?: Shot["cutaway"];
 }
 
 const toLines = (lines: { castId: string | null; text: string }[] = []): DialogueLine[] =>
@@ -146,11 +148,12 @@ export function addShot(scene: Scene, p: ShotInput, at?: number): Shot {
     castIds: p.castIds ?? [],
     dialogue: toLines(p.dialogue),
     durationS: p.durationS,
-    audio: "native",
+    audio: p.audio ?? "native",
     approved: false,
     takes: [],
     continueFromPrevious: p.continueFromPrevious ?? false,
     onScreenText: p.onScreenText ?? "",
+    cutaway: p.cutaway ?? null,
   };
   if (at === undefined) scene.shots.push(shot);
   else scene.shots.splice(Math.max(0, Math.min(at, scene.shots.length)), 0, shot);
@@ -164,7 +167,16 @@ export function updateShot(
   patch: Partial<
     Pick<
       Shot,
-      "description" | "camera" | "castIds" | "durationS" | "audio" | "approved" | "selectedTakeId" | "continueFromPrevious" | "onScreenText"
+      | "description"
+      | "camera"
+      | "castIds"
+      | "durationS"
+      | "audio"
+      | "approved"
+      | "selectedTakeId"
+      | "continueFromPrevious"
+      | "onScreenText"
+      | "cutaway"
     >
   > & {
     dialogue?: { id?: string; castId: string | null; text: string }[];
@@ -187,6 +199,7 @@ export function updateShot(
   if (patch.audio !== undefined) shot.audio = patch.audio;
   if (patch.continueFromPrevious !== undefined) shot.continueFromPrevious = patch.continueFromPrevious;
   if (patch.onScreenText !== undefined) shot.onScreenText = patch.onScreenText.slice(0, 300);
+  if (patch.cutaway !== undefined) shot.cutaway = patch.cutaway;
   if (patch.dialogue !== undefined) {
     const old = new Map(shot.dialogue.map((l) => [l.id, l]));
     shot.dialogue = patch.dialogue.map((l) => {
@@ -237,6 +250,7 @@ export function splitShot(project: Project, shotId: string, atS?: number): [Shot
     // The second half picks up exactly where the first ends.
     continueFromPrevious: true,
     onScreenText: "",
+    cutaway: null,
   };
   shot.dialogue = shot.dialogue.slice(0, cut);
   shot.durationS = round1(at);

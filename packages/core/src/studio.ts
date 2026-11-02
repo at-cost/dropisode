@@ -26,6 +26,8 @@ import {
   scriptSpeakers,
   scriptSpeakerFor,
   sceneTargetSeconds,
+  normalizeLine,
+  scriptVoiceOvers,
 } from "./prompts";
 import type { JobRecord, MediaInput } from "./providers/types";
 
@@ -89,9 +91,9 @@ export class Studio {
       tier === "draft" && !this.catalog.config.defaults.draftAudio ? "none" : this.audioPlan(shot.audio, video, shot.dialogue.length > 0);
     // A continued shot takes its first frame from the previous clip: no image to pay for.
     const frame = continuesFrom(project, shotId) ? estimate(image, { images: 0 }) : estimate(image, { images: 1 });
-    const vid = estimate(video, { durationS: shot.durationS, audio: audio === "native" });
+    const vid = estimate(video, { durationS: shot.durationS, audio: this.clipAudio(audio, video, tier) });
     const tts =
-      audio === "tts" && tier === "final"
+      audio === "tts"
         ? shot.dialogue
             .filter((l) => l.text.trim() && !l.ttsMediaId)
             .map((l) => estimate(this.catalog.get(this.catalog.config.defaults.tts), { chars: l.text.length }))
@@ -107,6 +109,12 @@ export class Studio {
       durationS: billedDuration(video, shot.durationS),
       audio,
     };
+  }
+
+  /** Whether the video model makes sound: its own voices, or room sound under voice-over lines. */
+  private clipAudio(plan: "native" | "tts" | "none", video: CatalogModel, tier: Tier): boolean {
+    if (tier === "draft" && !this.catalog.config.defaults.draftAudio) return false;
+    return plan === "native" || (plan === "tts" && !!video.nativeAudio);
   }
 
   private audioPlan(mode: "native" | "tts" | "none", video: CatalogModel, hasDialogue: boolean): "native" | "tts" | "none" {
@@ -244,6 +252,7 @@ export class Studio {
     );
     const shots = parseStoryboard(answer);
     const speakers = scriptSpeakers(scene.script);
+    const voiceOvers = scriptVoiceOvers(scene.script);
     return this.projects.mutate(projectId, (proj) => {
       const { scene: sc } = findScene(proj, sceneId);
       assertNothingRunning(sc.shots);
@@ -251,6 +260,10 @@ export class Studio {
       for (const s of shots) {
         const castIds = (s.cast ?? []).map((n) => castByName(proj, n)?.id).filter((x): x is string => !!x);
         if (sc.locationId && !castIds.includes(sc.locationId)) castIds.push(sc.locationId);
+        const lines = (s.dialogue ?? []).filter((d) => d.text.trim());
+        // Heard, not seen spoken: the storyboard says so, or the script marks every line V.O.
+        const voiceOver = lines.length > 0 && (s.voiceOver || lines.every((d) => voiceOvers.has(normalizeLine(d.text))));
+        const prevSpeaks = (sc.shots.at(-1)?.dialogue.length ?? 0) > 0 && !sc.shots.at(-1)?.cutaway;
         addShot(sc, {
           description: s.description,
           camera: s.camera ?? "",
@@ -262,7 +275,10 @@ export class Studio {
           }),
           durationS: s.duration ?? 8,
           continueFromPrevious: !!s.continues && sc.shots.length > 0,
-          onScreenText: (s.onScreenText ?? "").trim().slice(0, 300),
+          onScreenText: "",
+          audio: voiceOver ? "tts" : "native",
+          // A cutaway plays over the speaking shot before it; anything else is an ordinary shot.
+          cutaway: s.cutaway && !lines.length && prevSpeaks ? { atS: s.cutaway.at, lengthS: s.cutaway.length } : null,
         });
       }
       return sc.shots.length;
@@ -360,7 +376,7 @@ export class Studio {
     if (prev) {
       // Its first frame is the previous clip's last; a final waits for the previous final if need be.
       if (source) await this.startChained(projectId, shotId, take.id, source, p.owner);
-      if (tier === "final" && est.audio === "tts") await this.generateMissingTts(projectId, shotId, p.owner).catch(() => {});
+      if (est.audio === "tts") await this.generateMissingTts(projectId, shotId, p.owner).catch(() => {});
       return { ...take, status: source ? "running" : "queued" };
     }
 
@@ -408,7 +424,7 @@ export class Studio {
       if (t.status === "queued") t.status = "running";
     });
     // The frame is on its way (and may be charged), so the take stays whatever happens to the voice lines.
-    if (tier === "final" && est.audio === "tts") {
+    if (est.audio === "tts") {
       try {
         await this.generateMissingTts(projectId, shotId, p.owner);
       } catch (err) {
@@ -517,8 +533,8 @@ export class Studio {
     const frame = project.media.find((m) => m.id === take.frameMediaId)!;
     const video = this.catalog.get(take.videoModel);
     const cast = shot.castIds.map((id) => project.cast.find((c) => c.id === id)).filter((c): c is CastMember => !!c);
-    const draftSilent = take.tier === "draft" && !this.catalog.config.defaults.draftAudio;
-    const audio = !draftSilent && this.audioPlan(shot.audio, video, shot.dialogue.length > 0) === "native";
+    const plan = this.audioPlan(shot.audio, video, shot.dialogue.length > 0);
+    const audio = this.clipAudio(plan, video, take.tier);
     const durationS = billedDuration(video, shot.durationS);
     try {
       const job = await this.runner.start({
@@ -530,7 +546,7 @@ export class Studio {
         tier: take.tier,
         refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId },
         input: {
-          prompt: videoPrompt({ shot, cast, nativeAudio: audio }),
+          prompt: videoPrompt({ shot, cast, nativeAudio: audio, speak: plan === "native" }),
           image: {
             bytes: await this.deps.media.read(projectId, frame),
             contentType: frame.contentType,

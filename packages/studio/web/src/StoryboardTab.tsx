@@ -668,6 +668,7 @@ function audioLabel(shot: Shot, silentVideo: boolean): string {
 
 const setupLine = (shot: Shot, silentVideo: boolean) =>
   [
+    shot.cutaway ? "Cutaway" : "",
     shot.continueFromPrevious ? "Continues" : "",
     cap(shot.camera.trim()) || "No camera set",
     `${round(shot.durationS)} s`,
@@ -870,19 +871,61 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
           </span>
         </label>
       )}
-      <label className="insp-field">
-        <span>On-screen text</span>
-        <input
-          key={shot.onScreenText ?? ""}
-          defaultValue={shot.onScreenText ?? ""}
-          maxLength={300}
-          placeholder="e.g. Nora Ashby, 1992 to 2026"
-          onBlur={(e) => {
-            if (e.target.value !== (shot.onScreenText ?? "")) void c.patch({ onScreenText: e.target.value });
-          }}
-        />
-        <small className="muted">Drawn crisply over the shot when the episode is put together. AI video can't write legible text.</small>
-      </label>
+      {index > 0 && shot.dialogue.length === 0 && (
+        <div className="insp-field">
+          <label className="insp-check">
+            <input
+              type="checkbox"
+              checked={!!shot.cutaway}
+              onChange={(e) =>
+                void c.patch({
+                  cutaway: e.target.checked ? { atS: Math.max(0.5, scene.shots[index - 1]!.durationS / 2 - 1), lengthS: 2 } : null,
+                })
+              }
+            />
+            <span>
+              Cutaway over the previous shot
+              <small className="muted">
+                Its picture plays during the previous shot while that line carries on underneath, like cutting to a listener.
+              </small>
+            </span>
+          </label>
+          {shot.cutaway && (
+            <div className="insp-pair">
+              <label className="insp-field">
+                <span>Cut in at (s)</span>
+                <input
+                  key={`a${shot.cutaway.atS}`}
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  defaultValue={shot.cutaway.atS}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v) && v !== shot.cutaway!.atS) void c.patch({ cutaway: { ...shot.cutaway!, atS: Math.max(0, v) } });
+                  }}
+                />
+              </label>
+              <label className="insp-field">
+                <span>For (s)</span>
+                <input
+                  key={`l${shot.cutaway.lengthS}`}
+                  type="number"
+                  min={0.5}
+                  max={8}
+                  step={0.5}
+                  defaultValue={shot.cutaway.lengthS}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v) && v !== shot.cutaway!.lengthS)
+                      void c.patch({ cutaway: { ...shot.cutaway!, lengthS: Math.min(8, Math.max(0.5, v)) } });
+                  }}
+                />
+              </label>
+            </div>
+          )}
+        </div>
+      )}
       <div className="insp-pair">
         <label className="insp-field">
           <span>Seconds</span>
@@ -903,8 +946,8 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
         <label className="insp-field">
           <span>Audio</span>
           <select value={shot.audio} onChange={(e) => void c.patch({ audio: e.target.value })}>
-            <option value="native">Native audio</option>
-            <option value="tts">Text to speech</option>
+            <option value="native">Spoken on camera</option>
+            <option value="tts">Voice-over</option>
             <option value="none">No audio</option>
           </select>
         </label>
@@ -1000,7 +1043,7 @@ function ShotCostsTable({ lines, config }: { lines: ShotCtl["lines"]; config: Re
   );
 }
 
-const AUDIO: Record<string, string> = { native: "Native audio", tts: "Text to speech", none: "No audio" };
+const AUDIO: Record<string, string> = { native: "Spoken on camera", tts: "Voice-over", none: "No audio" };
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 const KIND: Record<string, string> = { image: "image", video: "video", tts: "voice", llm: "text" };

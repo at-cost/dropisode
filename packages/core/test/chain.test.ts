@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { assembleEpisode, toAss } from "../src/assemble";
+import { mediaDuration } from "../src/ffmpeg";
 import { addEpisode, addScene, addShot, createProject, findShot, updateShot } from "../src/edit";
 import { drain, setup } from "./helpers";
 
@@ -106,5 +107,34 @@ describe("on-screen text", () => {
     expect((await shotOf(t, t.b)).approved).toBe(true);
     await t.store.mutate(t.projectId, (p) => updateShot(p, t.b, { continueFromPrevious: true }));
     expect((await shotOf(t, t.b)).approved).toBe(false);
+  });
+});
+
+describe("reaction cutaways", () => {
+  it("lay their picture over the speaking shot while its sound carries on", async () => {
+    const t = setup();
+    const project = createProject({ name: "Cutaway" });
+    const ep = addEpisode(project, { title: "Ep" });
+    const sc = addScene(ep, { heading: "EXT. CHURCHYARD - DAY" });
+    const speak = addShot(sc, {
+      description: "Celeste speaks.",
+      durationS: 6,
+      dialogue: [{ castId: null, text: "We are getting married." }],
+    });
+    const react = addShot(sc, { description: "Nora's face drops.", durationS: 4, cutaway: { atS: 2, lengthS: 2 } });
+    const after = addShot(sc, { description: "The ring.", durationS: 4 });
+    t.store.create(project);
+    for (const s of [speak, react, after]) await t.studio.generateTake(project.id, s.id, "draft");
+    await drain(t.studio, project.id);
+    const res = await assembleEpisode({ projects: t.store, media: t.store }, project.id, ep.id, {
+      source: "rough",
+      outDir: join(t.root, "rough"),
+    });
+    expect(res.cutaways).toBe(1);
+    // The cutaway adds no time: the episode is the speaking shot plus the shot after it.
+    expect(res.shots.map((s) => s.shotId)).toEqual([speak.id, after.id]);
+    expect(res.durationS).toBeCloseTo(10, 1);
+    expect(await mediaDuration(res.episodeFile)).toBeCloseTo(10, 0);
+    expect(await mediaDuration(res.shots[0]!.file)).toBeCloseTo(6, 0);
   });
 });
