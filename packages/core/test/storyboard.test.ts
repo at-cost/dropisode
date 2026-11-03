@@ -98,6 +98,33 @@ describe("storyboard", () => {
     expect(prompt).not.toMatch(/onScreenText/);
   });
 
+  it("fixes the staging at storyboarding and holds the scene still and every frame to it", async () => {
+    const mock = new MockProvider({
+      llm: (purpose: string) =>
+        purpose === "storyboard"
+          ? JSON.stringify({
+              staging: "NORA sits alone on the last bench at the very back, hood up, unnoticed. CELESTE stands at the front facing the mourners.",
+              shots: [{ description: "Nora under the yew.", camera: "close-up", cast: ["NORA"], duration: 4 }],
+            })
+          : "{}",
+    });
+    const t = setup({ mock });
+    const project = createProject({ name: "Staging" });
+    t.store.create(project);
+    await t.studio.importScript(project.id, { script: SCRIPT });
+    const scene = (await t.store.get(project.id)).episodes[0]!.scenes[0]!;
+    await t.studio.storyboard(project.id, scene.id);
+    const sc = (await t.store.get(project.id)).episodes[0]!.scenes[0]!;
+    expect(sc.staging).toMatch(/last bench at the very back/);
+    await drain(t.studio, project.id, 40);
+    await t.studio.generateTake(project.id, sc.shots[0]!.id, "draft");
+    const master = t.mock.submitted.find((x) => x.job.purpose === "scene_master")!;
+    expect(master.input.prompt).toMatch(/Staging, keep to it exactly.*last bench at the very back/);
+    const frame = t.mock.submitted.find((x) => x.job.purpose === "frame")!;
+    expect(frame.input.prompt).toMatch(/Where everyone is in this scene.*unnoticed/);
+    expect(frame.input.prompt).toMatch(/The only recognisable people in this frame: NORA/);
+  });
+
   it("close shots put the place soft behind the people; wide shots use the place's picture", () => {
     const place = { id: "l", name: "CHURCHYARD", kind: "location", description: "rainy churchyard", status: "ready" } as never;
     const base = {
@@ -136,7 +163,9 @@ describe("storyboard", () => {
       onScreenText: "",
       cutaway: null,
     };
-    expect(framePrompt({ shot, cast, aspect: "9:16" })).toMatch(/CELESTE is speaking in this shot: their face turned towards the camera.*never looking straight into the lens/);
+    expect(framePrompt({ shot, cast, aspect: "9:16" })).toMatch(
+      /CELESTE is speaking in this shot: their face turned towards the camera.*never looking straight into the lens/,
+    );
     expect(framePrompt({ shot, cast, aspect: "9:16", voiceOver: true })).not.toMatch(/is speaking in this shot/);
   });
 

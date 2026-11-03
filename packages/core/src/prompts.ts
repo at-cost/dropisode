@@ -55,6 +55,7 @@ export function scriptPrompt(p: { idea: string; targetSeconds: number; aspect: A
       "NAME: <dialogue>",
       "",
       "Every character who appears must be in CAST with a description precise enough to draw the same person every time.",
+      "Make every character instantly tell-apart-able from the others at a glance: different age, hair colour and style, build, face shape and a signature wardrobe colour. Never two people of the same sex and similar age with similar hair.",
     ].join("\n"),
     maxTokens: 8000,
   };
@@ -65,6 +66,7 @@ export function castExtractPrompt(script: string): LlmPrompt {
     system: "You extract a production cast list from a script. Answer with JSON only.",
     prompt: [
       "List every character, location and recurring prop in this script with a fixed visual description (age, build, hair, face, wardrobe; for places, look and light).",
+      "Make every character instantly tell-apart-able from the others at a glance: different age, hair colour and style, build, face shape and a signature wardrobe colour. Never two people of the same sex and similar age with similar hair. Keep what the script says; where it is silent, choose contrasting looks.",
       'Answer as {"cast":[{"kind":"character|location|prop","name":"...","description":"..."}]}.',
       "",
       "SCRIPT:",
@@ -118,8 +120,9 @@ export function storyboardPrompt(p: {
             'When a shot picks up exactly where the previous one ends, set "continues": true.',
           ]
         : []),
+      'First fix the staging in "staging": a short paragraph saying where each character is in the place at the start of the scene, which way they face, how they move during it, and who must not notice whom (someone hiding stays at the back, unseen). Every shot must keep to it, and only people the staging puts near each other share a frame.',
       `Camera: pick from ${CAMERA_PRESETS.join("; ")}, or describe your own.`,
-      'Answer as {"shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":4,"continues":false,"voiceOver":false,"cutaway":null}]}.',
+      'Answer as {"staging":"...","shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":4,"continues":false,"voiceOver":false,"cutaway":null}]}.',
     ].join("\n"),
     maxTokens: 10000,
   };
@@ -137,6 +140,8 @@ export function framePrompt(p: {
   voiceOver?: boolean;
   /** The first reference image is the scene's master still. */
   fromMaster?: boolean;
+  /** Where everyone is in the scene: shots keep to it. */
+  staging?: string;
 }): string {
   const people = p.cast.filter((c) => c.kind !== "location");
   const place = p.location ?? p.cast.find((c) => c.kind === "location");
@@ -150,6 +155,12 @@ export function framePrompt(p: {
       ? "The first reference image is this scene's master shot: keep its place, light, weather, time of day and everyone's clothes exactly. Make a new camera position on it, as this shot describes (closer, or from another side). Never copy the master's framing. The other reference images show faces only."
       : "",
     ...framing(p.shot, people.length > 0, !!place),
+    p.staging?.trim()
+      ? `Where everyone is in this scene (keep to it; nobody moves out of their place for this shot): ${p.staging.trim()}`
+      : "",
+    people.length
+      ? `The only recognisable people in this frame: ${people.map((c) => c.name).join(", ")}. Anyone else is an unnamed extra, out of focus.`
+      : "",
     p.shot.onScreenText?.trim() ? "Any card, sign, paper or screen in the shot is blank: its text is added afterwards." : "",
     p.voiceOver ? "Nobody in the frame is speaking: every mouth is closed." : "",
     ...speakerFacing(p.shot, people, !!p.voiceOver),
@@ -163,6 +174,7 @@ export function framePrompt(p: {
 export function sceneMasterPrompt(p: {
   heading: string;
   script: string;
+  staging?: string;
   place?: CastMember | undefined;
   people: CastMember[];
   aspect: Aspect;
@@ -177,7 +189,11 @@ export function sceneMasterPrompt(p: {
     `Scene: ${p.heading}.`,
     p.place ? `Place: ${describe(p.place)}` : "",
     p.people.length ? `Everyone in the scene is here, where the scene starts: ${p.people.map(describe).join(" | ")}` : "",
-    staging ? `What happens (stage them for its opening moment): ${staging}` : "",
+    p.staging?.trim()
+      ? `Staging, keep to it exactly (where each person is, which way they face, who is hidden from whom): ${p.staging.trim()}`
+      : staging
+        ? `What happens (stage them for its opening moment): ${staging}`
+        : "",
     "They are real people in this place: lit by its light and weather (wet hair and clothes if it rains), at natural scale, standing or seated on the ground, faces recognisable.",
     "The reference images show the place and who each person is. Do not copy their framing, plain backgrounds or studio lighting.",
     "No captions, subtitles, text or watermarks.",
@@ -266,7 +282,7 @@ export function videoPrompt(p: {
 
 export function castImagePrompt(c: CastMember): string {
   if (c.kind === "character") {
-    return `Character reference portrait, waist up, facing camera, neutral expression, plain light grey studio background, soft even light, photorealistic. ${c.name}: ${c.description}. No text.`;
+    return `Casting photo of a real actor: knees up, a slight three-quarter turn, relaxed natural expression, soft natural daylight, a plain neutral wall behind. Real skin texture with pores and small imperfections, natural hair, not retouched, not a studio glamour shot. ${c.name}: ${c.description}. No text.`;
   }
   if (c.kind === "location")
     return `Establishing reference image of a location, no people, cinematic, photorealistic. ${c.name}: ${c.description}. No text.`;
@@ -367,6 +383,16 @@ export function parseStoryboard(text: string): BoardShot[] {
           ? { at: Math.max(0, Math.min(60, s.cutaway.at)), length: Math.max(0.5, Math.min(8, s.cutaway.length)) }
           : null,
     }));
+}
+
+/** The storyboard's staging: where everyone is, who is hidden from whom. */
+export function parseStaging(text: string): string {
+  try {
+    const d = parseJsonAnswer<{ staging?: unknown }>(text);
+    return typeof d.staging === "string" ? d.staging.trim().slice(0, 3000) : "";
+  } catch {
+    return "";
+  }
 }
 
 /** Script dialogue lines ("NAME: text") in order, for subtitles and TTS. */

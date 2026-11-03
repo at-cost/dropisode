@@ -945,7 +945,7 @@ label.check {
   list-style: none;
   padding: 0;
   margin: 8px 0;
-  columns: 2;
+  columns: 1;
 }
 .files li {
   padding: 1px 0;
@@ -2370,12 +2370,13 @@ button.final-ready {
   .episode-tab > * {
     grid-column: 1 / -1;
   }
-  .episode-tab > .panel:nth-child(2) {
+  .episode-tab > .sound-panel,
+  .episode-tab > .assemble-panel {
     grid-column: 1;
   }
   .episode-tab > .player-empty {
     grid-column: 2;
-    grid-row: 2 / span 3;
+    grid-row: 2 / span 2;
     margin-top: 0;
   }
   .player-empty.tall {
@@ -3863,17 +3864,19 @@ button.approve.toggle:disabled {
   left: 18px;
   background: #fff;
 }
+/* Side by side when there's room for both labels and prices; stacked full width in a narrow card. */
 .gen-row {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
   gap: 8px;
 }
 .gen-row button {
-  justify-content: center;
-  padding-left: 8px;
-  padding-right: 8px;
+  justify-content: space-between;
+  padding-left: 12px;
+  padding-right: 10px;
   font-weight: 600;
+  white-space: nowrap;
+  min-width: 0;
 }
 .tile.v-board .tile-body {
   display: flex;
@@ -4622,4 +4625,38 @@ button.danger-solid {
   gap: 6px;
   justify-items: start;
   max-width: 520px;
+}
+
+/* Exports: the episode first, the rest folded away */
+.export-files {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+.export-files .muted-on {
+  opacity: 0.75;
+  font-weight: 500;
+  margin-left: 4px;
+}
+.more-files summary,
+.note.skipped summary {
+  cursor: pointer;
+  font-size: 13.5px;
+}
+.note.skipped ul {
+  margin: 6px 0 0;
+}
+.export-info {
+  max-width: 640px;
+}
+.staging-field {
+  width: 100%;
+}
+.staging-field textarea {
+  width: 100%;
+  resize: vertical;
+}
+.scene-still-text {
+  flex: 1;
+  max-width: 640px;
 }

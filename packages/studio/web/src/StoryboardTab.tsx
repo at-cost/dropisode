@@ -1142,6 +1142,21 @@ function SceneStill({ scene }: { scene: Scene }) {
                 ? `Couldn't make it${m.error ? `: ${m.error}` : ""}. Shots will be made from the cast pictures instead.`
                 : "Not made yet. Shots are made from the cast pictures until it is."}
         </span>
+        <label className="insp-field staging-field">
+          <span>Staging</span>
+          <textarea
+            key={scene.staging ?? ""}
+            rows={3}
+            defaultValue={scene.staging ?? ""}
+            maxLength={3000}
+            placeholder="Where everyone is, which way they face, who is hidden from whom."
+            onBlur={(e) => {
+              if (e.target.value !== (scene.staging ?? ""))
+                void act(`staging-${scene.id}`, () => api.patch<View>(`/projects/${pid}/scenes/${scene.id}`, { staging: e.target.value }));
+            }}
+          />
+          <small className="muted">The scene still and every shot keep to this. Change it, then remake the still.</small>
+        </label>
         <button type="button" disabled={busy} onClick={remake}>
           {busy && <Spinner />} {m?.status === "done" ? "Remake scene still" : "Make scene still"}
         </button>

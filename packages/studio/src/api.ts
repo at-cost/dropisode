@@ -429,6 +429,7 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         heading: z.string().min(1).max(300).optional(),
         script: z.string().max(40_000).optional(),
         locationId: z.string().nullable().optional(),
+        staging: z.string().max(3000).optional(),
       }),
     );
     await mutate(c, ctx, (p) => {

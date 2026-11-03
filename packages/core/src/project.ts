@@ -127,6 +127,8 @@ export const Scene = z.object({
   /** The scene's slice of the script. */
   script: z.string().max(40_000).default(""),
   locationId: z.string().nullable().default(null),
+  /** Where everyone is in the scene and who is hidden from whom, fixed at storyboarding. */
+  staging: z.string().max(3000).default(""),
   shots: z.array(Shot).default([]),
   /** One continuous background under the whole scene, so the room doesn't change at every cut. */
   ambience: SoundBed.nullable().default(null),

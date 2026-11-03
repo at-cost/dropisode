@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Episode, type ExportInfo, type SoundBed, type View, api } from "./api";
 import { useProject } from "./ProjectView";
 import { EpisodePicker, shotLabel, useEpisodeChoice } from "./StoryboardTab";
-import { Empty, Icon, Spinner, When, Why, bytes, money, plural, useApp, useBusy } from "./ui";
+import { Empty, Icon, Spinner, Ticket, When, Why, bytes, plural, useApp, useAutoGrow, useBusy } from "./ui";
 
 export function EpisodeTab() {
   const app = useApp();
@@ -50,7 +50,7 @@ export function EpisodeTab() {
         <EpisodePicker ep={ep} onPick={pick} />
       </div>
       <SoundPanel ep={ep} />
-      <section className="panel">
+      <section className="panel assemble-panel">
         <h2>Assemble</h2>
         <div className="progress-line">
           <span>
@@ -149,29 +149,21 @@ export function EpisodeTab() {
                         />
                       </details>
                     )}
-                    <ul className="files">
-                      {[...x.files]
-                        .sort((a, b) => Number(b.name === "episode.mp4") - Number(a.name === "episode.mp4"))
-                        .map((f) => (
-                          <li key={f.name}>
-                            <a href={`${f.url}?download=1`}>
-                              <Icon name="download" /> {f.name}
-                            </a>{" "}
-                            <span className="muted">{bytes(f.bytes)}</span>
-                          </li>
-                        ))}
-                    </ul>
+                    <ExportFiles x={x} />
                     {x.skipped.length > 0 && (
-                      <div className="note warn">
-                        <strong>Skipped {plural(x.skipped.length, "shot")}</strong>
+                      <details className="note warn skipped">
+                        <summary>
+                          {plural(x.skipped.length, "shot")} left out:{" "}
+                          {x.skipped.every((k) => k.reason === "no finished take") ? "not drafted yet" : "see why"}
+                        </summary>
                         <ul>
-                          {x.skipped.map((s) => (
-                            <li key={s.shotId}>
-                              {shotLabel(view.project, s.shotId)}: {s.reason}
+                          {x.skipped.map((k) => (
+                            <li key={k.shotId}>
+                              {shotLabel(view.project, k.shotId)}: {k.reason}
                             </li>
                           ))}
                         </ul>
-                      </div>
+                      </details>
                     )}
                     {x.warnings.length > 0 && (
                       <div className="note warn">
@@ -333,14 +325,14 @@ function SoundPanel({ ep }: { ep: Episode }) {
         <div className="sound-head">
           <strong>Music</strong> <BedStatus bed={ep.music} />
         </div>
-        <textarea rows={3} value={music} maxLength={2000} onChange={(e) => setMusic(e.target.value)} />
+        <GrowText value={music} onChange={setMusic} label="Music description" />
         <button
           type="button"
           disabled={!info || !music.trim() || ep.music?.status === "running" || isBusy("snd-music")}
           onClick={() => void make("snd-music", { music: true, prompts: { music } })}
         >
           {isBusy("snd-music") && <Spinner />} {ep.music?.status === "done" ? "Remake music" : "Make music"}
-          {info ? ` ${money(info.musicMicro)}` : ""}
+          {info && <Ticket micro={info.musicMicro} />}
         </button>
       </div>
       {ep.scenes.map((sc, i) => (
@@ -348,14 +340,18 @@ function SoundPanel({ ep }: { ep: Episode }) {
           <div className="sound-head">
             <strong>Scene {i + 1} background</strong> <span className="muted">{sc.heading}</span> <BedStatus bed={sc.ambience} />
           </div>
-          <textarea rows={2} value={amb[sc.id] ?? ""} maxLength={2000} onChange={(e) => setAmb({ ...amb, [sc.id]: e.target.value })} />
+          <GrowText
+            value={amb[sc.id] ?? ""}
+            onChange={(v) => setAmb({ ...amb, [sc.id]: v })}
+            label={`Scene ${i + 1} background description`}
+          />
           <button
             type="button"
             disabled={!info || !(amb[sc.id] ?? "").trim() || sc.ambience?.status === "running" || isBusy(`snd-${sc.id}`)}
             onClick={() => void make(`snd-${sc.id}`, { music: false, sceneIds: [sc.id], prompts: { ambience: { [sc.id]: amb[sc.id] } } })}
           >
             {isBusy(`snd-${sc.id}`) && <Spinner />} {sc.ambience?.status === "done" ? "Remake background" : "Make background"}
-            {info ? ` ${money(perScene)}` : ""}
+            {info && <Ticket micro={perScene} />}
           </button>
         </div>
       ))}
@@ -367,7 +363,7 @@ function SoundPanel({ ep }: { ep: Episode }) {
           onClick={() => void make("snd-all", { music: true, sceneIds: ep.scenes.map((s) => s.id), prompts })}
         >
           {isBusy("snd-all") && <Spinner />} {ep.music?.status === "done" ? "Remake all sound" : "Make all sound"}
-          {info ? ` ${money(info.musicMicro + info.ambienceMicro)}` : ""}
+          {info && <Ticket micro={info.musicMicro + info.ambienceMicro} />}
         </button>
         {anyRunning && <span className="muted small-text">Making sound. Under a minute.</span>}
       </div>
@@ -380,4 +376,54 @@ function BedStatus({ bed }: { bed: SoundBed | null | undefined }) {
   if (bed.status === "running") return <span className="status-chip live">Making</span>;
   if (bed.status === "failed") return <span className="status-chip failed">Failed{bed.error ? `: ${bed.error}` : ""}</span>;
   return <span className="status-chip ok">Ready</span>;
+}
+
+function GrowText({ value, onChange, label }: { value: string; onChange(v: string): void; label: string }) {
+  const ref = useAutoGrow(value);
+  return <textarea ref={ref} rows={2} value={value} maxLength={2000} aria-label={label} onChange={(e) => onChange(e.target.value)} />;
+}
+
+/** The episode up front; subtitles; the shot files and edit list folded away for finishing elsewhere. */
+function ExportFiles({ x }: { x: ExportInfo }) {
+  const ep = x.files.find((f) => f.name === "episode.mp4");
+  const srt = x.files.find((f) => f.name === "subtitles.srt");
+  const rest = x.files.filter((f) => f !== ep && f !== srt);
+  const nice = (name: string) => {
+    const m = /^shots\/(\d+)(c\d+)?_/.exec(name);
+    if (m) return m[2] ? `Cutaway in clip ${Number(m[1])}` : `Clip ${Number(m[1])}`;
+    if (name.endsWith(".edl")) return "Edit list (EDL, for Premiere or Resolve)";
+    if (name.endsWith(".json")) return "Edit list (JSON)";
+    return name;
+  };
+  return (
+    <div className="export-files">
+      <div className="row">
+        {ep && (
+          <a className="btn primary" href={`${ep.url}?download=1`}>
+            <Icon name="download" /> Download episode <span className="muted-on">{bytes(ep.bytes)}</span>
+          </a>
+        )}
+        {srt && (
+          <a className="btn" href={`${srt.url}?download=1`}>
+            <Icon name="download" /> Subtitles (.srt)
+          </a>
+        )}
+      </div>
+      {rest.length > 0 && (
+        <details className="more-files">
+          <summary>Shot clips and edit list ({rest.length})</summary>
+          <ul className="files">
+            {rest.map((f) => (
+              <li key={f.name}>
+                <a href={`${f.url}?download=1`}>
+                  <Icon name="download" /> {nice(f.name)}
+                </a>{" "}
+                <span className="muted">{bytes(f.bytes)}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
 }

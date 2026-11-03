@@ -96,6 +96,7 @@ export function addScene(episode: Episode, p: { heading: string; script?: string
     script: p.script ?? "",
     locationId: p.locationId ?? null,
     shots: [],
+    staging: "",
     ambience: null,
     master: null,
   };

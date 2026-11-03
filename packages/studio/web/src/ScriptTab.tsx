@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { type Episode, type View, api } from "./api";
 import { useProject } from "./ProjectView";
 import { PLACEHOLDER_NAME } from "./progress";
-import { Icon, Spinner, Ticket, Why, money, plural, useApp } from "./ui";
+import { Icon, Spinner, Ticket, Why, money, plural, useApp, useAutoGrow } from "./ui";
 
 type StartMode = "ai" | "paste";
 const MODE_KEY = "studio.newEpisodeMode";
@@ -13,22 +13,6 @@ function readMode(): StartMode {
   } catch {
     return "ai";
   }
-}
-
-/** Grows a textarea to fit its text, up to 70% of the window, then it scrolls. */
-function useAutoGrow(value: string) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: re-measure whenever the text changes
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = "auto";
-    const max = Math.round(window.innerHeight * 0.7);
-    const want = el.scrollHeight + 2;
-    el.style.height = `${Math.min(want, max)}px`;
-    el.style.overflowY = want > max ? "auto" : "hidden";
-  }, [value]);
-  return ref;
 }
 
 export function ScriptTab() {

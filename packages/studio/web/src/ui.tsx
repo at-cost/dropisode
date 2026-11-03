@@ -1,4 +1,4 @@
-import { type ReactNode, createContext, useContext, useEffect, useRef, useState } from "react";
+import { type ReactNode, createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Config, Dashboard, LocalSettings } from "./api";
 import { ApiError } from "./api";
 
@@ -331,4 +331,20 @@ export function currentTheme(): "light" | "dark" {
 export function applyTheme(t: "light" | "dark"): void {
   document.documentElement.dataset.theme = t;
   store.set("dropisode.theme", t);
+}
+
+/** Grows a textarea to fit its text, up to 70% of the window, then it scrolls. */
+export function useAutoGrow(value: string) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-measure whenever the text changes
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const max = Math.round(window.innerHeight * 0.7);
+    const want = el.scrollHeight + 2;
+    el.style.height = `${Math.min(want, max)}px`;
+    el.style.overflowY = want > max ? "auto" : "hidden";
+  }, [value]);
+  return ref;
 }

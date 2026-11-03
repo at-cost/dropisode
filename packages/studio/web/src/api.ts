@@ -71,6 +71,8 @@ export interface Scene {
   locationId: string | null;
   shots: Shot[];
   ambience?: SoundBed | null;
+  /** Where everyone is in the scene and who is hidden from whom. */
+  staging?: string;
   /** Everyone in the place, lit by it: every shot's first frame is a new angle on it. */
   master?: SoundBed | null;
 }

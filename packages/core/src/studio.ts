@@ -30,6 +30,7 @@ import {
   scriptVoiceOvers,
   isWideShot,
   sceneMasterPrompt,
+  parseStaging,
 } from "./prompts";
 import type { JobRecord, MediaInput } from "./providers/types";
 
@@ -253,6 +254,7 @@ export class Studio {
       p.owner,
     );
     const shots = parseStoryboard(answer);
+    const staging = parseStaging(answer);
     const speakers = scriptSpeakers(scene.script);
     const voiceOvers = scriptVoiceOvers(scene.script);
     const n = await this.projects.mutate(projectId, (proj) => {
@@ -284,6 +286,7 @@ export class Studio {
         });
       }
       sc.master = null;
+      sc.staging = staging;
       return sc.shots.length;
     });
     // A fresh master still for the new staging; shots drafted meanwhile wait for it.
@@ -467,6 +470,7 @@ export class Studio {
             location,
             aspect: project.aspect,
             fromMaster,
+            staging: scene.staging,
             voiceOver:
               shot.dialogue.length > 0 &&
               this.audioPlan(shot.audio, this.catalog.get(this.catalog.defaultsFor(take.tier).video), true) !== "native",
@@ -514,7 +518,14 @@ export class Studio {
     const place = scene.locationId ? project.cast.find((c) => c.id === scene.locationId) : undefined;
     const refs = await this.referenceImages(project, peopleIds, scene.locationId, image.maxRefImages);
     const jobId = `job_sm_${newId("sm")}`;
-    const prompt = sceneMasterPrompt({ heading: scene.heading, script: scene.script, place, people, aspect: project.aspect });
+    const prompt = sceneMasterPrompt({
+      heading: scene.heading,
+      script: scene.script,
+      staging: scene.staging,
+      place,
+      people,
+      aspect: project.aspect,
+    });
     await this.projects.mutate(projectId, (proj) => {
       findScene(proj, sceneId).scene.master = { prompt: prompt.slice(0, 2000), status: "running", jobId };
     });
