@@ -2,7 +2,7 @@ import { type CSSProperties, type ReactNode, type TouchEvent, useEffect, useRef,
 import { type DialogueLine, type Episode, type Project, type Scene, type Shot, type Take, type View, api, mediaUrl } from "./api";
 import { useProject } from "./ProjectView";
 import { type Stage, hasFinalTake, shotStage, shotStatus, stageCounts } from "./progress";
-import { Empty, Icon, MoreMenu, Spinner, Ticket, Why, modelLabel, money, plural, store, unitLabel, useApp, useMedia } from "./ui";
+import { Empty, Icon, MoreMenu, Spinner, Ticket, Why, modelLabel, money, plural, store, unitLabel, useApp } from "./ui";
 
 /** "Scene 2, shot 3" for a shot id. */
 export function shotLabel(p: Project, shotId: string): string {
@@ -45,7 +45,6 @@ export function StoryboardTab() {
   const [ep, pick] = useEpisodeChoice();
   const [mode, setModeState] = useState<ViewMode>(() => (store.get("dropisode.storyboard") === "board" ? "board" : "list"));
   const [selected, setSelected] = useState<string | null>(null);
-  const wide = useMedia("(min-width: 1280px)");
   const setMode = (m: ViewMode) => {
     setModeState(m);
     store.set("dropisode.storyboard", m);
@@ -73,8 +72,6 @@ export function StoryboardTab() {
   const allFinal = shots.length > 0 && counts.final === shots.length;
   const seconds = shots.reduce((a, s) => a + s.durationS, 0);
   const found = selected ? findShot(ep, selected) : null;
-  // The episode summary sits beside the list on wide screens; a selected shot always opens in a panel that slides over from the right.
-  const docked = mode === "list" && wide;
   const sel: Selection = { id: found ? selected : null, set: setSelected };
   return (
     <div className="storyboard">
@@ -99,7 +96,8 @@ export function StoryboardTab() {
           </button>
         </fieldset>
       </div>
-      <div className={`sb-layout${docked ? " docked" : ""}`}>
+      {/* Shots use the full width (the counts are in the line above); a selected shot opens in a panel that slides over from the right. */}
+      <div className="sb-layout">
         <div className="sb-main">
           {ep.scenes.length === 0 && (
             <Empty>
@@ -110,11 +108,6 @@ export function StoryboardTab() {
             <SceneBlock key={sc.id} ep={ep} scene={sc} n={i + 1} mode={mode} sel={sel} />
           ))}
         </div>
-        {docked && (
-          <aside className="inspector" aria-label="Episode summary">
-            <EpisodeSummary ep={ep} />
-          </aside>
-        )}
         {found && (
           <>
             <button
@@ -181,34 +174,6 @@ function findShot(ep: Episode, id: string): { scene: Scene; shot: Shot; index: n
     if (index >= 0) return { scene, shot: scene.shots[index]!, index };
   }
   return null;
-}
-
-function EpisodeSummary({ ep }: { ep: Episode }) {
-  const { view } = useProject();
-  const shots = ep.scenes.flatMap((s) => s.shots);
-  const counts = stageCounts(shots);
-  const count = (st: Stage) => counts[st];
-  return (
-    <div className="inspector-body">
-      <div className="insp-head">
-        <h2>{ep.title}</h2>
-        <span className="insp-kicker">Episode</span>
-      </div>
-      <dl className="insp-stats">
-        <dt>To draft</dt>
-        <dd>{count("todo")}</dd>
-        <dt>Drafted</dt>
-        <dd>{count("drafted")}</dd>
-        <dt>Approved</dt>
-        <dd>{count("approved")}</dd>
-        <dt>Final</dt>
-        <dd>{count("final")}</dd>
-        <dt>Spent</dt>
-        <dd>{money(view.episodeTotals[ep.id]?.paidMicro ?? 0)}</dd>
-      </dl>
-      <p className="muted small-text">Select a shot to edit its direction, camera, people and lines.</p>
-    </div>
-  );
 }
 
 function SceneBlock({ ep, scene, n, mode, sel }: { ep: Episode; scene: Scene; n: number; mode: ViewMode; sel: Selection }) {
@@ -1129,7 +1094,13 @@ function SceneStill({ scene }: { scene: Scene }) {
   return (
     <div className="scene-still">
       <div className="scene-still-img">
-        {m?.status === "done" && m.mediaId ? <img src={mediaUrl(pid, m.mediaId)} alt="Scene still" /> : busy ? <Spinner /> : null}
+        {m?.status === "done" && m.mediaId ? (
+          <a href={mediaUrl(pid, m.mediaId)} target="_blank" rel="noreferrer" title="Open the scene still full size">
+            <img src={mediaUrl(pid, m.mediaId)} alt="Scene still" />
+          </a>
+        ) : busy ? (
+          <Spinner />
+        ) : null}
       </div>
       <div className="scene-still-text">
         <strong>Scene still</strong>

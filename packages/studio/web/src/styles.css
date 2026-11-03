@@ -3696,8 +3696,8 @@ main {
 /* Tiles: list (frame on top) and board (frame left) */
 .tile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(214px, 100%), 1fr));
+  gap: 14px;
 }
 .tile {
   display: flex;
@@ -4606,7 +4606,7 @@ button.danger-solid {
   margin: 10px 0 14px;
 }
 .scene-still-img {
-  width: 90px;
+  width: 126px;
   aspect-ratio: 9 / 16;
   flex: none;
   border-radius: 6px;
@@ -4658,5 +4658,11 @@ button.danger-solid {
 }
 .scene-still-text {
   flex: 1;
-  max-width: 640px;
+  max-width: none;
+}
+.scene-still-img a,
+.scene-still-img img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
