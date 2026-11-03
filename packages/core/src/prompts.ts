@@ -282,7 +282,7 @@ export function videoPrompt(p: {
 
 export function castImagePrompt(c: CastMember): string {
   if (c.kind === "character") {
-    return `Casting photo of a real actor: knees up, a slight three-quarter turn, relaxed natural expression, soft natural daylight, a plain neutral wall behind. Real skin texture with pores and small imperfections, natural hair, not retouched, not a studio glamour shot. ${c.name}: ${c.description}. No text.`;
+    return `Casting photo of a real actor standing upright, framed from the knees up, a slight three-quarter turn, arms relaxed at their sides, relaxed natural expression, soft natural daylight, a plain neutral wall behind. Real skin texture with pores and small imperfections, natural hair, not retouched, not a studio glamour shot. ${c.name}: ${c.description}. No text.`;
   }
   if (c.kind === "location")
     return `Establishing reference image of a location, no people, cinematic, photorealistic. ${c.name}: ${c.description}. No text.`;
