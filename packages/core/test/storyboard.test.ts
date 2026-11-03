@@ -103,7 +103,8 @@ describe("storyboard", () => {
       llm: (purpose: string) =>
         purpose === "storyboard"
           ? JSON.stringify({
-              staging: "NORA sits alone on the last bench at the very back, hood up, unnoticed. CELESTE stands at the front facing the mourners.",
+              staging:
+                "NORA sits alone on the last bench at the very back, hood up, unnoticed. CELESTE stands at the front facing the mourners.",
               shots: [{ description: "Nora under the yew.", camera: "close-up", cast: ["NORA"], duration: 4 }],
             })
           : "{}",
