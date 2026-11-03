@@ -110,6 +110,8 @@ export function storyboardPrompt(p: {
             'When a shot picks up exactly where the previous one ends (same moment, the camera simply carrying on), set "continues": true.',
             "The video model can't write legible text: never rely on printed words being read on screen. Let a character say it, or keep it out of focus.",
           ]),
+      "Every shot shows one visible action or reaction that happens during it (someone turns, looks up, flinches, grips something, steps forward), described as it unfolds. Never a still picture.",
+      "Say where each person looks, consistent with the staging: someone watching the funeral looks towards it, not into the camera. A close-up shows only the head and shoulders; say whose hands they are in a hands shot.",
       "Put each line of dialogue in the shot where it is spoken, with its speaker.",
       "Speakers: use the speaker the script names. If that speaker is not in the cast list (a voice from a memory, a crowd, an announcer), set speaker to null. Never give a line to a different character.",
       "Keep every concrete detail the script gives in the description: on-screen text quoted exactly as written, props, clothes, injuries, weather, who faces which way.",
