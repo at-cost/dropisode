@@ -126,6 +126,31 @@ describe("storyboard", () => {
     expect(frame.input.prompt).toMatch(/The only recognisable people in this frame: NORA/);
   });
 
+  it("a hands or object insert shows no faces, even when it names whose hands they are", () => {
+    const nora = { id: "n", name: "NORA", kind: "character", description: "red hair", status: "ready", refImageIds: [] } as never;
+    const base = {
+      id: "s",
+      castIds: ["n"],
+      dialogue: [],
+      durationS: 4,
+      audio: "native" as const,
+      approved: false,
+      takes: [],
+      continueFromPrevious: false,
+      onScreenText: "",
+      cutaway: null,
+    };
+    const insert = framePrompt({
+      shot: { ...base, description: "Nora's hands hold the card.", camera: "extreme close-up" },
+      cast: [nora],
+      aspect: "9:16",
+    });
+    expect(insert).toMatch(/no faces/);
+    expect(insert).not.toMatch(/only recognisable people/);
+    const close = framePrompt({ shot: { ...base, description: "Nora watches.", camera: "close-up" }, cast: [nora], aspect: "9:16" });
+    expect(close).toMatch(/only recognisable people in this frame: NORA/);
+  });
+
   it("close shots put the place soft behind the people; wide shots use the place's picture", () => {
     const place = { id: "l", name: "CHURCHYARD", kind: "location", description: "rainy churchyard", status: "ready" } as never;
     const base = {

@@ -160,9 +160,11 @@ export function framePrompt(p: {
     p.staging?.trim()
       ? `Where everyone is in this scene (keep to it; nobody moves out of their place for this shot): ${p.staging.trim()}`
       : "",
-    people.length
-      ? `The only recognisable people in this frame: ${people.map((c) => c.name).join(", ")}. Anyone else is an unnamed extra, out of focus.`
-      : "",
+    isDetailShot(p.shot)
+      ? "Only the detail the shot describes fills the frame: no faces, and nobody standing in the background looking on."
+      : people.length
+        ? `The only recognisable people in this frame: ${people.map((c) => c.name).join(", ")}. Anyone else is an unnamed extra, out of focus.`
+        : "",
     p.shot.onScreenText?.trim() ? "Any card, sign, paper or screen in the shot is blank: its text is added afterwards." : "",
     p.voiceOver ? "Nobody in the frame is speaking: every mouth is closed." : "",
     ...speakerFacing(p.shot, people, !!p.voiceOver),
@@ -202,6 +204,12 @@ export function sceneMasterPrompt(p: {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/** Extreme close-ups and inserts: hands, an object, a detail. */
+export function isDetailShot(shot: { camera: string; description?: string }): boolean {
+  const re = /\b(extreme close|ecu|insert|macro|detail shot)\b/i;
+  return re.test(shot.camera) || re.test((shot.description ?? "").slice(0, 40));
 }
 
 /** Wide, establishing and full shots: the only ones that show the whole place. */
