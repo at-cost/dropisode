@@ -792,6 +792,51 @@
       }
     },
     {
+      "id": "gpt-image-2.5",
+      "kind": "image",
+      "label": "GPT Image 2.5 Sunburst (high)",
+      "provider": "fal",
+      "endpoint": "openai/gpt-image-2.5/sunburst/edit",
+      "textEndpoint": "openai/gpt-image-2.5/sunburst/text-to-image",
+      "tiers": [
+        "draft",
+        "final"
+      ],
+      "maxRefImages": 16,
+      "price": {
+        "unit": "image",
+        "usd": 0.22,
+        "source": "https://fal.ai/models/openai/gpt-image-2.5/sunburst/edit",
+        "verifiedOn": "2026-11-04",
+        "status": "uncertain",
+        "notes": "Token billed: image $8/1M in, $30/1M out; text $5/$10. $0.22 is an estimate for one high-quality portrait with a few references (about 6k output tokens). Real cost from billing events."
+      },
+      "input": {
+        "prompt": "prompt",
+        "images": "image_urls",
+        "aspect": "image_size",
+        "aspectValues": {
+          "9:16": "portrait_16_9",
+          "16:9": "landscape_16_9"
+        },
+        "extra": {
+          "num_images": 1,
+          "quality": "high",
+          "output_format": "png"
+        }
+      },
+      "output": {
+        "url": "images.0.url"
+      },
+      "quality": {
+        "elo": 1416,
+        "board": "Design Arena image (2026-11-03)",
+        "source": "https://www.designarena.ai/leaderboard/image",
+        "verifiedOn": "2026-11-04",
+        "notes": "#1 on Design Arena; leads Artificial Analysis image editing in early November snapshots."
+      }
+    },
+    {
       "id": "minimax-speech-2.8-turbo",
       "kind": "tts",
       "label": "MiniMax Speech 2.8 Turbo",
