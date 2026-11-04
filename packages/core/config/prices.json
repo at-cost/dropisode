@@ -333,6 +333,131 @@
       }
     },
     {
+      "id": "seedance-2.5-480p",
+      "kind": "video",
+      "label": "Seedance 2.5 (480p)",
+      "provider": "fal",
+      "endpoint": "bytedance/seedance-2.5/us/image-to-video",
+      "tiers": [
+        "draft"
+      ],
+      "nativeAudio": true,
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "price": {
+        "unit": "second",
+        "usd": 0.2205,
+        "audioUsd": 0.2205,
+        "source": "https://fal.ai/models/bytedance/seedance-2.5/us/image-to-video",
+        "verifiedOn": "2026-11-04",
+        "status": "verified",
+        "notes": "Token billed; per-second figure from fal's page. Same price with or without audio. Realistic faces reportedly sometimes blocked as inputs (unverified)."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "string",
+        "audio": "generate_audio",
+        "extra": {
+          "resolution": "480p"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "seedance-2.5-720p",
+      "kind": "video",
+      "label": "Seedance 2.5 (720p)",
+      "provider": "fal",
+      "endpoint": "bytedance/seedance-2.5/us/image-to-video",
+      "tiers": [
+        "draft",
+        "final"
+      ],
+      "nativeAudio": true,
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "price": {
+        "unit": "second",
+        "usd": 0.473,
+        "audioUsd": 0.473,
+        "source": "https://fal.ai/models/bytedance/seedance-2.5/us/image-to-video",
+        "verifiedOn": "2026-11-04",
+        "status": "verified",
+        "notes": "Token billed; per-second figure from fal's page. Same price with or without audio. Realistic faces reportedly sometimes blocked as inputs (unverified)."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "string",
+        "audio": "generate_audio",
+        "extra": {
+          "resolution": "720p"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
       "id": "minimax-h3",
       "kind": "video",
       "label": "MiniMax H3 (768p)",
@@ -633,6 +758,40 @@
       }
     },
     {
+      "id": "nano-banana-pro",
+      "kind": "image",
+      "label": "Nano Banana Pro (1K)",
+      "provider": "fal",
+      "endpoint": "fal-ai/nano-banana-pro/edit",
+      "textEndpoint": "fal-ai/nano-banana-pro",
+      "tiers": [
+        "draft",
+        "final"
+      ],
+      "maxRefImages": 14,
+      "price": {
+        "unit": "image",
+        "usd": 0.15,
+        "source": "https://fal.ai/models/fal-ai/nano-banana-pro/edit",
+        "verifiedOn": "2026-11-04",
+        "status": "verified",
+        "notes": "$0.15 per image at 1K/2K, 4K double."
+      },
+      "input": {
+        "prompt": "prompt",
+        "images": "image_urls",
+        "aspect": "aspect_ratio",
+        "extra": {
+          "num_images": 1,
+          "resolution": "1K",
+          "output_format": "png"
+        }
+      },
+      "output": {
+        "url": "images.0.url"
+      }
+    },
+    {
       "id": "minimax-speech-2.8-turbo",
       "kind": "tts",
       "label": "MiniMax Speech 2.8 Turbo",
@@ -830,7 +989,6 @@
         "notes": "Billed per second of input audio."
       },
       "input": {
-        
         "media": "audio_url",
         "extra": {
           "model": "htdemucs",

@@ -272,9 +272,46 @@ export function createStudioApi(resolve: ResolveContext): Hono {
     const ctx = await resolve(c);
     const b = await body(
       c,
-      z.object({ name: z.string().min(1).max(200).optional(), idea: z.string().max(4000).optional(), aspect: Aspect.optional() }),
+      z.object({
+        name: z.string().min(1).max(200).optional(),
+        idea: z.string().max(4000).optional(),
+        aspect: Aspect.optional(),
+        models: z
+          .object({
+            draftVideo: z.string().max(80).nullable().optional(),
+            finalVideo: z.string().max(80).nullable().optional(),
+            image: z.string().max(80).nullable().optional(),
+            castImage: z.string().max(80).nullable().optional(),
+          })
+          .optional(),
+      }),
     );
-    await mutate(c, ctx, (p) => Object.assign(p, b));
+    // Each choice must be a listed model of the right kind and tier; null puts it back on the recommended default.
+    const cat = ctx.studio.catalog;
+    const want = {
+      draftVideo: ["video", "draft"],
+      finalVideo: ["video", "final"],
+      image: ["image", null],
+      castImage: ["image", null],
+    } as const;
+    for (const [k, id] of Object.entries(b.models ?? {})) {
+      if (id == null) continue;
+      const [kind, tier] = want[k as keyof typeof want];
+      const m = cat.list(kind).find((x) => x.id === id);
+      if (!m || (tier && !m.tiers.includes(tier))) return c.json({ error: `${id} can't be used for ${k}` }, 400);
+    }
+    await mutate(c, ctx, (p) => {
+      const { models, ...rest } = b;
+      Object.assign(p, rest);
+      if (models) {
+        const next = { ...(p.models ?? {}) } as Record<string, string | undefined>;
+        for (const [k, id] of Object.entries(models)) {
+          if (id == null) delete next[k];
+          else next[k] = id;
+        }
+        p.models = next;
+      }
+    });
     return c.json(await view(ctx, await project(c, ctx)));
   });
 
@@ -314,7 +351,7 @@ export function createStudioApi(resolve: ResolveContext): Hono {
     const ctx = await resolve(c);
     const p = await project(c, ctx);
     const s = ctx.studio;
-    const castImage = ctx.price(s.estimateCastImage().providerCostMicro);
+    const castImage = ctx.price(s.estimateCastImage(s.modelsFor(p, "draft").castImage).providerCostMicro);
     const seconds = Math.min(600, Math.max(5, Number(c.req.query("targetSeconds")) || 30));
     const script = ctx.price(s.estimateScript(p.idea || "x".repeat(200), seconds).providerCostMicro);
     const scenes: Record<string, number> = {};

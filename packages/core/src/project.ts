@@ -176,6 +176,15 @@ export const CostLine = z.object({
 });
 export type CostLine = z.infer<typeof CostLine>;
 
+/** The project's own model choices; anything unset uses the studio's recommended default. */
+export const ProjectModels = z.object({
+  draftVideo: z.string().optional(),
+  finalVideo: z.string().optional(),
+  image: z.string().optional(),
+  castImage: z.string().optional(),
+});
+export type ProjectModels = z.infer<typeof ProjectModels>;
+
 export const Project = z.object({
   format: z.literal(PROJECT_FORMAT),
   id: z.string(),
@@ -183,6 +192,7 @@ export const Project = z.object({
   /** Logline or idea the project started from. */
   idea: z.string().max(4000).default(""),
   aspect: Aspect.default("9:16"),
+  models: ProjectModels.default({}),
   createdAt: z.string(),
   updatedAt: z.string(),
   cast: z.array(CastMember).default([]),

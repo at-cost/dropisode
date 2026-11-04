@@ -84,10 +84,22 @@ export class Studio {
     return estimate(this.catalog.get(modelId), { images: 1 });
   }
 
+  /** The models a project uses for a tier: its own choice, else the recommended default. */
+  modelsFor(project: Project, tier: Tier): { image: string; video: string; castImage: string } {
+    const d = this.catalog.defaultsFor(tier);
+    const m = project.models ?? {};
+    const ok = (id: string | undefined, kind: "image" | "video") => (id && this.catalog.models.get(id)?.kind === kind ? id : undefined);
+    return {
+      image: ok(m.image, "image") ?? d.image,
+      video: ok(tier === "draft" ? m.draftVideo : m.finalVideo, "video") ?? d.video,
+      castImage: ok(m.castImage, "image") ?? this.catalog.config.defaults.castImage,
+    };
+  }
+
   /** The exact price shown on a shot's generate button. */
   estimateTake(project: Project, shotId: string, tier: Tier, models: { image?: string; video?: string } = {}): TakeEstimate {
     const { shot } = findShot(project, shotId);
-    const d = this.catalog.defaultsFor(tier);
+    const d = this.modelsFor(project, tier);
     const image = this.catalog.get(models.image ?? d.image);
     const video = this.catalog.get(models.video ?? d.video);
     const audio =
@@ -232,7 +244,7 @@ export class Studio {
     const project = await this.projects.get(projectId);
     const { scene, episode } = findScene(project, sceneId);
     assertNothingRunning(scene.shots);
-    const video = this.catalog.get(this.catalog.defaultsFor("final").video);
+    const video = this.catalog.get(this.modelsFor(project, "final").video);
     const targetSeconds =
       p.targetSeconds ??
       sceneTargetSeconds(
@@ -303,7 +315,7 @@ export class Studio {
   ): Promise<JobRecord> {
     const project = await this.projects.get(projectId);
     const member = findCast(project, castId);
-    const modelId = p.modelId ?? this.catalog.config.defaults.castImage;
+    const modelId = p.modelId ?? this.modelsFor(project, "draft").castImage;
     if (member.error) {
       await this.projects.mutate(projectId, (pr) => {
         const c = pr.cast.find((x) => x.id === castId);
@@ -471,9 +483,7 @@ export class Studio {
             aspect: project.aspect,
             fromMaster,
             staging: scene.staging,
-            voiceOver:
-              shot.dialogue.length > 0 &&
-              this.audioPlan(shot.audio, this.catalog.get(this.catalog.defaultsFor(take.tier).video), true) !== "native",
+            voiceOver: shot.dialogue.length > 0 && this.audioPlan(shot.audio, this.catalog.get(take.videoModel), true) !== "native",
           }),
           aspect: project.aspect,
           ...(refs.length ? { images: refs } : {}),
@@ -510,7 +520,7 @@ export class Studio {
     const project = await this.projects.get(projectId);
     const { scene, episode } = findScene(project, sceneId);
     if (scene.master?.status === "running") return;
-    const image = this.catalog.get(this.catalog.defaultsFor("draft").image);
+    const image = this.catalog.get(this.modelsFor(project, "draft").image);
     const peopleIds = [...new Set(scene.shots.flatMap((s) => s.castIds))].filter(
       (id) => project.cast.find((c) => c.id === id)?.kind === "character",
     );

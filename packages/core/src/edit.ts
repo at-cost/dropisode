@@ -36,6 +36,7 @@ export function createProject(p: { name: string; idea?: string; aspect?: Aspect;
     name: p.name,
     idea: p.idea ?? "",
     aspect: p.aspect ?? "9:16",
+    models: {},
     createdAt: t,
     updatedAt: t,
     cast: [],

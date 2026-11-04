@@ -38,6 +38,7 @@ const TABS = [
 /** What the prices depend on, so estimates are refetched only when it changes. */
 function priceSignature(p: Project): string {
   return JSON.stringify([
+    p.models ?? {},
     p.idea.length,
     p.cast.map((c) => [c.id, c.refImageIds.length, c.description.length]),
     p.episodes.map((e) =>

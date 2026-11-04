@@ -115,11 +115,31 @@ export interface CostLine {
   estimatePaidMicro: number;
 }
 
+export interface ProjectModels {
+  draftVideo?: string;
+  finalVideo?: string;
+  image?: string;
+  castImage?: string;
+}
+
+export interface CatalogEntry {
+  id: string;
+  kind: string;
+  label: string;
+  unit: string;
+  tiers?: ("draft" | "final")[];
+  nativeAudio?: boolean;
+  unitPaidMicro?: number | null;
+  audioUnitPaidMicro?: number | null;
+}
+
 export interface Project {
   id: string;
   name: string;
   idea: string;
   aspect: Aspect;
+  /** The project's own model choices; unset means the recommended default. */
+  models?: ProjectModels;
   createdAt: string;
   updatedAt: string;
   cast: CastMember[];
@@ -169,9 +189,9 @@ export interface Config {
   priceLabel: string;
   cameraPresets: string[];
   /** The model catalog, for human labels. */
-  models?: { id: string; kind: string; label: string; unit: string; nativeAudio?: boolean }[];
-  /** Default models per tier (the final video model decides whether "native audio" means anything). */
-  defaults?: { final?: { video?: string } };
+  models?: CatalogEntry[];
+  /** Recommended models per tier (the final video model decides whether "native audio" means anything). */
+  defaults?: { draft?: { video?: string; image?: string }; final?: { video?: string; image?: string }; castImage?: string };
   wallet: Wallet | null;
   /** Hosted only: the signed-in person, for the profile menu. */
   account: { name: string; email: string; workspace: string; isAdmin: boolean } | null;

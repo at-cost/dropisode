@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { type CastKind, type CastMember, type View, api, mediaUrl } from "./api";
+import { ModelsPanel } from "./ModelsPanel";
 import { useProject } from "./ProjectView";
 import { Empty, Icon, Spinner, Ticket, Why, useApp } from "./ui";
 
@@ -20,6 +21,7 @@ export function CastTab() {
 
   return (
     <div className="cast-tab">
+      <ModelsPanel only={["castImage"]} />
       <form
         className="add-cast row"
         onSubmit={(e) => {

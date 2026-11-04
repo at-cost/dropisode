@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode, type TouchEvent, useEffect, useRef, useState } from "react";
 import { type DialogueLine, type Episode, type Project, type Scene, type Shot, type Take, type View, api, mediaUrl } from "./api";
+import { ModelsPanel } from "./ModelsPanel";
 import { useProject } from "./ProjectView";
 import { type Stage, hasFinalTake, shotStage, shotStatus, stageCounts } from "./progress";
 import { Empty, Icon, MoreMenu, Spinner, Ticket, Why, modelLabel, money, plural, store, unitLabel, useApp } from "./ui";
@@ -96,6 +97,7 @@ export function StoryboardTab() {
           </button>
         </fieldset>
       </div>
+      <ModelsPanel only={["draftVideo", "finalVideo", "image"]} />
       {/* Shots use the full width (the counts are in the line above); a selected shot opens in a panel that slides over from the right. */}
       <div className="sb-layout">
         <div className="sb-main">
