@@ -3,6 +3,113 @@
   "_readme": "Every provider price Dropisode uses. Each has a source and the date it was read. Change prices here, never in code. See docs/PRICING_NOTES.md.",
   "models": [
     {
+      "id": "omni-1.2-720p",
+      "kind": "video",
+      "label": "Gemini Omni Flash 1.2 (720p)",
+      "provider": "fal",
+      "endpoint": "google/gemini-omni-flash/v1.2/image-to-video",
+      "tiers": [
+        "draft",
+        "final"
+      ],
+      "nativeAudio": true,
+      "durations": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "price": {
+        "unit": "second",
+        "usd": 0.091,
+        "audioUsd": 0.091,
+        "source": "https://fal.ai/models/google/gemini-omni-flash/v1.2/image-to-video",
+        "verifiedOn": "2026-11-05",
+        "status": "uncertain",
+        "notes": "fal shows no price yet. Google lists \\$0.07/s at 720p; fal charged about 1.3x Google for 1.1 (\\$0.13 vs \\$0.10), so \\$0.091 is an estimate. Always generates audio (no switch). Real cost from billing events."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "number",
+        "aspect": "aspect_ratio",
+        "extra": {
+          "resolution": "720p"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      },
+      "quality": {
+        "elo": 1541,
+        "board": "Video arena (owner screenshot 2026-11-05)",
+        "source": "https://blog.google/innovation-and-ai/technology/developers-tools/introducing-gemini-omni-1-2-flash/",
+        "verifiedOn": "2026-11-05",
+        "notes": "1.2 preliminary score, 1,742 votes."
+      }
+    },
+    {
+      "id": "omni-1.1-720p",
+      "kind": "video",
+      "label": "Gemini Omni Flash 1.1 (720p)",
+      "provider": "fal",
+      "endpoint": "google/gemini-omni-flash/v1.1/image-to-video",
+      "tiers": [
+        "draft",
+        "final"
+      ],
+      "nativeAudio": true,
+      "durations": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "price": {
+        "unit": "second",
+        "usd": 0.13,
+        "audioUsd": 0.13,
+        "source": "https://fal.ai/models/google/gemini-omni-flash/v1.1/image-to-video",
+        "verifiedOn": "2026-11-05",
+        "status": "secondary",
+        "notes": "fal's 1.1 reference page: about \\$0.13/s at 720p, token billed. Always generates audio."
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "number",
+        "aspect": "aspect_ratio",
+        "extra": {
+          "resolution": "720p"
+        }
+      },
+      "output": {
+        "url": "video.url"
+      },
+      "quality": {
+        "elo": 1514,
+        "board": "Video arena (owner screenshot 2026-11-05)",
+        "source": "https://blog.google/innovation-and-ai/technology/developers-tools/introducing-gemini-omni-1-2-flash/",
+        "verifiedOn": "2026-11-05",
+        "notes": "1.2 preliminary score, 1,742 votes."
+      }
+    },
+    {
       "id": "veo-3.1-lite",
       "kind": "video",
       "label": "Veo 3.1 Lite (720p)",
