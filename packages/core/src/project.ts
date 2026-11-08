@@ -79,6 +79,25 @@ export const Take = z.object({
   error: z.string().optional(),
   /** A continued shot's final waits for the shot before it to finish its own final. */
   waitsForShotId: z.string().optional(),
+  /** The target this take ends on, fixed when the take starts (so the price and the work can't drift apart). */
+  endPicture: z.string().max(2000).optional(),
+  /** The target picture this take's video ends on (made from its own first frame). */
+  endFrameJobId: z.string().optional(),
+  endFrameMediaId: z.string().optional(),
+  /** How the finished clip moves: stalls and one-frame jumps, measured frame by frame. */
+  analysis: z
+    .object({
+      durationS: z.number(),
+      motion: z.array(z.number()),
+      jumps: z.array(z.number()),
+      stallFromS: z.number().optional(),
+      suggestedOutS: z.number(),
+    })
+    .optional(),
+  /** Where the edit ends this clip, and where a shot that continues from it starts (s). */
+  outS: z.number().positive().optional(),
+  /** The clip is in but not measured yet: nothing may continue from it until it is. (Takes from before measuring existed lack it and stay usable.) */
+  measuring: z.boolean().optional(),
   createdAt: z.string(),
 });
 export type Take = z.infer<typeof Take>;
@@ -98,6 +117,8 @@ export const Shot = z.object({
   selectedTakeId: z.string().optional(),
   /** Start from the last frame of the previous shot in the scene, so the action carries straight on. */
   continueFromPrevious: z.boolean().default(false),
+  /** What the last moment of the shot looks like (a change of place or age): made into a target picture from the shot's own first frame. */
+  endPicture: z.string().max(2000).default(""),
   /** Text the studio draws over the shot when the episode is assembled (a card, a sign, a date). */
   onScreenText: z.string().max(300).default(""),
   /**
@@ -129,6 +150,9 @@ export const Scene = z.object({
   locationId: z.string().nullable().default(null),
   /** Where everyone is in the scene and who is hidden from whom, fixed at storyboarding. */
   staging: z.string().max(3000).default(""),
+  /** How the scene is cut: long chained takes, or quick vertical-drama cuts. */
+  // Scenes from before continuous takes keep the quick cuts they were storyboarded with; new scenes are continuous.
+  cutting: z.enum(["continuous", "cuts"]).default("cuts"),
   shots: z.array(Shot).default([]),
   /** One continuous background under the whole scene, so the room doesn't change at every cut. */
   ambience: SoundBed.nullable().default(null),

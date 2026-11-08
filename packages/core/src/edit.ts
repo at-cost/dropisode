@@ -98,6 +98,7 @@ export function addScene(episode: Episode, p: { heading: string; script?: string
     locationId: p.locationId ?? null,
     shots: [],
     staging: "",
+    cutting: "continuous",
     ambience: null,
     master: null,
   };
@@ -142,6 +143,7 @@ export interface ShotInput {
   dialogue?: { castId: string | null; text: string }[];
   durationS: number;
   continueFromPrevious?: boolean;
+  endPicture?: string;
   onScreenText?: string;
   audio?: Shot["audio"];
   cutaway?: Shot["cutaway"];
@@ -162,6 +164,7 @@ export function addShot(scene: Scene, p: ShotInput, at?: number): Shot {
     approved: false,
     takes: [],
     continueFromPrevious: p.continueFromPrevious ?? false,
+    endPicture: p.endPicture ?? "",
     onScreenText: p.onScreenText ?? "",
     cutaway: p.cutaway ?? null,
   };
@@ -185,6 +188,7 @@ export function updateShot(
       | "approved"
       | "selectedTakeId"
       | "continueFromPrevious"
+      | "endPicture"
       | "onScreenText"
       | "cutaway"
     >
@@ -197,7 +201,7 @@ export function updateShot(
   if (patch.selectedTakeId !== undefined && !shot.takes.some((t) => t.id === patch.selectedTakeId))
     throw new EditError("No such take", "not_found");
   // On-screen text is drawn at assembly, so changing it doesn't touch the clip or its approval.
-  const content = ["description", "camera", "castIds", "durationS", "dialogue", "continueFromPrevious"] as const;
+  const content = ["description", "camera", "castIds", "durationS", "dialogue", "continueFromPrevious", "endPicture"] as const;
   const changesContent = content.some((k) => patch[k] !== undefined);
   if (patch.description !== undefined) shot.description = patch.description;
   if (patch.camera !== undefined) shot.camera = patch.camera;
@@ -208,6 +212,7 @@ export function updateShot(
   }
   if (patch.audio !== undefined) shot.audio = patch.audio;
   if (patch.continueFromPrevious !== undefined) shot.continueFromPrevious = patch.continueFromPrevious;
+  if (patch.endPicture !== undefined) shot.endPicture = patch.endPicture.slice(0, 2000);
   if (patch.onScreenText !== undefined) shot.onScreenText = patch.onScreenText.slice(0, 300);
   if (patch.cutaway !== undefined) shot.cutaway = patch.cutaway;
   if (patch.dialogue !== undefined) {
@@ -259,11 +264,15 @@ export function splitShot(project: Project, shotId: string, atS?: number): [Shot
     takes: [],
     // The second half picks up exactly where the first ends.
     continueFromPrevious: true,
+    endPicture: shot.endPicture,
     onScreenText: "",
     cutaway: null,
   };
   shot.dialogue = shot.dialogue.slice(0, cut);
   shot.durationS = round1(at);
+  // The target is how the shot ends: it belongs to the second half. The first half's takes now end at the split.
+  shot.endPicture = "";
+  for (const t of shot.takes) t.outS = Math.min(t.outS ?? at, at);
   shot.approved = false;
   scene.shots.splice(index + 1, 0, second);
   return [shot, second];
@@ -283,6 +292,8 @@ export function mergeWithNext(project: Project, shotId: string): Shot {
   shot.dialogue = [...shot.dialogue, ...next.dialogue];
   shot.durationS = Math.min(30, round1(shot.durationS + next.durationS));
   shot.approved = false;
+  // The merged shot ends where the second one did.
+  shot.endPicture = next.endPicture || shot.endPicture;
   shot.takes = [...shot.takes, ...next.takes];
   scene.shots.splice(index + 1, 1);
   return shot;

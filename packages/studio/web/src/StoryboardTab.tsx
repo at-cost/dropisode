@@ -277,6 +277,17 @@ function SceneBlock({ ep, scene, n, mode, sel }: { ep: Episode; scene: Scene; n:
               </option>
             ))}
           </select>
+          <select
+            value={scene.cutting ?? "continuous"}
+            aria-label="Cutting style"
+            title="Continuous takes: a few long shots, each carrying on from the last. Quick cuts: a new angle every few seconds, like vertical dramas. Applies when you storyboard."
+            onChange={(e) =>
+              void act(`sc-${scene.id}`, () => api.patch<View>(`/projects/${pid}/scenes/${scene.id}`, { cutting: e.target.value }))
+            }
+          >
+            <option value="continuous">Continuous takes</option>
+            <option value="cuts">Quick cuts</option>
+          </select>
           {toRender.length > 0 && renderTotal !== undefined && (
             <button type="button" className={untried.length > 0 ? "" : "primary"} disabled={renderingAll || boarding} onClick={renderAll}>
               {renderingAll && <Spinner />} {`Render ${toRender.length} approved`}
@@ -627,6 +638,64 @@ function Takes({ shot, c, small }: { shot: Shot; c: ShotCtl; small?: boolean }) 
   );
 }
 
+/** Whether a video model can end on a target picture (the catalog's endImage field, exposed as endFrame). */
+function endImageModel(
+  config: { models?: { id: string; endFrame?: boolean }[]; defaults?: { draft?: { video?: string } } },
+  id?: string,
+): boolean {
+  const vid = id ?? config.defaults?.draft?.video;
+  return !!config.models?.find((m) => m.id === vid)?.endFrame;
+}
+
+/** Where the edit ends this take, and what the studio noticed in how it moves. */
+function TakeTiming({ shot, take, c }: { shot: Shot; take: Take; c: ShotCtl }) {
+  const { act } = useProject();
+  const a = take.analysis!;
+  const out = take.outS ?? a.durationS;
+  const save = (outS: number | null) =>
+    void act(`out-${take.id}`, () => api.patch<View>(`/projects/${c.pid}/shots/${shot.id}/takes/${take.id}`, { outS }));
+  return (
+    <div className="take-timing">
+      <label className="insp-field">
+        <span>Edit ends this take at (s)</span>
+        <span className="row">
+          <input
+            key={`out-${take.id}-${out}`}
+            type="number"
+            min={0.5}
+            max={a.durationS}
+            step={0.1}
+            defaultValue={round(out)}
+            onBlur={(e) => {
+              const v = Number(e.target.value);
+              if (Number.isFinite(v) && Math.abs(v - out) > 0.04) save(Math.min(a.durationS, Math.max(0.5, v)));
+            }}
+          />
+          <span className="muted small-text">of {round(a.durationS)} s</span>
+          {take.outS !== undefined && take.outS < a.durationS - 0.04 && (
+            <button type="button" className="link-btn" onClick={() => save(null)}>
+              Use the whole clip
+            </button>
+          )}
+        </span>
+      </label>
+      {a.stallFromS !== undefined && (
+        <p className="note small-text">
+          Slows to a near stop from {round(a.stallFromS)} s
+          {take.outS !== undefined && take.outS < a.durationS ? ", so the edit ends it before that." : "."}
+        </p>
+      )}
+      {a.jumps.length > 0 && (
+        <p className="note warn small-text">
+          Possible jump at {a.jumps.map((j) => `${round(j)} s`).join(", ")}: the video model may have cut or snapped here. Watch it, and
+          remake the shot if you see it.
+        </p>
+      )}
+      <small className="muted">A shot that continues from this one starts at this point; remake it after changing this.</small>
+    </div>
+  );
+}
+
 /** What the shot will actually sound like: a silent video model voices lines with text to speech. */
 function audioLabel(shot: Shot, silentVideo: boolean): string {
   if (shot.audio === "none") return AUDIO.none!;
@@ -638,6 +707,7 @@ const setupLine = (shot: Shot, silentVideo: boolean) =>
   [
     shot.cutaway ? "Cutaway" : "",
     shot.continueFromPrevious ? "Continues" : "",
+    shot.endPicture?.trim() ? "Ends on a target" : "",
     cap(shot.camera.trim()) || "No camera set",
     `${round(shot.durationS)} s`,
     audioLabel(shot, silentVideo),
@@ -811,6 +881,7 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
           <Preview pid={c.pid} take={c.take} aspect={c.p.aspect} />
         )}
       </div>
+      {c.take?.analysis && <TakeTiming shot={shot} take={c.take} c={c} />}
       {a.approved && <p className="insp-note">Editing direction, camera, length, people or lines clears this shot's approval.</p>}
       <label className="insp-field">
         <span>Direction</span>
@@ -826,6 +897,24 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
         />
       </label>
       <CameraField key={shot.id} value={shot.camera} presets={app.config.cameraPresets} onSave={(camera) => void c.patch({ camera })} />
+      <label className="insp-field">
+        <span>Ends on (optional)</span>
+        <textarea
+          key={`end-${shot.id}-${shot.endPicture ?? ""}`}
+          defaultValue={shot.endPicture ?? ""}
+          rows={2}
+          maxLength={2000}
+          placeholder="For a change of place or age: how the last moment looks"
+          onBlur={(e) => {
+            if (e.target.value !== (shot.endPicture ?? "")) void c.patch({ endPicture: e.target.value });
+          }}
+        />
+        <small className="muted">
+          {endImageModel(app.config, c.p.models?.draftVideo)
+            ? "A target picture is made from this shot's own first frame (same camera), and the video ends on it. Hide the change in a movement, like a spin."
+            : "Your video model can't end on a target picture. Gemini Omni and Seedance 2.5 can."}
+        </small>
+      </label>
       {index > 0 && (
         <label className="insp-check">
           <input
@@ -835,7 +924,7 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
           />
           <span>
             Continue from the end of the previous shot
-            <small className="muted">Starts from its last frame, so the action carries straight on.</small>
+            <small className="muted">Starts from the frame where the previous take ends, so the action carries straight on.</small>
           </span>
         </label>
       )}

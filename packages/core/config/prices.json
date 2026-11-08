@@ -30,12 +30,12 @@
       ],
       "price": {
         "unit": "second",
-        "usd": 0.091,
-        "audioUsd": 0.091,
+        "usd": 0.0819,
+        "audioUsd": 0.0819,
         "source": "https://fal.ai/models/google/gemini-omni-flash/v1.2/image-to-video",
-        "verifiedOn": "2026-11-05",
-        "status": "uncertain",
-        "notes": "fal shows no price yet. Google lists \\$0.07/s at 720p; fal charged about 1.3x Google for 1.1 (\\$0.13 vs \\$0.10), so \\$0.091 is an estimate. Always generates audio (no switch). Real cost from billing events."
+        "verifiedOn": "2026-11-08",
+        "status": "verified",
+        "notes": "fal's model page: about $0.0819/s at 720p, always with audio. Real cost from billing events."
       },
       "input": {
         "prompt": "prompt",
@@ -45,7 +45,8 @@
         "aspect": "aspect_ratio",
         "extra": {
           "resolution": "720p"
-        }
+        },
+        "endImage": "end_image_url"
       },
       "output": {
         "url": "video.url"
@@ -96,7 +97,8 @@
         "aspect": "aspect_ratio",
         "extra": {
           "resolution": "720p"
-        }
+        },
+        "endImage": "end_image_url"
       },
       "output": {
         "url": "video.url"
@@ -495,7 +497,8 @@
         "audio": "generate_audio",
         "extra": {
           "resolution": "480p"
-        }
+        },
+        "endImage": "end_image_url"
       },
       "output": {
         "url": "video.url"
@@ -558,7 +561,8 @@
         "audio": "generate_audio",
         "extra": {
           "resolution": "720p"
-        }
+        },
+        "endImage": "end_image_url"
       },
       "output": {
         "url": "video.url"
@@ -1219,14 +1223,14 @@
   ],
   "defaults": {
     "draft": {
-      "image": "seedream-4.5",
-      "video": "veo-3.1-lite"
+      "image": "gpt-image-2.5",
+      "video": "omni-1.2-720p"
     },
     "final": {
-      "image": "seedream-4.5",
-      "video": "veo-3.1-fast"
+      "image": "gpt-image-2.5",
+      "video": "omni-1.2-720p"
     },
-    "castImage": "seedream-4.5",
+    "castImage": "gpt-image-2.5",
     "tts": "minimax-speech-2.8-turbo",
     "llm": "gemini-3.8-flash",
     "draftAudio": true,

@@ -139,12 +139,13 @@ describe("full customer journey (mocked providers)", () => {
       await page.waitForURL(/\/studio\//);
     });
 
-    await step("top up $10 with the preset button", async () => {
+    // $50: a whole episode at the default models (Gemini Omni + GPT Image) costs more than $10 in drafts and finals.
+    await step("top up $50 with the preset button", async () => {
       await page.goto(`${base}/billing`);
-      await page.getByRole("button", { name: "$10" }).click();
+      await page.getByRole("button", { name: "$50" }).click();
       await page.waitForURL(/\/billing\?paid=1/);
-      await pw(page.locator(".grid .big").first()).toHaveText("$10.00");
-      expect(stripe.sessions.at(-1)!.amountCents).toBe(1000);
+      await pw(page.locator(".grid .big").first()).toHaveText("$50.00");
+      expect(stripe.sessions.at(-1)!.amountCents).toBe(5000);
     });
 
     await step("create a project", async () => {
@@ -232,7 +233,7 @@ describe("full customer journey (mocked providers)", () => {
       expect(Math.abs(charged - Math.round(billed * 1.2))).toBeLessThanOrEqual(gens.length);
       const b = await balance();
       expect(b.heldMicro).toBe(0);
-      expect(b.balanceMicro).toBe(10_000_000 - charged);
+      expect(b.balanceMicro).toBe(50_000_000 - charged);
       await page.goto(`${base}/billing`);
       await pw(page.getByText("Generation").first()).toBeVisible();
     });

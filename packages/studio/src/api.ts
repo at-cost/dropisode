@@ -9,6 +9,7 @@ import {
   BlockedError,
   CAMERA_PRESETS,
   EditError,
+  findShot,
   type MediaRef,
   type Project,
   type Studio,
@@ -157,6 +158,8 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         label: m.label,
         tiers: m.tiers,
         nativeAudio: m.nativeAudio,
+        // Can end on a target picture (image-to-video with a last frame).
+        endFrame: !!m.input.endImage,
         durations: m.durations,
         aspects: m.aspects,
         unit: m.price.unit,
@@ -467,6 +470,7 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         script: z.string().max(40_000).optional(),
         locationId: z.string().nullable().optional(),
         staging: z.string().max(3000).optional(),
+        cutting: z.enum(["continuous", "cuts"]).optional(),
       }),
     );
     await mutate(c, ctx, (p) => {
@@ -575,6 +579,7 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         selectedTakeId: z.string().optional(),
         dialogue: z.array(Line).optional(),
         continueFromPrevious: z.boolean().optional(),
+        endPicture: z.string().max(2000).optional(),
         onScreenText: z.string().max(300).optional(),
         cutaway: z
           .object({ atS: z.number().min(0).max(60), lengthS: z.number().min(0.5).max(8) })
@@ -583,6 +588,23 @@ export function createStudioApi(resolve: ResolveContext): Hono {
       }),
     );
     await mutate(c, ctx, (p) => updateShot(p, c.req.param("sid"), b));
+    return c.json(await view(ctx, await project(c, ctx)));
+  });
+
+  // Where the edit ends a take, and where a shot that continues from it starts. null: the whole clip.
+  app.patch("/projects/:pid/shots/:sid/takes/:tid", async (c) => {
+    const ctx = await resolve(c);
+    const b = await body(c, z.object({ outS: z.number().min(0.5).max(30).nullable() }));
+    await mutate(c, ctx, (p) => {
+      const t = findShot(p, c.req.param("sid")).shot.takes.find((x) => x.id === c.req.param("tid"));
+      if (!t) throw new EditError("No such take", "not_found");
+      const len = t.analysis?.durationS;
+      // "The whole clip" is stored as its full length, so the edit and a shot continuing from it agree.
+      if (b.outS === null) {
+        if (len) t.outS = len;
+        else delete t.outS;
+      } else t.outS = len ? Math.min(b.outS, len) : b.outS;
+    });
     return c.json(await view(ctx, await project(c, ctx)));
   });
 

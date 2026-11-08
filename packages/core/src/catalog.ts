@@ -38,6 +38,8 @@ export const InputMap = z.object({
   prompt: z.string().default("prompt"),
   /** Single first-frame image (image-to-video). */
   image: z.string().optional(),
+  /** Last-frame image the clip should end on (image-to-video with a target). */
+  endImage: z.string().optional(),
   /** List of reference image URLs (image edit / reference-to-image). */
   images: z.string().optional(),
   duration: z.string().optional(),

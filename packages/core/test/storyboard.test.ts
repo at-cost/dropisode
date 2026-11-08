@@ -86,6 +86,9 @@ describe("storyboard", () => {
     t.store.create(project);
     await t.studio.importScript(project.id, { script: SCRIPT });
     const scene = (await t.store.get(project.id)).episodes[0]!.scenes[0]!;
+    await t.store.mutate(project.id, (p) => {
+      p.episodes[0]!.scenes[0]!.cutting = "cuts";
+    });
     await t.studio.storyboard(project.id, scene.id);
     const shots = (await t.store.get(project.id)).episodes[0]!.scenes[0]!.shots;
     expect(shots.map((s) => s.cutaway)).toEqual([null, null, null, { atS: 2.5, lengthS: 2 }, null]);
@@ -137,6 +140,7 @@ describe("storyboard", () => {
       approved: false,
       takes: [],
       continueFromPrevious: false,
+      endPicture: "",
       onScreenText: "",
       cutaway: null,
     };
@@ -163,6 +167,7 @@ describe("storyboard", () => {
       approved: false,
       takes: [],
       continueFromPrevious: false,
+      endPicture: "",
       onScreenText: "",
       cutaway: null,
     };
@@ -186,6 +191,7 @@ describe("storyboard", () => {
       approved: false,
       takes: [],
       continueFromPrevious: false,
+      endPicture: "",
       onScreenText: "",
       cutaway: null,
     };
@@ -240,6 +246,7 @@ describe("storyboard", () => {
       approved: false,
       takes: [],
       continueFromPrevious: false,
+      endPicture: "",
       onScreenText: "",
       cutaway: null,
     };

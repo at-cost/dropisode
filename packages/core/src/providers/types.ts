@@ -25,6 +25,8 @@ export interface ProviderInput {
   negativePrompt?: string;
   /** First frame for image-to-video. */
   image?: MediaInput;
+  /** Last frame the clip should end on, for models that take one. */
+  endImage?: MediaInput;
   /** Reference images (cast, location, previous frame). */
   images?: MediaInput[];
   durationS?: number;

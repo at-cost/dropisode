@@ -9,7 +9,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Catalog, type CatalogModel, type Estimate, billedDuration, estimate, roughTokens, supportsAspect } from "./catalog";
 import { EditError, addCast, addEpisode, addScene, addShot, castByName, findCast, findEpisode, findScene, findShot, newId } from "./edit";
+import { FPS, takeOutS } from "./assemble";
 import { hasAudio, mediaDuration, runFfmpeg } from "./ffmpeg";
+import { analyseClip, frameAt } from "./motion";
 import { JobRunner, plainJobError, type RunnerDeps } from "./jobs";
 import type { CastMember, MediaRef, Project, Scene, Shot, SoundBed, Take, Tier } from "./project";
 import {
@@ -23,6 +25,7 @@ import {
   scriptPrompt,
   storyboardPrompt,
   videoPrompt,
+  endFramePrompt,
   scriptSpeakers,
   scriptSpeakerFor,
   sceneTargetSeconds,
@@ -41,6 +44,8 @@ export interface TakeEstimate {
   imageModel: string;
   videoModel: string;
   frame: Estimate;
+  /** The target picture the clip ends on, when the shot has one and the video model takes one. */
+  endFrame: Estimate | null;
   video: Estimate;
   tts: Estimate[];
   /** Provider cost of the whole take. */
@@ -107,6 +112,7 @@ export class Studio {
     // A continued shot takes its first frame from the previous clip: no image to pay for.
     const frame = continuesFrom(project, shotId) ? estimate(image, { images: 0 }) : estimate(image, { images: 1 });
     const vid = estimate(video, { durationS: shot.durationS, audio: this.clipAudio(audio, video, tier) });
+    const endFrame = wantsEndFrame(shot, video) ? estimate(image, { images: 1 }) : null;
     const tts =
       audio === "tts"
         ? shot.dialogue
@@ -118,9 +124,14 @@ export class Studio {
       imageModel: image.id,
       videoModel: video.id,
       frame,
+      endFrame,
       video: vid,
       tts,
-      providerCostMicro: frame.providerCostMicro + vid.providerCostMicro + tts.reduce((a, e) => a + e.providerCostMicro, 0),
+      providerCostMicro:
+        frame.providerCostMicro +
+        (endFrame?.providerCostMicro ?? 0) +
+        vid.providerCostMicro +
+        tts.reduce((a, e) => a + e.providerCostMicro, 0),
       durationS: billedDuration(video, shot.durationS),
       audio,
     };
@@ -261,6 +272,7 @@ export class Studio {
         durations: video.durations,
         targetSeconds,
         silentVideo: !video.nativeAudio,
+        cutting: scene.cutting,
       }),
       { episodeId: episode.id, sceneId },
       p.owner,
@@ -291,6 +303,7 @@ export class Studio {
           }),
           durationS: s.duration ?? 8,
           continueFromPrevious: !!s.continues && sc.shots.length > 0,
+          endPicture: sc.cutting === "continuous" ? (s.endPicture ?? "") : "",
           onScreenText: "",
           audio: voiceOver ? "tts" : "native",
           // A cutaway plays over the speaking shot before it; anything else is an ordinary shot.
@@ -379,12 +392,14 @@ export class Studio {
       imageModel: image.id,
       videoModel: video.id,
       status: "queued",
+      // Fixed now, with the price: editing the shot later doesn't add or drop a paid picture mid-take.
+      ...(wantsEndFrame(shot, video) ? { endPicture: shot.endPicture.trim() } : {}),
       createdAt: new Date().toISOString(),
     };
     const prev = continuesFrom(project, shotId);
     const source = prev ? chainSource(prev, tier) : undefined;
     // No clip to start from yet: wait for one of the same tier that's on its way, else ask for it.
-    if (prev && !source && !prev.takes.some((t) => t.tier === tier && (t.status === "running" || t.status === "queued")))
+    if (prev && !source && !prev.takes.some((t) => t.tier === tier && (t.status === "running" || t.status === "queued" || isMeasuring(t))))
       throw new EditError(
         tier === "final"
           ? "This shot continues from the one before it: make that shot's final first"
@@ -396,7 +411,7 @@ export class Studio {
 
     if (prev) {
       // Its first frame is the previous clip's last; a final waits for the previous final if need be.
-      if (source) await this.startChained(projectId, shotId, take.id, source, p.owner);
+      if (source) await this.startChained(projectId, shotId, take.id, source, takeOutS(source, prev), p.owner);
       if (est.audio === "tts") await this.generateMissingTts(projectId, shotId, p.owner).catch(() => {});
       return { ...take, status: source ? "running" : "queued" };
     }
@@ -764,19 +779,21 @@ export class Studio {
     }
   }
 
-  /** A continued take: the previous clip's last frame becomes this take's first, then image-to-video. */
+  /** A continued take: the previous clip's frame at its end point becomes this take's first, then image-to-video. */
   private async startChained(
     projectId: string,
     shotId: string,
     takeId: string,
     source: Take,
+    outS: number,
     owner?: Record<string, string>,
   ): Promise<void> {
     try {
       const project = await this.projects.get(projectId);
       const clipRef = project.media.find((m) => m.id === source.videoMediaId);
       if (!clipRef) throw new Error("The previous shot's clip is missing");
-      const bytes = await lastFrame(await this.deps.media.read(projectId, clipRef));
+      // Start where the edit ends the previous clip: its chosen end point, before any stall.
+      const bytes = await frameAt(await this.deps.media.read(projectId, clipRef), outS, FPS);
       const ref = await this.deps.media.put(projectId, { bytes, contentType: "image/jpeg", source: `chain_${source.id}` });
       await this.projects.mutate(projectId, (proj) => {
         proj.media.push(ref);
@@ -814,16 +831,8 @@ export class Studio {
       for (const sh of sc.shots)
         for (const t of sh.takes) {
           if (t.status !== "queued" || t.waitsForShotId !== prev.id || t.tier !== tier) continue;
-          if (source) await this.startChained(job.projectId, sh.id, t.id, source, job.owner);
-          else if (job.state !== "done")
-            await this.projects.mutate(job.projectId, (proj) => {
-              const x = findShot(proj, sh.id).shot.takes.find((y) => y.id === t.id);
-              if (x) {
-                x.status = "failed";
-                x.error = "The shot before this one failed, so this one had nothing to continue from. Remake that shot, then this one.";
-                delete x.waitsForShotId;
-              }
-            });
+          if (source) await this.startChained(job.projectId, sh.id, t.id, source, takeOutS(source, prev), job.owner);
+          else if (job.state !== "done" || job.purpose !== "video") await this.failWaiting(job.projectId, prev.id, tier);
         }
   }
 
@@ -835,6 +844,12 @@ export class Studio {
     if (!take || !take.frameMediaId || take.videoJobId || take.status !== "running") return;
     const frame = project.media.find((m) => m.id === take.frameMediaId)!;
     const video = this.catalog.get(take.videoModel);
+    // A shot with a target picture: make it from this take's own first frame first, then the video.
+    if (take.endPicture && video.input.endImage && !take.endFrameMediaId) {
+      if (!take.endFrameJobId) await this.startEndFrame(projectId, shotId, takeId, owner);
+      return;
+    }
+    const endRef = take.endFrameMediaId ? project.media.find((m) => m.id === take.endFrameMediaId) : undefined;
     const cast = shot.castIds.map((id) => project.cast.find((c) => c.id === id)).filter((c): c is CastMember => !!c);
     const plan = this.audioPlan(shot.audio, video, shot.dialogue.length > 0);
     const audio = this.clipAudio(plan, video, take.tier);
@@ -849,12 +864,21 @@ export class Studio {
         tier: take.tier,
         refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId },
         input: {
-          prompt: videoPrompt({ shot, cast, nativeAudio: audio, speak: plan === "native" }),
+          prompt: videoPrompt({ shot: { ...shot, endPicture: take.endPicture ?? "" }, cast, nativeAudio: audio, speak: plan === "native" }),
           image: {
             bytes: await this.deps.media.read(projectId, frame),
             contentType: frame.contentType,
             name: frame.path.split("/").pop()!,
           },
+          ...(endRef
+            ? {
+                endImage: {
+                  bytes: await this.deps.media.read(projectId, endRef),
+                  contentType: endRef.contentType,
+                  name: endRef.path.split("/").pop()!,
+                },
+              }
+            : {}),
           durationS,
           aspect: project.aspect,
           audio,
@@ -874,8 +898,135 @@ export class Studio {
           t.error = (err as Error).message;
         }
       });
+      await this.failWaiting(projectId, shotId, take.tier);
       throw err;
     }
+  }
+
+  /**
+   * The picture a shot ends on, made by editing this take's own first frame: same camera and framing,
+   * only what the shot changes (place, age, clothes, pose). A target framed differently makes the video
+   * model snap to it mid-clip.
+   */
+  private async startEndFrame(projectId: string, shotId: string, takeId: string, owner?: Record<string, string>): Promise<void> {
+    const project = await this.projects.get(projectId);
+    const { shot, episode, scene } = findShot(project, shotId);
+    const take = shot.takes.find((t) => t.id === takeId);
+    if (!take?.frameMediaId || !take.endPicture) return;
+    const image = this.catalog.get(take.imageModel);
+    const first = project.media.find((m) => m.id === take.frameMediaId)!;
+    const castRefs = await this.referenceImages(project, shot.castIds, null, Math.max(0, image.maxRefImages - 1), true);
+    const cast = shot.castIds.map((id) => project.cast.find((c) => c.id === id)).filter((c): c is CastMember => !!c);
+    try {
+      const job = await this.runner.start({
+        id: `job_e_${take.id}`,
+        projectId,
+        kind: "image",
+        purpose: "end_frame",
+        modelId: image.id,
+        tier: take.tier,
+        refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId },
+        input: {
+          prompt: endFramePrompt({ shot: { ...shot, endPicture: take.endPicture ?? "" }, cast, aspect: project.aspect }),
+          aspect: project.aspect,
+          images: [
+            {
+              bytes: await this.deps.media.read(projectId, first),
+              contentType: first.contentType,
+              name: `START.${first.path.split(".").pop()}`,
+              origin: "generated",
+            },
+            ...castRefs,
+          ],
+        },
+        estimateInput: { images: 1 },
+        ...(owner ? { owner } : {}),
+      });
+      await this.projects.mutate(projectId, (proj) => {
+        const t = findShot(proj, shotId).shot.takes.find((x) => x.id === takeId);
+        if (t) t.endFrameJobId = job.id;
+      });
+    } catch (err) {
+      await this.projects.mutate(projectId, (proj) => {
+        const t = findShot(proj, shotId).shot.takes.find((x) => x.id === takeId);
+        if (t) {
+          t.status = "failed";
+          t.error = plainJobError((err as Error).message, true);
+        }
+      });
+      await this.failWaiting(projectId, shotId, take.tier);
+    }
+  }
+
+  /** A finished take with no analysis (it threw): record the shot's length, so it can still be chained. */
+  private async ensureAnalysed(job: JobRecord): Promise<void> {
+    await this.projects.mutate(job.projectId, (proj) => {
+      let shot: Shot;
+      try {
+        shot = findShot(proj, job.refs.shotId!).shot;
+      } catch {
+        return;
+      }
+      const t = shot.takes.find((x) => x.id === job.refs.takeId);
+      if (t && t.status === "done" && !t.analysis)
+        t.analysis = { durationS: shot.durationS, motion: [], jumps: [], suggestedOutS: shot.durationS };
+      if (t) delete t.measuring;
+    });
+  }
+
+  /** Fails the takes of the next shot that were waiting to continue from this shot's take of `tier`. */
+  private async failWaiting(projectId: string, shotId: string, tier: Tier): Promise<void> {
+    // Down the whole chain: a shot waiting on a shot that was waiting on this one fails too.
+    await this.projects.mutate(projectId, (proj) => {
+      const failed = [shotId];
+      while (failed.length) {
+        const from = failed.pop()!;
+        for (const sc of proj.episodes.flatMap((e) => e.scenes))
+          for (const sh of sc.shots)
+            for (const x of sh.takes)
+              if (x.status === "queued" && x.waitsForShotId === from && x.tier === tier) {
+                x.status = "failed";
+                x.error = "The shot before this one failed, so this one had nothing to continue from. Remake that shot, then this one.";
+                delete x.waitsForShotId;
+                failed.push(sh.id);
+              }
+      }
+    });
+  }
+
+  /** Measures how a finished clip moves and sets where the edit ends it (before a stall). */
+  private async analyseTake(job: JobRecord): Promise<void> {
+    const project = await this.projects.get(job.projectId);
+    let take: Take | undefined;
+    try {
+      take = findShot(project, job.refs.shotId!).shot.takes.find((t) => t.id === job.refs.takeId);
+    } catch {
+      return;
+    }
+    const ref = take?.videoMediaId ? project.media.find((m) => m.id === take!.videoMediaId) : undefined;
+    if (!take || !ref || take.analysis) return;
+    const shotLen = findShot(project, job.refs.shotId!).shot.durationS;
+    // If the clip can't be measured, record that it wasn't, so the take can still be used and chained.
+    const m = await analyseClip(await this.deps.media.read(job.projectId, ref)).catch(() => ({
+      durationS: shotLen,
+      motion: [] as number[],
+      jumps: [] as number[],
+      stallFromS: undefined,
+      suggestedOutS: shotLen,
+    }));
+    await this.projects.mutate(job.projectId, (proj) => {
+      const t = findShot(proj, job.refs.shotId!).shot.takes.find((x) => x.id === job.refs.takeId);
+      if (!t) return;
+      t.analysis = {
+        durationS: m.durationS,
+        motion: m.motion,
+        jumps: m.jumps,
+        suggestedOutS: m.suggestedOutS,
+        ...(m.stallFromS !== undefined ? { stallFromS: m.stallFromS } : {}),
+      };
+      if (t.outS === undefined && m.suggestedOutS < m.durationS) t.outS = m.suggestedOutS;
+      delete t.measuring;
+    });
   }
 
   /** Text-to-speech for one line (the fallback when the video model has no native audio). */
@@ -952,6 +1103,8 @@ export class Studio {
       fail: failTake,
       after: async (job) => {
         if (job.state === "done") await this.startVideo(job.projectId, job.refs.shotId!, job.refs.takeId!, job.owner);
+        // A take that fails at its first frame never makes a clip: shots waiting to continue from it must hear so.
+        if (job.state === "failed") await this.releaseWaiting(job);
       },
     });
     this.runner.on("video", {
@@ -960,6 +1113,7 @@ export class Studio {
         if (!t || !r.media) return;
         t.videoMediaId = r.media.id;
         t.status = "done";
+        t.measuring = true;
         const { shot } = findShot(project, job.refs.shotId!);
         const selected = shot.takes.find((x) => x.id === shot.selectedTakeId);
         // A new final replaces the selection; a new draft is selected unless a final already is.
@@ -967,8 +1121,29 @@ export class Studio {
       },
       fail: failTake,
       after: async (job) => {
+        // Measure the clip first: a shot that continues from it starts at its end point, not its last frame.
+        if (job.state === "done") await this.analyseTake(job).catch(() => {});
+        // Analysis is what makes a take chainable: a take that somehow still has none gets a placeholder.
+        if (job.state === "done") await this.ensureAnalysed(job);
         if (job.state === "done" || job.state === "failed") await this.releaseWaiting(job);
         if (job.state === "done") await this.isolateVoices(job).catch(() => {});
+      },
+    });
+    this.runner.on("end_frame", {
+      apply: (project, job, r) => {
+        const t = takeOf(project, job);
+        if (!t || !r.media) return;
+        t.endFrameMediaId = r.media.id;
+        // A target picture that arrived after its job was given up on: the take carries on to its video.
+        if (t.status === "failed" && !t.videoJobId && job.reopened) {
+          t.status = "running";
+          delete t.error;
+        }
+      },
+      fail: failTake,
+      after: async (job) => {
+        if (job.state === "done") await this.startVideo(job.projectId, job.refs.shotId!, job.refs.takeId!, job.owner);
+        if (job.state === "failed") await this.releaseWaiting(job);
       },
     });
     this.runner.on("scene_master", {
@@ -1056,7 +1231,8 @@ export function continuesFrom(project: Project, shotId: string): Shot | undefine
 
 /** Which of the previous shot's takes a continued take starts from: its finished final for a final, else the take on its card. */
 export function chainSource(prev: Shot, tier: Tier): Take | undefined {
-  const done = prev.takes.filter((t) => t.status === "done" && t.videoMediaId);
+  // Only measured takes: until then nobody knows where the edit ends the clip, so nothing may start from it.
+  const done = prev.takes.filter((t) => t.status === "done" && t.videoMediaId && !t.measuring);
   if (tier === "final") {
     const sel = done.find((t) => t.id === prev.selectedTakeId && t.tier === "final");
     return sel ?? done.filter((t) => t.tier === "final").at(-1);
@@ -1064,18 +1240,12 @@ export function chainSource(prev: Shot, tier: Tier): Take | undefined {
   return done.find((t) => t.id === prev.selectedTakeId) ?? done.at(-1);
 }
 
-/** The last frame of a clip, as a JPEG. */
-async function lastFrame(clip: Uint8Array): Promise<Uint8Array> {
-  const dir = mkdtempSync(join(tmpdir(), "reel-chain-"));
-  try {
-    const src = join(dir, "clip.mp4");
-    const out = join(dir, "last.jpg");
-    writeFileSync(src, clip);
-    await runFfmpeg(["-sseof", "-0.2", "-i", src, "-update", "1", "-q:v", "2", out]);
-    return new Uint8Array(readFileSync(out));
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+/** A finished clip still being measured: shots that continue from it wait for the measurement. */
+const isMeasuring = (t: Take) => t.status === "done" && !!t.measuring;
+
+/** A shot ends on a target picture when it describes one and its video model can take one. */
+export function wantsEndFrame(shot: Shot, video: CatalogModel): boolean {
+  return !!shot.endPicture?.trim() && !!video.input.endImage;
 }
 
 /** ElevenLabs sound effects top out at 22 s; the loop tiles it under a scene of any length. */

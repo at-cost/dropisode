@@ -84,8 +84,11 @@ export function storyboardPrompt(p: {
   durations: number[];
   /** The video model makes silent clips; every line becomes a voice-over afterwards. */
   silentVideo?: boolean;
+  /** Long chained takes (deliberate cuts only), or quick vertical-drama cuts. */
+  cutting?: "continuous" | "cuts";
 }): LlmPrompt {
   const durations = p.durations.length ? p.durations.join(", ") : "5";
+  const continuous = p.cutting !== "cuts";
   return {
     system:
       "You are a storyboard artist for short vertical dramas. You break a scene into shots a video model can render: one clear action per shot, the camera stated, characters named exactly as in the cast list. Answer with JSON only.",
@@ -97,19 +100,31 @@ export function storyboardPrompt(p: {
       ...p.cast.map((c) => `- ${c.name} (${c.kind})`),
       "",
       `Break the scene into shots${p.targetSeconds ? ` totalling about ${p.targetSeconds} seconds` : ""}. Each shot's duration must be one of: ${durations} seconds.`,
-      ...(p.silentVideo
+      ...(continuous
         ? [
-            "Plan the shots as one flowing scene: establish where everyone is, then move closer; vary the angle from shot to shot so the viewer always knows where they are.",
+            "Plan the scene as a few long, continuous takes, not a new camera angle every few seconds. Each shot is one unbroken take that carries one clear beat; prefer the longest allowed durations, and never split one continuous action across shots.",
+            'Every shot carries straight on from the one before (the camera keeps rolling): set "continues": true, except where a deliberate cut serves the story (a jump in time, a reveal): then "continues": false. The first shot never continues.',
+            "A shot that continues starts at the exact moment the previous one ended: describe it from there and never repeat an action the previous shot already finished (a hand already taken stays taken, someone already standing stays standing).",
+            "Describe action that keeps moving through to the very end of every shot; never ask it to slow down, settle, hold or freeze at the end.",
+            'When a shot changes place, era or age (a memory, a transformation, time passing), describe its final moment in "endPicture" (the same camera position as the shot\'s start, only the changed place, age, clothes and pose), and hide the change inside a movement: a spin, a turn away from camera, someone passing close to the lens. Everything changes at the same moment, never one feature before the others. Otherwise "endPicture" is "".',
+            "To make someone disappear, have something pass close in front of the camera (a shoulder, a back) and have them gone when it clears; never let them fade.",
+            "Whoever speaks is seen saying the line, briefly: one or two short sentences per shot. No cutaways.",
+            'Lines the script marks V.O. or O.S. are heard, not seen spoken: put them in shots with "voiceOver": true and show the person with their mouth closed.',
+            "The video model can't write legible text: never rely on printed words being read on screen.",
           ]
-        : [
-            "Cut it the way vertical short dramas are cut: the picture changes every 2 to 4 seconds, and most shots are close-ups or medium close-ups of faces. Open on one establishing shot, then stay close.",
-            "Whoever speaks is seen saying the line: facing the camera or three-quarter on, mouth moving. One speaker per shot, and pick the shortest duration that fits their words (about 2.5 words a second).",
-            'The cut that makes it feel real: while someone is still talking, cut to the person listening (their face reacting) or to a detail (hands, a prop), and the line carries on underneath. Do it with a cutaway shot right after the speaking shot: "cutaway": {"at": seconds into the speaking shot where the picture cuts away, "length": 1.5 to 3}. A cutaway has no dialogue, nobody in it speaks, and its duration is the shortest allowed. Give most lines longer than 3 seconds a cutaway, and keep every cutaway inside its speaking shot.',
-            "Sometimes, instead, let the camera drift or pan off the speaker onto a listener while the speaker keeps talking: say so in the description and camera.",
-            'Lines the script marks V.O. or O.S. (inner thoughts, narration, a voice from a memory or off screen) are heard but not seen spoken: put them in their own shots with "voiceOver": true, and show the person thinking with their mouth closed, or what they are looking at. Never mix spoken and V.O. lines in one shot.',
-            'When a shot picks up exactly where the previous one ends (same moment, the camera simply carrying on), set "continues": true.',
-            "The video model can't write legible text: never rely on printed words being read on screen. Let a character say it, or keep it out of focus.",
-          ]),
+        : p.silentVideo
+          ? [
+              "Plan the shots as one flowing scene: establish where everyone is, then move closer; vary the angle from shot to shot so the viewer always knows where they are.",
+            ]
+          : [
+              "Cut it the way vertical short dramas are cut: the picture changes every 2 to 4 seconds, and most shots are close-ups or medium close-ups of faces. Open on one establishing shot, then stay close.",
+              "Whoever speaks is seen saying the line: facing the camera or three-quarter on, mouth moving. One speaker per shot, and pick the shortest duration that fits their words (about 2.5 words a second).",
+              'The cut that makes it feel real: while someone is still talking, cut to the person listening (their face reacting) or to a detail (hands, a prop), and the line carries on underneath. Do it with a cutaway shot right after the speaking shot: "cutaway": {"at": seconds into the speaking shot where the picture cuts away, "length": 1.5 to 3}. A cutaway has no dialogue, nobody in it speaks, and its duration is the shortest allowed. Give most lines longer than 3 seconds a cutaway, and keep every cutaway inside its speaking shot.',
+              "Sometimes, instead, let the camera drift or pan off the speaker onto a listener while the speaker keeps talking: say so in the description and camera.",
+              'Lines the script marks V.O. or O.S. (inner thoughts, narration, a voice from a memory or off screen) are heard but not seen spoken: put them in their own shots with "voiceOver": true, and show the person thinking with their mouth closed, or what they are looking at. Never mix spoken and V.O. lines in one shot.',
+              'When a shot picks up exactly where the previous one ends (same moment, the camera simply carrying on), set "continues": true.',
+              "The video model can't write legible text: never rely on printed words being read on screen. Let a character say it, or keep it out of focus.",
+            ]),
       "Every shot shows one visible action or reaction that happens during it (someone turns, looks up, flinches, grips something, steps forward), described as it unfolds. Never a still picture.",
       "Say where each person looks, consistent with the staging: someone watching the funeral looks towards it, not into the camera. A close-up shows only the head and shoulders; say whose hands they are in a hands shot.",
       "Put each line of dialogue in the shot where it is spoken, with its speaker.",
@@ -124,7 +139,9 @@ export function storyboardPrompt(p: {
         : []),
       'First fix the staging in "staging": a short paragraph saying where each character is in the place at the start of the scene, which way they face, how they move during it, and who must not notice whom (someone hiding stays at the back, unseen). Every shot must keep to it, and only people the staging puts near each other share a frame.',
       `Camera: pick from ${CAMERA_PRESETS.join("; ")}, or describe your own.`,
-      'Answer as {"staging":"...","shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":4,"continues":false,"voiceOver":false,"cutaway":null}]}.',
+      continuous
+        ? 'Answer as {"staging":"...","shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":10,"continues":true,"endPicture":"","voiceOver":false}]}.'
+        : 'Answer as {"staging":"...","shots":[{"description":"what we see","camera":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"duration":4,"continues":false,"voiceOver":false,"cutaway":null}]}.',
     ].join("\n"),
     maxTokens: 10000,
   };
@@ -283,8 +300,27 @@ export function videoPrompt(p: {
     p.nativeAudio && speak && lines.length ? `${lines.join(" ")} Each line is spoken once, clearly, by that person on camera.` : "",
     p.nativeAudio && (!speak || !lines.length) ? "Nobody speaks: every mouth stays closed. Natural ambient sound only, no music." : "",
     p.nativeAudio && speak && lines.length ? "Natural ambient sound under the voices. No music." : "",
+    p.shot.endPicture?.trim()
+      ? `By the end of the shot: ${p.shot.endPicture.trim()} The change happens inside the movement, with everything changing at the same moment. Keep moving right through the final moment; never slow down or pause at the end.`
+      : "",
     !p.nativeAudio && lines.length ? "Nobody speaks on screen: every mouth stays closed." : "",
     "Keep faces and wardrobe consistent with the first frame. It is live action, never a still: people breathe, blink, shift their weight and react, the weather and the place move, and the camera drifts slowly (a gentle handheld sway or a slow push in) unless the camera note asks for a locked-off frame.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * The picture a shot ends on, made by editing the shot's own first frame (the START image): same camera,
+ * only what the shot changes. The character pictures that follow keep the faces.
+ */
+export function endFramePrompt(p: { shot: Shot; cast: CastMember[]; aspect: Aspect }): string {
+  const people = p.cast.filter((c) => c.kind === "character");
+  return [
+    "Edit the first image, START: keep exactly the same camera position, height, lens and framing, with the people in the same place and at the same size in the frame.",
+    `Change only this: ${p.shot.endPicture.trim()}`,
+    people.length ? `The same people, with the faces of their reference pictures: ${people.map(describe).join(" ")}` : "",
+    `Photorealistic, natural skin and light, ${p.aspect === "16:9" ? "horizontal 16:9" : "vertical 9:16"}. Nobody looks into the lens. No text.`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -365,6 +401,7 @@ export interface BoardShot {
   dialogue?: { speaker?: string | null; text: string }[];
   duration?: number;
   continues?: boolean;
+  endPicture?: string;
   onScreenText?: string;
   voiceOver?: boolean;
   cutaway?: { at: number; length: number } | null;
@@ -386,6 +423,7 @@ export function parseStoryboard(text: string): BoardShot[] {
         : [],
       duration: typeof s.duration === "number" && s.duration > 0 ? Math.min(30, s.duration) : 8,
       continues: s.continues === true,
+      endPicture: typeof s.endPicture === "string" ? s.endPicture.trim().slice(0, 2000) : "",
       onScreenText: typeof s.onScreenText === "string" ? s.onScreenText.slice(0, 300) : "",
       voiceOver: s.voiceOver === true,
       cutaway:

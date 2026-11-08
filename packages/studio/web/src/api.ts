@@ -45,6 +45,12 @@ export interface Take {
   /** A continued final waiting for the previous shot's final. */
   waitsForShotId?: string;
   waitsForMaster?: boolean;
+  /** The target picture the clip ends on. */
+  endFrameMediaId?: string;
+  /** How the finished clip moves: a stall at the end, one-frame jumps. */
+  analysis?: { durationS: number; motion: number[]; jumps: number[]; stallFromS?: number; suggestedOutS: number };
+  /** Where the edit ends this clip, and where a shot that continues from it starts. */
+  outS?: number;
   createdAt: string;
 }
 
@@ -60,6 +66,8 @@ export interface Shot {
   takes: Take[];
   selectedTakeId?: string;
   continueFromPrevious?: boolean;
+  /** What the last moment looks like: a target picture made from the shot's first frame. */
+  endPicture?: string;
   onScreenText?: string;
   cutaway?: { atS: number; lengthS: number } | null;
 }
@@ -73,6 +81,8 @@ export interface Scene {
   ambience?: SoundBed | null;
   /** Where everyone is in the scene and who is hidden from whom. */
   staging?: string;
+  /** Long chained takes, or quick vertical-drama cuts. */
+  cutting?: "continuous" | "cuts";
   /** Everyone in the place, lit by it: every shot's first frame is a new angle on it. */
   master?: SoundBed | null;
 }
@@ -129,6 +139,8 @@ export interface CatalogEntry {
   unit: string;
   tiers?: ("draft" | "final")[];
   nativeAudio?: boolean;
+  /** Can end on a target picture. */
+  endFrame?: boolean;
   unitPaidMicro?: number | null;
   audioUnitPaidMicro?: number | null;
 }

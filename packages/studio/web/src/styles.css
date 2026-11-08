@@ -4701,3 +4701,22 @@ button.danger-solid {
 .models-field small {
   font-weight: 400;
 }
+
+/* Where the edit ends a take */
+.take-timing {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+.take-timing .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.take-timing input[type="number"] {
+  width: 96px;
+}
+.take-timing .note {
+  margin: 0;
+}

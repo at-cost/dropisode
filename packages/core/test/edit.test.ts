@@ -118,6 +118,7 @@ describe("parsers", () => {
         dialogue: [],
         duration: 30,
         continues: false,
+        endPicture: "",
         onScreenText: "",
         voiceOver: false,
         cutaway: null,

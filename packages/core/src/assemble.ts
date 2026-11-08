@@ -48,7 +48,13 @@ export interface AssembleResult {
   durationS: number;
 }
 
-const FPS = 30;
+/** The edit's frame rate: a chained shot starts on the last frame the edit shows, at this rate. */
+export const FPS = 30;
+
+/** Where the edit ends a take (s): its end point, else the shot's length, never past the clip. Chaining uses the same. */
+export function takeOutS(take: { outS?: number; analysis?: { durationS: number } }, shot: { durationS: number }, clipLen?: number): number {
+  return Math.min(take.outS ?? shot.durationS, clipLen ?? take.analysis?.durationS ?? Number.POSITIVE_INFINITY);
+}
 
 /** The take a shot contributes, or why it can't. */
 export function pickTake(shot: Shot, source: "final" | "rough"): Take | string {
@@ -118,7 +124,8 @@ export async function assembleEpisode(
       const clip = await pathOf(clipRef);
       const clipLen = await mediaDuration(clip);
       // Whole frames, so the shot files, the joined episode, the subtitles and the EDL agree.
-      const dur = Math.floor(Math.min(shot.durationS, clipLen) * FPS) / FPS;
+      // A take's end point (set before a stall, or by hand) wins: a shot that continues from it starts there.
+      const dur = Math.floor(takeOutS(pick, shot, clipLen) * FPS) / FPS;
       const index = out.length + 1;
       const file = join(shotsDir, `${String(index).padStart(2, "0")}_${shot.id}.mp4`);
 

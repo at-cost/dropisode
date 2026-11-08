@@ -148,6 +148,7 @@ export class FalProvider implements Provider {
     if (input.maxTokens !== undefined && map.maxTokens) set(map.maxTokens, input.maxTokens);
     if (input.negativePrompt && map.negativePrompt) set(map.negativePrompt, input.negativePrompt);
     if (input.image && map.image) set(map.image, await this.upload(input.image));
+    if (input.endImage && map.endImage) set(map.endImage, await this.upload(input.endImage));
     if (input.images?.length && map.images) {
       const max = input.model.maxRefImages || input.images.length;
       set(map.images, await Promise.all(input.images.slice(0, max).map((f) => this.upload(f))));
