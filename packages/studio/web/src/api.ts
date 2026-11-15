@@ -48,7 +48,9 @@ export interface Take {
   /** The target picture the clip ends on. */
   endFrameMediaId?: string;
   /** How the finished clip moves: a stall at the end, one-frame jumps. */
-  analysis?: { durationS: number; motion: number[]; jumps: number[]; stallFromS?: number; suggestedOutS: number };
+  analysis?: { durationS: number; motion: number[]; jumps: number[]; stallFromS?: number; suggestedOutS: number; suggestedInS?: number };
+  /** Where the edit starts this clip. */
+  inS?: number;
   /** Where the edit ends this clip, and where a shot that continues from it starts. */
   outS?: number;
   createdAt: string;
@@ -70,6 +72,10 @@ export interface Shot {
   endPicture?: string;
   onScreenText?: string;
   cutaway?: { atS: number; lengthS: number } | null;
+  /** How the edit comes into this shot, and a slow move added over it. */
+  joinIn?: "cut" | "dissolve";
+  joinS?: number;
+  move?: "none" | "push-in" | "pull-out";
 }
 
 export interface Scene {
@@ -100,6 +106,9 @@ export interface Episode {
   script: string;
   scenes: Scene[];
   music?: SoundBed | null;
+  fadeInS?: number;
+  fadeOutS?: number;
+  soundLead?: "voices" | "music";
 }
 
 export interface CostLine {

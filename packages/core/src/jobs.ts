@@ -539,7 +539,7 @@ export const errMessage = (err: unknown): string => (err instanceof Error ? err.
  */
 export function plainJobError(error: string, notBilled: boolean): string {
   const nothing = notBilled ? " Nothing was charged." : "";
-  if (/exhausted balance|insufficient (funds|balance|credit)|out of credit|user is locked|billing/i.test(error)) {
+  if (/exhausted balance|insufficient (funds|balance|credit)|out of credit|user is locked/i.test(error)) {
     return `Generation is paused on our side: our image and video provider needs a top-up.${nothing} Please try again later.`;
   }
   const clean = error.replace(/^Not accepted by the provider: /, "").slice(0, 300);

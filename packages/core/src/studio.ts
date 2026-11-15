@@ -1023,6 +1023,7 @@ export class Studio {
         jumps: m.jumps,
         suggestedOutS: m.suggestedOutS,
         ...(m.stallFromS !== undefined ? { stallFromS: m.stallFromS } : {}),
+        ...("suggestedInS" in m && m.suggestedInS !== undefined ? { suggestedInS: m.suggestedInS } : {}),
       };
       if (t.outS === undefined && m.suggestedOutS < m.durationS) t.outS = m.suggestedOutS;
       delete t.measuring;

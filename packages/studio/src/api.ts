@@ -9,6 +9,9 @@ import {
   BlockedError,
   CAMERA_PRESETS,
   EditError,
+  FPS,
+  latestInS,
+  takeOutS,
   findShot,
   type MediaRef,
   type Project,
@@ -420,11 +423,23 @@ export function createStudioApi(resolve: ResolveContext): Hono {
 
   app.patch("/projects/:pid/episodes/:eid", async (c) => {
     const ctx = await resolve(c);
-    const b = await body(c, z.object({ title: z.string().max(300).optional(), script: z.string().max(200_000).optional() }));
+    const b = await body(
+      c,
+      z.object({
+        title: z.string().max(300).optional(),
+        script: z.string().max(200_000).optional(),
+        fadeInS: z.number().min(0).max(5).optional(),
+        fadeOutS: z.number().min(0).max(5).optional(),
+        soundLead: z.enum(["voices", "music"]).optional(),
+      }),
+    );
     await mutate(c, ctx, (p) => {
       const ep = findEpisode(p, c.req.param("eid"));
       if (b.title !== undefined) ep.title = b.title;
       if (b.script !== undefined) ep.script = b.script;
+      if (b.fadeInS !== undefined) ep.fadeInS = b.fadeInS;
+      if (b.fadeOutS !== undefined) ep.fadeOutS = b.fadeOutS;
+      if (b.soundLead !== undefined) ep.soundLead = b.soundLead;
     });
     return c.json(await view(ctx, await project(c, ctx)));
   });
@@ -585,6 +600,9 @@ export function createStudioApi(resolve: ResolveContext): Hono {
           .object({ atS: z.number().min(0).max(60), lengthS: z.number().min(0.5).max(8) })
           .nullable()
           .optional(),
+        joinIn: z.enum(["cut", "dissolve"]).optional(),
+        joinS: z.number().min(0.2).max(2).optional(),
+        move: z.enum(["none", "push-in", "pull-out"]).optional(),
       }),
     );
     await mutate(c, ctx, (p) => updateShot(p, c.req.param("sid"), b));
@@ -594,16 +612,31 @@ export function createStudioApi(resolve: ResolveContext): Hono {
   // Where the edit ends a take, and where a shot that continues from it starts. null: the whole clip.
   app.patch("/projects/:pid/shots/:sid/takes/:tid", async (c) => {
     const ctx = await resolve(c);
-    const b = await body(c, z.object({ outS: z.number().min(0.5).max(30).nullable() }));
+    const b = await body(
+      c,
+      z.object({ outS: z.number().min(0.5).max(30).nullable().optional(), inS: z.number().min(0).max(29).nullable().optional() }),
+    );
     await mutate(c, ctx, (p) => {
-      const t = findShot(p, c.req.param("sid")).shot.takes.find((x) => x.id === c.req.param("tid"));
+      const { shot } = findShot(p, c.req.param("sid"));
+      const t = shot.takes.find((x) => x.id === c.req.param("tid"));
       if (!t) throw new EditError("No such take", "not_found");
       const len = t.analysis?.durationS;
       // "The whole clip" is stored as its full length, so the edit and a shot continuing from it agree.
       if (b.outS === null) {
         if (len) t.outS = len;
         else delete t.outS;
-      } else t.outS = len ? Math.min(b.outS, len) : b.outS;
+      } else if (b.outS !== undefined) t.outS = len ? Math.min(b.outS, len) : b.outS;
+      if (b.inS === null || b.inS === 0) delete t.inS;
+      else if (b.inS !== undefined) t.inS = b.inS;
+      // The edit keeps at least half a second of every take: a start too late moves back, in whole frames,
+      // against the same end the edit uses.
+      if (t.inS !== undefined) {
+        const latest = latestInS(takeOutS(t, shot));
+        if (Math.round(t.inS * FPS) > Math.round(latest * FPS)) {
+          if (latest > 0) t.inS = latest;
+          else delete t.inS;
+        }
+      }
     });
     return c.json(await view(ctx, await project(c, ctx)));
   });

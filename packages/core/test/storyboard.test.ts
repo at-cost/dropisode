@@ -143,6 +143,9 @@ describe("storyboard", () => {
       endPicture: "",
       onScreenText: "",
       cutaway: null,
+      joinIn: "cut" as const,
+      joinS: 0.5,
+      move: "none" as const,
     };
     const insert = framePrompt({
       shot: { ...base, description: "Nora's hands hold the card.", camera: "extreme close-up" },
@@ -170,6 +173,9 @@ describe("storyboard", () => {
       endPicture: "",
       onScreenText: "",
       cutaway: null,
+      joinIn: "cut" as const,
+      joinS: 0.5,
+      move: "none" as const,
     };
     const close = framePrompt({ shot: { ...base, camera: "close-up" }, cast: [], location: place, aspect: "9:16" });
     expect(close).toMatch(/soft and out of focus/);
@@ -194,6 +200,9 @@ describe("storyboard", () => {
       endPicture: "",
       onScreenText: "",
       cutaway: null,
+      joinIn: "cut" as const,
+      joinS: 0.5,
+      move: "none" as const,
     };
     expect(framePrompt({ shot, cast, aspect: "9:16" })).toMatch(
       /CELESTE is speaking in this shot: their face turned towards the camera.*never looking straight into the lens/,
@@ -249,6 +258,9 @@ describe("storyboard", () => {
       endPicture: "",
       onScreenText: "",
       cutaway: null,
+      joinIn: "cut" as const,
+      joinS: 0.5,
+      move: "none" as const,
     };
     expect(videoPrompt({ shot, cast: cast as never, nativeAudio: true })).toMatch(/CELESTE says: "We're getting married."/);
     const vo = videoPrompt({ shot, cast: cast as never, nativeAudio: true, speak: false });

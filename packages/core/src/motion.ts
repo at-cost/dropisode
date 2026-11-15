@@ -4,7 +4,7 @@
  * target picture) and a one-frame jump (a hidden cut or snap inside the take). Sampling a few
  * frames a second hides both, so this compares every frame at a tiny size.
  */
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mediaDuration, runFfmpeg } from "./ffmpeg";
@@ -23,6 +23,8 @@ export interface ClipMotion {
   stallFromS?: number;
   /** Where the edit should end this clip (s): before a stall, else its full length. */
   suggestedOutS: number;
+  /** Where the clip starts to move (s), when it holds its first frame for a moment. */
+  suggestedInS?: number;
 }
 
 /** Frame-to-frame differences of a clip, at its own frame rate. */
@@ -80,7 +82,20 @@ export function analyseDiffs(diffs: number[], fps: number, durationS: number): C
   const suggestedOutS =
     stallFromS !== undefined && stallFromS >= durationS * 0.5 ? +Math.min(durationS, stallFromS + 0.1).toFixed(2) : +durationS.toFixed(2);
   // The exact length, unrounded: the edit and a chained shot cap against it and must pick the same frame.
-  return { durationS, fps, motion, jumps, ...(stallFromS !== undefined ? { stallFromS } : {}), suggestedOutS };
+  // A held first frame: the opening frames barely change. Start the edit where movement begins (never past a second in).
+  let lead = 0;
+  const calm = Math.max(0.25, typical * 0.08);
+  while (lead < diffs.length && lead < fps && diffs[lead]! < calm) lead++;
+  const suggestedInS = typical > 1 && lead >= 3 && lead < diffs.length ? +(lead / fps).toFixed(2) : undefined;
+  return {
+    durationS,
+    fps,
+    motion,
+    jumps,
+    ...(stallFromS !== undefined ? { stallFromS } : {}),
+    suggestedOutS,
+    ...(suggestedInS !== undefined ? { suggestedInS } : {}),
+  };
 }
 
 export async function analyseClip(clip: Uint8Array): Promise<ClipMotion> {
@@ -107,12 +122,21 @@ export async function frameAt(clip: Uint8Array, atS: number | undefined, fps = 3
     writeFileSync(src, clip);
     const dur = await mediaDuration(src);
     // The frame just before the cut point; the very end of a file can't be decoded reliably.
-    const shown = Math.floor(Math.min(atS ?? dur, dur) * fps) / fps;
+    // (The same slack as the assembly's framesTo, so 4.1 s ends on frame 123 in both.)
+    const shown = Math.floor(Math.min(atS ?? dur, dur) * fps + 1e-6) / fps;
     // Half a frame from the end at most, so the very last frame is still found.
     const t = Math.max(0, Math.min(shown - 1 / fps, dur - 1 / (2 * fps)));
     // Decode up to the exact time (seeking after -i), at the edit's frame rate, so it is the frame the edit ends on.
-    await runFfmpeg(["-i", src, "-vf", `fps=${fps}`, "-ss", t.toFixed(4), "-frames:v", "1", "-q:v", "2", out]);
-    return new Uint8Array(readFileSync(out));
+    // Seek half a frame early: the first frame at or after that is the one wanted, and a rounded-up time
+    // can never land just past the clip's last frame (which gives no picture at all).
+    // Some ffmpeg builds stop a frame or two short of a clip's end (a 24 fps clip resampled to the edit's rate):
+    // then step back a frame at a time until there is a picture.
+    for (let back = 0; back < 4; back++) {
+      const seek = Math.max(0, t - (back + 0.5) / fps);
+      await runFfmpeg(["-y", "-i", src, "-vf", `fps=${fps}`, "-ss", seek.toFixed(4), "-frames:v", "1", "-q:v", "2", out]);
+      if (existsSync(out)) return new Uint8Array(readFileSync(out));
+    }
+    throw new Error("no frame could be read near the end of the clip");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

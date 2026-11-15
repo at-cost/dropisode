@@ -1,3 +1,4 @@
+import { takeInS, takeOutS } from "@reel/core/cut";
 import { type CSSProperties, type ReactNode, type TouchEvent, useEffect, useRef, useState } from "react";
 import { type DialogueLine, type Episode, type Project, type Scene, type Shot, type Take, type View, api, mediaUrl } from "./api";
 import { ModelsPanel } from "./ModelsPanel";
@@ -651,9 +652,11 @@ function endImageModel(
 function TakeTiming({ shot, take, c }: { shot: Shot; take: Take; c: ShotCtl }) {
   const { act } = useProject();
   const a = take.analysis!;
-  const out = take.outS ?? a.durationS;
-  const save = (outS: number | null) =>
-    void act(`out-${take.id}`, () => api.patch<View>(`/projects/${c.pid}/shots/${shot.id}/takes/${take.id}`, { outS }));
+  // The same end and start the assembly and the Cut panel use.
+  const out = takeOutS(take, shot);
+  const start = takeInS(take, out);
+  const save = (body: { outS: number | null; inS?: null }) =>
+    void act(`out-${take.id}`, () => api.patch<View>(`/projects/${c.pid}/shots/${shot.id}/takes/${take.id}`, body));
   return (
     <div className="take-timing">
       <label className="insp-field">
@@ -668,12 +671,12 @@ function TakeTiming({ shot, take, c }: { shot: Shot; take: Take; c: ShotCtl }) {
             defaultValue={round(out)}
             onBlur={(e) => {
               const v = Number(e.target.value);
-              if (Number.isFinite(v) && Math.abs(v - out) > 0.04) save(Math.min(a.durationS, Math.max(0.5, v)));
+              if (Number.isFinite(v) && Math.abs(v - out) > 0.04) save({ outS: Math.min(a.durationS, Math.max(0.5, v)) });
             }}
           />
           <span className="muted small-text">of {round(a.durationS)} s</span>
-          {take.outS !== undefined && take.outS < a.durationS - 0.04 && (
-            <button type="button" className="link-btn" onClick={() => save(null)}>
+          {(out < a.durationS - 0.04 || start > 0) && (
+            <button type="button" className="link-btn" onClick={() => save({ outS: null, inS: null })}>
               Use the whole clip
             </button>
           )}
@@ -691,7 +694,11 @@ function TakeTiming({ shot, take, c }: { shot: Shot; take: Take; c: ShotCtl }) {
           remake the shot if you see it.
         </p>
       )}
-      <small className="muted">A shot that continues from this one starts at this point; remake it after changing this.</small>
+      {start > 0 && <small className="muted">The edit starts this take at {round(start)} s.</small>}
+      <small className="muted">
+        A shot that continues from this one starts at this point; remake it after changing this. Fine-tune both ends in Cut, on the Episode
+        tab.
+      </small>
     </div>
   );
 }

@@ -85,7 +85,16 @@ export function findCast(project: Project, castId: string): CastMember {
 // Episodes and scenes
 
 export function addEpisode(project: Project, p: { title: string; script?: string }): Episode {
-  const ep: Episode = { id: newId("ep"), title: p.title, script: p.script ?? "", scenes: [], music: null };
+  const ep: Episode = {
+    id: newId("ep"),
+    title: p.title,
+    script: p.script ?? "",
+    scenes: [],
+    music: null,
+    fadeInS: 0,
+    fadeOutS: 0,
+    soundLead: "voices",
+  };
   project.episodes.push(ep);
   return ep;
 }
@@ -167,6 +176,9 @@ export function addShot(scene: Scene, p: ShotInput, at?: number): Shot {
     endPicture: p.endPicture ?? "",
     onScreenText: p.onScreenText ?? "",
     cutaway: p.cutaway ?? null,
+    joinIn: "cut" as const,
+    joinS: 0.5,
+    move: "none" as const,
   };
   if (at === undefined) scene.shots.push(shot);
   else scene.shots.splice(Math.max(0, Math.min(at, scene.shots.length)), 0, shot);
@@ -191,6 +203,9 @@ export function updateShot(
       | "endPicture"
       | "onScreenText"
       | "cutaway"
+      | "joinIn"
+      | "joinS"
+      | "move"
     >
   > & {
     dialogue?: { id?: string; castId: string | null; text: string }[];
@@ -215,6 +230,10 @@ export function updateShot(
   if (patch.endPicture !== undefined) shot.endPicture = patch.endPicture.slice(0, 2000);
   if (patch.onScreenText !== undefined) shot.onScreenText = patch.onScreenText.slice(0, 300);
   if (patch.cutaway !== undefined) shot.cutaway = patch.cutaway;
+  // Joins and moves are made in the edit, like on-screen text: the clip and its approval stand.
+  if (patch.joinIn !== undefined) shot.joinIn = patch.joinIn;
+  if (patch.joinS !== undefined) shot.joinS = Math.min(2, Math.max(0.2, patch.joinS));
+  if (patch.move !== undefined) shot.move = patch.move;
   if (patch.dialogue !== undefined) {
     const old = new Map(shot.dialogue.map((l) => [l.id, l]));
     shot.dialogue = patch.dialogue.map((l) => {
@@ -267,6 +286,9 @@ export function splitShot(project: Project, shotId: string, atS?: number): [Shot
     endPicture: shot.endPicture,
     onScreenText: "",
     cutaway: null,
+    joinIn: "cut" as const,
+    joinS: 0.5,
+    move: "none" as const,
   };
   shot.dialogue = shot.dialogue.slice(0, cut);
   shot.durationS = round1(at);

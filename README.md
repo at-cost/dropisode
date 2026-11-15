@@ -5,7 +5,7 @@ An open-source AI studio for short dramas and serialised vertical video. Write o
 You see the exact price on every generate button before you press it. Dropisode runs two ways:
 
 - **Locally, free:** `npx dropisode` with your own fal.ai key. You pay fal directly; Dropisode adds nothing.
-- **Hosted (not launched yet):** prepaid credit at the provider's real price + 20%. No subscription, no expiring credits, no throttled "unlimited" plans. Failed generations the provider doesn't bill are refunded automatically, and the platform's real costs are published.
+- **Hosted, at [dropisode.com](https://dropisode.com):** prepaid credit at the provider's real price + 20%. No subscription, no expiring credits, no throttled "unlimited" plans. Failed generations the provider doesn't bill are refunded automatically, and the platform's real costs are published.
 
 ## Is it cheaper?
 
@@ -42,7 +42,8 @@ This opens the studio at http://localhost:4320. Paste your fal.ai key in Setting
 4. **Storyboard.** Press "Storyboard this scene" to break it into shot cards. Edit, reorder, split or merge them.
 5. **Draft.** Press "Draft" on each card: a cheap first frame, then a short low-resolution clip.
 6. **Approve and final.** Approve the shots you like and press "Final" to render them on a premium model.
-7. **Episode.** Assemble the final episode: one MP4 with burned-in subtitles, plus every shot file, `subtitles.srt` and an edit list (`edit-list.edl`, `edit-list.json`) for finishing in another editor.
+7. **Cut.** On the Episode tab, drag the ends of each take to choose where the edit starts and ends it, join takes with a cut or a dissolve, and set fades and whether voices or music lead the sound. The studio marks held frames, stalls and jumps, and suggests a cut; the length it shows is the length the episode comes out. Cutting is free.
+8. **Episode.** Assemble the final episode: one MP4, plus every shot file, `subtitles.srt` and an edit list (`edit-list.edl`, `edit-list.json`) for finishing in another editor.
 
 Projects export as a zip (`project.json` plus media) that opens in local or hosted Dropisode.
 

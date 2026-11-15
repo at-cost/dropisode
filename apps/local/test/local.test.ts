@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { FPS, keptFrames, planCut } from "@reel/core";
 import { createLocalApp } from "../src/server";
 
 function app() {
@@ -106,6 +107,60 @@ describe("local app", () => {
     const copy = (await res.json()) as any;
     expect(copy.name).toBe("Copy me");
     expect(copy.cast[0].name).toBe("Maya");
+  });
+
+  it("cuts over the API: start and end points, joins, moves, fades, and the length the panel would show", async () => {
+    const { json, call, settle } = app();
+    const p = await json("POST", "/api/projects", { name: "Cut", aspect: "9:16" });
+    let v = await json("POST", `/api/projects/${p.id}/episodes`, { title: "Ep" });
+    const eid = v.episodeId;
+    v = await json("POST", `/api/projects/${p.id}/episodes/${eid}/scenes`, { heading: "INT. ROOM" });
+    const scid = v.project.episodes[0].scenes[0].id;
+    for (const d of [4, 4]) v = await json("POST", `/api/projects/${p.id}/scenes/${scid}/shots`, { durationS: d });
+    const [a, b] = v.project.episodes[0].scenes[0].shots;
+    for (const s of [a, b]) await json("POST", `/api/projects/${p.id}/shots/${s.id}/takes`, { tier: "draft" });
+    v = await settle(p.id);
+    const take = (vv: any, i: number) => vv.project.episodes[0].scenes[0].shots[i].takes[0];
+    const ta = take(v, 0);
+    const path = `/api/projects/${p.id}/shots/${a.id}/takes/${ta.id}`;
+
+    v = await json("PATCH", path, { inS: 0.5, outS: 3.5 });
+    expect(take(v, 0)).toMatchObject({ inS: 0.5, outS: 3.5 });
+    // Moving one end leaves the other.
+    v = await json("PATCH", path, { outS: 3.2 });
+    expect(take(v, 0)).toMatchObject({ inS: 0.5, outS: 3.2 });
+    // A start too near the end keeps half a second.
+    v = await json("PATCH", path, { inS: 3.1 });
+    expect(take(v, 0).inS).toBeCloseTo(2.7, 5);
+    // Ending before the start pulls the start back with it.
+    v = await json("PATCH", path, { outS: 1 });
+    expect(take(v, 0).inS).toBeCloseTo(0.5, 5);
+    // Exactly half a second is kept, not lost to float rounding (1.4 - 0.9 is 0.4999... in floats).
+    v = await json("PATCH", path, { inS: 0.9, outS: 1.4 });
+    expect(keptFrames(take(v, 0), a)).toEqual({ inF: 27, outF: 42 });
+    // A start point clamped by a new end still keeps half a second.
+    await json("PATCH", path, { inS: 2, outS: 3 });
+    v = await json("PATCH", path, { outS: 2.33 });
+    expect(keptFrames(take(v, 0), a)).toEqual({ inF: 54, outF: 69 });
+    v = await json("PATCH", path, { inS: null, outS: null });
+    expect(take(v, 0).inS).toBeUndefined();
+    expect(take(v, 0).outS).toBe(ta.analysis.durationS);
+    expect((await call("PATCH", path, { inS: -1 })).status).toBe(400);
+
+    await json("PATCH", `/api/projects/${p.id}/shots/${b.id}`, { approved: true });
+    v = await json("PATCH", `/api/projects/${p.id}/shots/${b.id}`, { joinIn: "dissolve", joinS: 0.8, move: "pull-out" });
+    expect(v.project.episodes[0].scenes[0].shots[1]).toMatchObject({ joinIn: "dissolve", joinS: 0.8, move: "pull-out", approved: true });
+    expect((await call("PATCH", `/api/projects/${p.id}/shots/${b.id}`, { joinS: 5 })).status).toBe(400);
+    v = await json("PATCH", `/api/projects/${p.id}/episodes/${eid}`, { fadeInS: 0.5, fadeOutS: 1.5, soundLead: "music" });
+    expect(v.project.episodes[0]).toMatchObject({ fadeInS: 0.5, fadeOutS: 1.5, soundLead: "music" });
+    expect((await call("PATCH", `/api/projects/${p.id}/episodes/${eid}`, { soundLead: "loud" })).status).toBe(400);
+
+    await json("PATCH", path, { inS: 0.4, outS: 3.7 });
+    v = await json("GET", `/api/projects/${p.id}`);
+    const plan = planCut(v.project.episodes[0], "rough");
+    const ex = await json("POST", `/api/projects/${p.id}/episodes/${eid}/assemble`, { source: "rough" });
+    expect(ex.durationS).toBe(plan.totalF / FPS);
+    expect(plan.totalF).toBe(99 + 120 - 24);
   });
 
   it("asks for a key instead of spending when none is set", async () => {

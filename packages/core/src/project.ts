@@ -92,8 +92,12 @@ export const Take = z.object({
       jumps: z.array(z.number()),
       stallFromS: z.number().optional(),
       suggestedOutS: z.number(),
+      /** Where the clip starts to move (s): image-to-video clips often hold their first frame for a moment. */
+      suggestedInS: z.number().optional(),
     })
     .optional(),
+  /** Where the edit starts this clip (s). Unset: from its first frame. */
+  inS: z.number().nonnegative().optional(),
   /** Where the edit ends this clip, and where a shot that continues from it starts (s). */
   outS: z.number().positive().optional(),
   /** The clip is in but not measured yet: nothing may continue from it until it is. (Takes from before measuring existed lack it and stay usable.) */
@@ -129,6 +133,11 @@ export const Shot = z.object({
     .object({ atS: z.number().min(0).max(60), lengthS: z.number().min(0.5).max(8) })
     .nullable()
     .default(null),
+  /** How the edit comes into this shot from the one before: a straight cut, or a dissolve of `joinS` seconds. */
+  joinIn: z.enum(["cut", "dissolve"]).default("cut"),
+  joinS: z.number().min(0.2).max(2).default(0.5),
+  /** A slow camera move added in the edit, over the whole shot. */
+  move: z.enum(["none", "push-in", "pull-out"]).default("none"),
 });
 export type Shot = z.infer<typeof Shot>;
 
@@ -171,6 +180,11 @@ export const Episode = z.object({
   scenes: z.array(Scene).default([]),
   /** An instrumental bed under the episode, ducked under the dialogue. */
   music: SoundBed.nullable().default(null),
+  /** Fades at the two ends of the episode (s; 0 = none). */
+  fadeInS: z.number().min(0).max(5).default(0),
+  fadeOutS: z.number().min(0).max(5).default(0),
+  /** What leads the sound: the voices (music dips under them), or the music (the clips' own sound stays far behind it). */
+  soundLead: z.enum(["voices", "music"]).default("voices"),
 });
 export type Episode = z.infer<typeof Episode>;
 

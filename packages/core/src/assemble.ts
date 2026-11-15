@@ -8,7 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { findEpisode } from "./edit";
 import { hasAudio, mediaDuration, requireFfmpeg, runFfmpeg } from "./ffmpeg";
-import type { MediaRef, Project, Shot, Take } from "./project";
+import { FPS, cutawaySpan, dissolveFrames, keptFrames, pickTake } from "./cut";
+import type { MediaRef } from "./project";
 import type { MediaStore, ProjectStore } from "./stores";
 
 export interface AssembleOptions {
@@ -27,6 +28,10 @@ export interface AssembledShot {
   file: string;
   startS: number;
   durationS: number;
+  /** The part of the take used (s on the take's own clock): from `inS` for `durationS`. */
+  inS: number;
+  /** Seconds this shot dissolves in over the end of the one before it. */
+  dissolveS?: number;
 }
 
 export interface AssembleResult {
@@ -48,25 +53,25 @@ export interface AssembleResult {
   durationS: number;
 }
 
-/** The edit's frame rate: a chained shot starts on the last frame the edit shows, at this rate. */
-export const FPS = 30;
+// The cut's arithmetic lives in cut.ts, shared with the studio's Cut panel. A chained shot starts on the last frame the edit shows.
+export { FPS, pickTake, takeInS, takeOutS } from "./cut";
 
-/** Where the edit ends a take (s): its end point, else the shot's length, never past the clip. Chaining uses the same. */
-export function takeOutS(take: { outS?: number; analysis?: { durationS: number } }, shot: { durationS: number }, clipLen?: number): number {
-  return Math.min(take.outS ?? shot.durationS, clipLen ?? take.analysis?.durationS ?? Number.POSITIVE_INFINITY);
-}
-
-/** The take a shot contributes, or why it can't. */
-export function pickTake(shot: Shot, source: "final" | "rough"): Take | string {
-  const done = shot.takes.filter((t) => t.status === "done" && t.videoMediaId);
-  if (source === "final") {
-    if (!shot.approved) return "not approved";
-    const finals = done.filter((t) => t.tier === "final");
-    const sel = finals.find((t) => t.id === shot.selectedTakeId);
-    return sel ?? finals[finals.length - 1] ?? "no finished final take";
-  }
-  return done.find((t) => t.id === shot.selectedTakeId) ?? done[done.length - 1] ?? "no finished take";
-}
+const ENC = [
+  "-c:v",
+  "libx264",
+  "-preset",
+  "veryfast",
+  "-crf",
+  "18",
+  "-c:a",
+  "aac",
+  "-b:a",
+  "192k",
+  "-ar",
+  "48000",
+  "-movflags",
+  "+faststart",
+];
 
 export async function assembleEpisode(
   deps: { projects: ProjectStore; media: MediaStore },
@@ -97,6 +102,8 @@ export async function assembleEpisode(
     const out: AssembledShot[] = [];
     const subs: { start: number; end: number; text: string }[] = [];
     const overlays: { start: number; end: number; text: string }[] = [];
+    // The running time, counted in whole frames so the panel's total, the file and the edit list agree exactly.
+    let tF = 0;
     let t = 0;
     let cutaways = 0;
     let soundBeds = 0;
@@ -125,7 +132,10 @@ export async function assembleEpisode(
       const clipLen = await mediaDuration(clip);
       // Whole frames, so the shot files, the joined episode, the subtitles and the EDL agree.
       // A take's end point (set before a stall, or by hand) wins: a shot that continues from it starts there.
-      const dur = Math.floor(takeOutS(pick, shot, clipLen) * FPS) / FPS;
+      const { inF, outF } = keptFrames(pick, shot, clipLen);
+      const inAt = inF / FPS;
+      const durF = outF - inF;
+      const dur = durF / FPS;
       const index = out.length + 1;
       const file = join(shotsDir, `${String(index).padStart(2, "0")}_${shot.id}.mp4`);
 
@@ -160,39 +170,39 @@ export async function assembleEpisode(
       if (voicePath) args.push("-i", voicePath);
       else if (!clipAudio) args.push("-f", "lavfi", "-t", String(dur), "-i", "anullsrc=r=48000:cl=stereo");
       const base = clipAudio ? "0:a" : `${tts.length + 1}:a`;
-      const vf = `[0:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${FPS},format=yuv420p[v]`;
+      const from = inAt > 0 ? `trim=start=${inAt.toFixed(3)},setpts=PTS-STARTPTS,` : "";
+      // The clip's own sound and its lifted voices run on the clip's clock, so they start where the picture does.
+      const aFrom = inAt > 0 && (clipAudio || voicePath) ? `atrim=start=${inAt.toFixed(3)},asetpts=PTS-STARTPTS,` : "";
+      // A slow move made in the edit: worked at twice the size so the drift is smooth, not stepped.
+      const frames = Math.max(1, durF);
+      const zoom = shot.move === "push-in" ? `1+0.08*on/${frames}` : shot.move === "pull-out" ? `1.08-0.08*on/${frames}` : "";
+      const move = zoom
+        ? `scale=${w * 2}:${h * 2},zoompan=z='${zoom}':d=1:s=${w}x${h}:fps=${FPS}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)',`
+        : "";
+      const vf = `[0:v]${from}scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${FPS},${move}format=yuv420p[v]`;
       const af = [
-        `[${base}]aresample=48000,aformat=channel_layouts=stereo,apad[a0]`,
+        `[${base}]${aFrom}aresample=48000,aformat=channel_layouts=stereo,apad[a0]`,
         ...tts.map(
           (x, i) =>
             `[${i + 1}:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${Math.round(x.at * 1000)}|${Math.round(x.at * 1000)}[t${i}]`,
         ),
         `[a0]${tts.map((_, i) => `[t${i}]`).join("")}amix=inputs=${tts.length + 1}:duration=first:normalize=0,atrim=0:${dur.toFixed(3)},afade=t=in:d=0.015,afade=t=out:st=${Math.max(0, dur - 0.03).toFixed(3)}:d=0.03[a]`,
       ];
-      args.push("-filter_complex", [vf, ...af].join(";"), "-map", "[v]", "-map", "[a]", "-t", dur.toFixed(3));
-      args.push(
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-crf",
-        "18",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
-        "-ar",
-        "48000",
-        "-movflags",
-        "+faststart",
-        file,
-      );
+      args.push("-filter_complex", [vf, ...af].join(";"), "-map", "[v]", "-map", "[a]", "-frames:v", String(durF), "-t", dur.toFixed(6));
+      args.push(...ENC, file);
       await runFfmpeg(args);
 
       if (shot.cutaway && speaking && (await spliceCutaway(speaking, file, dur, shot.cutaway, work))) {
         renameSync(file, join(shotsDir, `${String(speaking.index).padStart(2, "0")}c${++cutaways}_${shot.id}_cutaway.mp4`));
         continue;
       }
+
+      // A dissolve lays the start of this shot over the end of the last one, so the episode is that much shorter.
+      const before = out[out.length - 1];
+      const dissolveF = shot.joinIn === "dissolve" && before ? dissolveFrames(shot.joinS, Math.round(before.durationS * FPS), durF) : 0;
+      const dissolveS = dissolveF / FPS;
+      tF -= dissolveF;
+      t = tF / FPS;
 
       // Subtitles: TTS lines at their own timings; the rest share the time left after the voiced lines.
       const untimed = timed.filter((x) => !x.path);
@@ -205,17 +215,65 @@ export async function assembleEpisode(
         });
       }
       if (shot.onScreenText?.trim()) overlays.push({ start: t + 0.2, end: t + dur - 0.1, text: shot.onScreenText.trim() });
-      const entry = { index, shotId: shot.id, takeId: pick.id, tier: pick.tier, file, startS: t, durationS: dur };
+      const entry: AssembledShot = {
+        index,
+        shotId: shot.id,
+        takeId: pick.id,
+        tier: pick.tier,
+        file,
+        startS: t,
+        durationS: dur,
+        inS: inAt,
+        ...(dissolveS ? { dissolveS } : {}),
+      };
       out.push(entry);
       if (!shot.cutaway) speaking = entry;
-      t += dur;
+      tF += durF;
+      t = tF / FPS;
     }
     if (out.length === 0)
       throw new Error(opts.source === "final" ? "No approved shots with a finished final take yet" : "No finished takes yet");
 
     // Join (all clips share codec settings, so stream copy is exact).
+    // Shots joined by a dissolve are first made into one piece; the shot files themselves stay whole.
+    const pieces: string[] = [];
+    // Lengths in whole frames, and the output capped by frame count: some ffmpeg builds let `-t` through one frame long.
+    let cur: { file: string; f: number } | undefined;
+    const frames = (s: number) => Math.round(s * FPS);
+    for (const s of out) {
+      if (s.dissolveS && cur) {
+        const xF = frames(s.dissolveS);
+        const x = xF / FPS;
+        const lenF = cur.f + frames(s.durationS) - xF;
+        const merged = join(work, `dissolve_${s.index}.mp4`);
+        await runFfmpeg([
+          "-i",
+          cur.file,
+          "-i",
+          s.file,
+          "-filter_complex",
+          // Both clips on one clock first: without it the bundled ffmpeg 6.0 snaps to the second clip a few frames in.
+          `[0:v]settb=AVTB,fps=${FPS}[xa];[1:v]settb=AVTB,fps=${FPS}[xb];[xa][xb]xfade=transition=fade:duration=${x.toFixed(6)}:offset=${((cur.f - xF) / FPS).toFixed(6)},format=yuv420p[v];[0:a][1:a]acrossfade=d=${x.toFixed(6)}:c1=tri:c2=tri[a]`,
+          "-map",
+          "[v]",
+          "-map",
+          "[a]",
+          "-frames:v",
+          String(lenF),
+          "-t",
+          (lenF / FPS).toFixed(6),
+          ...ENC,
+          merged,
+        ]);
+        cur = { file: merged, f: lenF };
+      } else {
+        if (cur) pieces.push(cur.file);
+        cur = { file: s.file, f: frames(s.durationS) };
+      }
+    }
+    if (cur) pieces.push(cur.file);
     const list = join(work, "list.txt");
-    writeFileSync(list, out.map((s) => `file '${s.file.replace(/'/g, "'\\''")}'`).join("\n"));
+    writeFileSync(list, pieces.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join("\n"));
     let joined = join(work, "joined.mp4");
     await runFfmpeg(["-f", "concat", "-safe", "0", "-i", list, "-c", "copy", "-movflags", "+faststart", joined]);
 
@@ -233,7 +291,7 @@ export async function assembleEpisode(
     const musicRef = bedRef(episode.music);
     if (beds.length || musicRef) {
       const mixed = join(work, "mixed.mp4");
-      await runFfmpeg(mixArgs(joined, beds, musicRef ? await pathOf(musicRef) : undefined, t, mixed));
+      await runFfmpeg(mixArgs(joined, beds, musicRef ? await pathOf(musicRef) : undefined, t, mixed, episode.soundLead));
       joined = mixed;
       soundBeds = beds.length + (musicRef ? 1 : 0);
     }
@@ -245,51 +303,67 @@ export async function assembleEpisode(
     let overlaysBurned = 0;
     // Off unless asked: players show the cues themselves, with an on/off switch.
     const burnSubs = (opts.burnSubtitles ?? false) && subs.length > 0;
+    const vfilters: string[] = [];
     if (burnSubs || overlays.length) {
       if (ff.subtitles) {
         if (!fontsAvailable())
           warnings.push(
             "No fonts are installed on this server, so subtitles and on-screen text may not show. Install fonts (e.g. font-dejavu) for ffmpeg.",
           );
-        const filters: string[] = [];
         if (overlays.length) {
           writeFileSync(join(work, "overlay.ass"), toAss(overlays, w, h));
-          filters.push("ass=overlay.ass");
+          vfilters.push("ass=overlay.ass");
         }
         if (burnSubs) {
           copyFileSync(join(opts.outDir, "subtitles.srt"), join(work, "subs.srt"));
           // libass sizes SRT styles against a 288-line script, whatever the video size.
           const style = `FontName=Arial,FontSize=${vertical ? 11 : 16},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Alignment=2,MarginV=${vertical ? 40 : 18},MarginL=12,MarginR=12`;
-          filters.push(`subtitles=subs.srt:force_style='${style}'`);
+          vfilters.push(`subtitles=subs.srt:force_style='${style}'`);
         }
-        await runFfmpeg(
-          [
-            "-i",
-            joined,
-            "-vf",
-            filters.join(","),
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "18",
-            "-c:a",
-            "copy",
-            "-movflags",
-            "+faststart",
-            episodeFile,
-          ],
-          { cwd: work },
-        );
         burned = burnSubs;
         overlaysBurned = overlays.length;
       } else {
         warnings.push(
           "This ffmpeg can't draw text (it lacks libass): subtitles.srt is written next to the episode, and on-screen text is left out.",
         );
-        copyFileSync(joined, episodeFile);
       }
+    }
+    // Fades at the two ends, picture and sound together; never more than a third of the episode each.
+    const fadeIn = Math.min(episode.fadeInS, t / 3);
+    const fadeOut = Math.min(episode.fadeOutS, t / 3);
+    const afilters: string[] = [];
+    if (fadeIn > 0) {
+      vfilters.push(`fade=t=in:st=0:d=${fadeIn.toFixed(3)}`);
+      afilters.push(`afade=t=in:st=0:d=${fadeIn.toFixed(3)}`);
+    }
+    if (fadeOut > 0) {
+      vfilters.push(`fade=t=out:st=${(t - fadeOut).toFixed(3)}:d=${fadeOut.toFixed(3)}`);
+      afilters.push(`afade=t=out:st=${(t - fadeOut).toFixed(3)}:d=${fadeOut.toFixed(3)}`);
+    }
+    if (vfilters.length) {
+      await runFfmpeg(
+        [
+          "-i",
+          joined,
+          "-vf",
+          // The joined video can start a fraction of a frame late (the concat's timestamps); re-encoding that at a
+          // constant rate adds a frame. Starting it at zero keeps the episode exactly as long as the cut.
+          ["setpts=PTS-STARTPTS", ...vfilters].join(","),
+          "-frames:v",
+          String(tF),
+          "-c:v",
+          "libx264",
+          "-preset",
+          "veryfast",
+          "-crf",
+          "18",
+          ...(afilters.length ? ["-af", afilters.join(","), "-c:a", "aac", "-b:a", "192k", "-ar", "48000"] : ["-c:a", "copy"]),
+          "-movflags",
+          "+faststart",
+          episodeFile,
+        ],
+        { cwd: work },
+      );
     } else {
       copyFileSync(joined, episodeFile);
     }
@@ -352,20 +426,40 @@ export function timecode(s: number, hourOffset = 0): string {
   return `${pad(Math.floor(total / 3600) + hourOffset)}:${pad(Math.floor(total / 60) % 60)}:${pad(total % 60)}:${pad(f)}`;
 }
 
-/** A CMX 3600 edit list: one event per shot, each clip used from its start. */
+/**
+ * A CMX 3600 edit list over the shot files. Each shot file is already cut to the part of its take the edit uses
+ * (so it is used from its start; a comment gives the take and where in it the part begins). A dissolve is the
+ * standard two-line event: the outgoing shot at the point the dissolve starts, then `D` and its length in frames.
+ */
 export function toEdl(title: string, shots: AssembledShot[]): string {
   const lines = [`TITLE: ${title.replace(/[^\x20-\x7e]/g, "").slice(0, 60) || "Episode"}`, "FCM: NON-DROP FRAME", ""];
-  for (const s of shots) {
-    const reel = `SHOT${pad(s.index, 3)}`.slice(0, 8);
-    lines.push(
-      `${pad(s.index, 3)}  ${reel.padEnd(8)} V     C        ${timecode(0)} ${timecode(s.durationS)} ${timecode(s.startS, 1)} ${timecode(s.startS + s.durationS, 1)}`,
-    );
-    lines.push(
-      `${pad(s.index, 3)}  ${reel.padEnd(8)} A     C        ${timecode(0)} ${timecode(s.durationS)} ${timecode(s.startS, 1)} ${timecode(s.startS + s.durationS, 1)}`,
-    );
-    lines.push(`* FROM CLIP NAME: ${s.file.split("/").pop()}`);
+  const reel = (s: AssembledShot) => `SHOT${pad(s.index, 3)}`.slice(0, 8).padEnd(8);
+  let n = 0;
+  shots.forEach((s, i) => {
+    const ev = pad(++n, 3);
+    const next = shots[i + 1];
+    // A shot that the next one dissolves out of is cut where that dissolve starts; the dissolve event carries the rest.
+    const until = next?.dissolveS ? next.startS - s.startS : s.durationS;
+    const recIn = timecode(s.startS, 1);
+    const prev = shots[i - 1];
+    for (const track of ["V", "A"]) {
+      if (s.dissolveS && prev) {
+        const at = timecode(s.startS - prev.startS);
+        lines.push(`${ev}  ${reel(prev)} ${track.padEnd(5)} C        ${at} ${at} ${recIn} ${recIn}`);
+        lines.push(
+          `${ev}  ${reel(s)} ${track.padEnd(5)} D    ${pad(Math.round(s.dissolveS * FPS), 3)} ${timecode(0)} ${timecode(until)} ${recIn} ${timecode(s.startS + until, 1)}`,
+        );
+      } else {
+        lines.push(
+          `${ev}  ${reel(s)} ${track.padEnd(5)} C        ${timecode(0)} ${timecode(until)} ${recIn} ${timecode(s.startS + until, 1)}`,
+        );
+      }
+    }
+    if (s.dissolveS && prev) lines.push(`* FROM CLIP NAME: ${prev.file.split("/").pop()}`, `* TO CLIP NAME: ${s.file.split("/").pop()}`);
+    else lines.push(`* FROM CLIP NAME: ${s.file.split("/").pop()}`);
+    lines.push(`* SOURCE: ${s.takeId}${s.inS > 0 ? ` FROM ${timecode(s.inS)}` : ""}`);
     lines.push("");
-  }
+  });
   return lines.join("\n");
 }
 
@@ -421,12 +515,9 @@ async function spliceCutaway(
   c: { atS: number; lengthS: number },
   work: string,
 ): Promise<boolean> {
-  const fr = (x: number) => Math.round(x * FPS) / FPS;
-  // Skip the cutaway's first moment: image-to-video clips start on a still frame.
-  const off = cutLen >= c.lengthS + 0.6 ? 0.4 : 0;
-  const at = fr(Math.min(Math.max(0.3, c.atS), base.durationS - 0.5));
-  const len = fr(Math.min(c.lengthS, cutLen - off, base.durationS - at));
-  if (!(len >= 0.5)) return false;
+  const span = cutawaySpan(base.durationS, cutLen, c);
+  if (!span) return false;
+  const { atS: at, lenS: len, skipS: off } = span;
   const rest = base.durationS - (at + len) > 1 / FPS;
   const graph = [
     `[0:v]split=${rest ? 2 : 1}${rest ? "[s0][s1]" : "[s0]"}`,
@@ -473,12 +564,16 @@ export function mixArgs(
   music: string | undefined,
   total: number,
   out: string,
+  lead: "voices" | "music" = "voices",
 ): string[] {
   const args = ["-i", joined];
   const f: string[] = [];
   const fmt = "aresample=48000,aformat=channel_layouts=stereo";
   // Dialogue: levelled so every shot speaks at the same loudness.
-  f.push(`[0:a]${fmt},dynaudnorm=f=250:g=15:p=0.9,loudnorm=I=-18:TP=-2:LRA=9[dlg]`);
+  const musicLeads = lead === "music" && !!music;
+  // Music leading: the clips' own sound is kept as it is, far behind, as the air of the room.
+  if (musicLeads) f.push(`[0:a]${fmt},volume=-24dB[dlgm]`);
+  else f.push(`[0:a]${fmt},dynaudnorm=f=250:g=15:p=0.9,loudnorm=I=-18:TP=-2:LRA=9[dlg]`);
   const mixIn = ["[dlgm]"];
   beds.forEach((b, i) => {
     args.push("-stream_loop", "-1", "-i", b.path);
@@ -489,7 +584,14 @@ export function mixArgs(
     );
     mixIn.push(`[bed${i}]`);
   });
-  if (music) {
+  if (musicLeads) {
+    const k = beds.length + 1;
+    args.push("-stream_loop", "-1", "-i", music as string);
+    f.push(
+      `[${k}:a]${fmt},loudnorm=I=-16:TP=-2:LRA=11,atrim=0:${total.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=0.5,afade=t=out:st=${Math.max(0, total - 2).toFixed(3)}:d=2[musd]`,
+    );
+    mixIn.push("[musd]");
+  } else if (music) {
     const k = beds.length + 1;
     args.push("-stream_loop", "-1", "-i", music);
     f.push(

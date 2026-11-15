@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Episode, type ExportInfo, type SoundBed, type View, api } from "./api";
+import { CutPanel } from "./CutPanel";
 import { useProject } from "./ProjectView";
 import { EpisodePicker, shotLabel, useEpisodeChoice } from "./StoryboardTab";
 import { Empty, Icon, Spinner, Ticket, When, Why, bytes, plural, useApp, useAutoGrow, useBusy } from "./ui";
@@ -49,6 +50,7 @@ export function EpisodeTab() {
       <div className="row">
         <EpisodePicker ep={ep} onPick={pick} />
       </div>
+      <CutPanel ep={ep} />
       <SoundPanel ep={ep} />
       <section className="panel assemble-panel">
         <h2>Assemble</h2>

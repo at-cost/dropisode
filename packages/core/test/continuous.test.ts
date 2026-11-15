@@ -93,6 +93,9 @@ describe("continuous takes", () => {
       continueFromPrevious: false,
       onScreenText: "",
       cutaway: null,
+      joinIn: "cut" as const,
+      joinS: 0.5,
+      move: "none" as const,
       camera: "",
     };
     expect(videoPrompt({ shot: { ...base, description: "x", endPicture: "" }, cast: [], nativeAudio: true })).not.toMatch(

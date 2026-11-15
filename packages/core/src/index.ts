@@ -7,6 +7,7 @@ export * from "./jobs";
 export * from "./studio";
 export * from "./prompts";
 export * from "./assemble";
+export { MIN_KEEP_F, cutawaySpan, dissolveFrames, framesTo, keptFrames, latestInS, planCut, type PlannedShot } from "./cut";
 export * from "./archive";
 export * from "./ffmpeg";
 export * from "./providers/types";
