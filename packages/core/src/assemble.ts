@@ -572,8 +572,14 @@ export function mixArgs(
   // Dialogue: levelled so every shot speaks at the same loudness.
   const musicLeads = lead === "music" && !!music;
   // Music leading: the clips' own sound is kept as it is, far behind, as the air of the room.
-  if (musicLeads) f.push(`[0:a]${fmt},volume=-24dB[dlgm]`);
-  else f.push(`[0:a]${fmt},dynaudnorm=f=250:g=15:p=0.9,loudnorm=I=-18:TP=-2:LRA=9[dlg]`);
+  if (musicLeads) f.push(`[0:a]${fmt},volume=-24dB,apad=whole_dur=${total.toFixed(3)}[dlgm]`);
+  // Levelled shot by shot (dynaudnorm). No loudnorm here or on the final mix: on the bundled ffmpeg 6.0 it
+  // swallowed the last three seconds of the episode (its last line) or never finished. Padded to the episode's
+  // length so the mix always runs to the end of the picture.
+  else
+    f.push(
+      `[0:a]${fmt},apad=pad_dur=5,dynaudnorm=f=250:g=15:p=0.9,atrim=0:${total.toFixed(3)},asetpts=PTS-STARTPTS,apad=whole_dur=${total.toFixed(3)}[dlg]`,
+    );
   const mixIn = ["[dlgm]"];
   beds.forEach((b, i) => {
     args.push("-stream_loop", "-1", "-i", b.path);
@@ -604,7 +610,7 @@ export function mixArgs(
   } else {
     f.push("[dlg]anull[dlgm]");
   }
-  f.push(`${mixIn.join("")}amix=inputs=${mixIn.length}:duration=first:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11,alimiter=limit=0.95[mix]`);
+  f.push(`${mixIn.join("")}amix=inputs=${mixIn.length}:duration=longest:normalize=0,apad=whole_dur=${(total + 5).toFixed(3)},alimiter=limit=0.95[mix]`);
   return [
     ...args,
     "-filter_complex",

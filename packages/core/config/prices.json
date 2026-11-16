@@ -575,9 +575,10 @@
       "provider": "fal",
       "endpoint": "minimax/h3/image-to-video",
       "tiers": [
+        "draft",
         "final"
       ],
-      "nativeAudio": false,
+      "nativeAudio": true,
       "durations": [
         5,
         6,
@@ -600,9 +601,10 @@
         "unit": "second",
         "usd": 0.06,
         "source": "https://fal.ai/models/minimax/h3/image-to-video",
-        "verifiedOn": "2026-10-29",
+        "verifiedOn": "2026-11-16",
         "status": "verified",
-        "notes": "768P is a native mode; the endpoint defaults to 2K (an upscale, $0.13/s), so resolution is set explicitly. Makes a soundtrack; whether it speaks dialogue is unverified, so Dropisode treats it as silent and voices lines with text-to-speech. It also accepts target_audio_url (a clip to build the soundtrack around): a candidate for lip-synced dialogue, to test in the spike. Aspect follows the first frame."
+        "notes": "768P is a native mode; the endpoint defaults to 2K (an upscale, $0.13/s), so resolution is set explicitly. Always makes sound, at the same price. Speaks lines given in the prompt, lip-synced: checked 2026-11-16 (one line, transcribed back word for word). 5 seconds at least. Aspect follows the first frame.",
+        "audioUsd": 0.06
       },
       "input": {
         "prompt": "prompt",
@@ -612,7 +614,8 @@
         "extra": {
           "resolution": "768P",
           "prompt_expansion_mode": "disabled"
-        }
+        },
+        "endImage": "end_image_url"
       },
       "output": {
         "url": "video.url"

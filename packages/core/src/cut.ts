@@ -4,8 +4,11 @@
  * panel states is the length the episode comes out. No Node imports: the web UI bundles this file.
  */
 
-/** The edit's frame rate. */
-export const FPS = 30;
+/**
+ * The edit's frame rate: the rate today's video models make (24). Assembling at 30 repeated every fifth
+ * frame of a 24 fps clip, which showed as a stutter in slow movement.
+ */
+export const FPS = 24;
 
 /** Whole frames that fit before `s` seconds. A hair of slack, so 4.1 s is 123 frames, not 122.99... */
 export function framesTo(s: number): number {

@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { assembleEpisode } from "../src/assemble";
 import { addEpisode, addScene, addShot, createProject, findEpisode, findShot } from "../src/edit";
-import { hasAudio, mediaDuration } from "../src/ffmpeg";
+import { hasAudio, mediaDuration, runFfmpeg } from "../src/ffmpeg";
 import { drain, setup } from "./helpers";
 
 async function scene() {
@@ -47,6 +47,10 @@ describe("sound pass", () => {
     expect(res.soundBeds).toBe(2);
     expect(await hasAudio(res.episodeFile)).toBe(true);
     expect(await mediaDuration(res.episodeFile)).toBeCloseTo(8, 0);
+    // The sound runs to the end of the picture: the mix once closed about three seconds early, losing the last line.
+    const audioOnly = join(t.root, "rough-audio.m4a");
+    await runFfmpeg(["-y", "-i", res.episodeFile, "-vn", "-c:a", "copy", audioOnly]);
+    expect(await mediaDuration(audioOnly)).toBeGreaterThan(res.durationS - 0.2);
   });
 
   it("making the sound also lifts the voices out of clips made before it", async () => {

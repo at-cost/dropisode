@@ -90,7 +90,7 @@ describe("the cut", () => {
       ep.fadeOutS = 1;
     });
     const cut = await t.rough("b");
-    expect(await mediaDuration(cut.episodeFile)).toBeCloseTo(whole.durationS - 0.8, 1);
+    expect(await mediaDuration(cut.episodeFile)).toBeCloseTo(whole.durationS - (2 * framesTo(0.4)) / FPS, 1);
     expect(cut.shots).toHaveLength(3);
   });
 
@@ -131,9 +131,9 @@ describe("the cut", () => {
       const take = (id: string) => findShot(p, id).shot.takes[0]!;
       take(t.ids[0]!).inS = 0.4;
       take(t.ids[0]!).outS = 3.7;
-      // 4.1 s is 123 frames: the classic float trap (4.1 * 30 = 122.99999...).
+      // An end point that floats put a hair under a whole frame (4.1 * 30 = 122.99999... at 30 fps).
       take(t.ids[1]!).outS = 4.1;
-      take(t.ids[1]!).inS = 1 / 30;
+      take(t.ids[1]!).inS = 1 / FPS;
       updateShot(p, t.ids[1]!, { joinIn: "dissolve", joinS: 0.7 });
       updateShot(p, extra[1]!, { joinIn: "dissolve", joinS: 2 });
       // Fades make the last pass re-encode, where a stray frame once crept in.
@@ -151,7 +151,7 @@ describe("the cut", () => {
       expect(s.durationS).toBe(planned[i]!.lengthF / FPS);
       expect(s.dissolveS ?? 0).toBe(planned[i]!.dissolveF / FPS);
     });
-    expect(planned[1]!.lengthF).toBe(122); // 123 frames, less the one-frame start
+    expect(planned[1]!.lengthF).toBe(framesTo(4.1) - 1); // less the one-frame start
     expect(cut.durationS).toBe(plan.totalF / FPS);
     // The file itself: exactly that many frames of picture; the sound track can run a few ms long.
     expect(await videoFrames(cut.episodeFile)).toBe(plan.totalF);
@@ -159,29 +159,31 @@ describe("the cut", () => {
     // The edit list carries the start point and the dissolves.
     const edl = readFileSync(join(cut.dir, "edit-list.edl"), "utf8");
     expect(edl).toMatch(/^002 {2}SHOT001 {2}V {5}C {8}(\S+) \1 /m);
-    expect(edl).toMatch(/^002 {2}SHOT002 {2}V {5}D {4}021 /m);
-    expect(edl).toMatch(/\* SOURCE: \S+ FROM 00:00:00:12/);
+    expect(edl).toMatch(new RegExp(`^002 {2}SHOT002 {2}V {5}D {4}${String(framesTo(0.7)).padStart(3, "0")} `, "m"));
+    expect(edl).toMatch(new RegExp(`\\* SOURCE: \\S+ FROM 00:00:00:${String(Math.round(0.4 * FPS)).padStart(2, "0")}`));
     const json = JSON.parse(readFileSync(join(cut.dir, "edit-list.json"), "utf8"));
-    expect(json.shots[0].inS).toBeCloseTo(0.4, 5);
-    expect(json.shots[1].dissolveS).toBeCloseTo(0.7, 5);
+    expect(json.shots[0].inS).toBeCloseTo(Math.round(0.4 * FPS) / FPS, 5);
+    expect(json.shots[1].dissolveS).toBeCloseTo(framesTo(0.7) / FPS, 5);
   });
 
   it("frames are counted the same way everywhere, and dissolves never take more than half a shot", () => {
-    expect(framesTo(4.1)).toBe(123);
-    expect(framesTo(4.09)).toBe(122);
+    // Every whole frame, written as seconds, counts back to itself: floats never lose one (4.1 * 30 = 122.99999...).
+    for (let f = 1; f <= 600; f++) expect(framesTo(f / FPS)).toBe(f);
+    expect(framesTo(4.1 - 1 / FPS)).toBe(framesTo(4.1) - 1);
     expect(dissolveFrames(2, 30, 90)).toBe(15);
-    expect(dissolveFrames(0.5, 200, 200)).toBe(15);
+    expect(dissolveFrames(0.5, 200, 200)).toBe(FPS / 2);
     expect(dissolveFrames(0.5, 4, 200)).toBe(0);
   });
 
   it("exactly half a second is kept, at every end point, whatever the floats do", () => {
-    // 1.4 - 0.9 is 0.49999... in floats: the start point must still hold.
-    expect(takeInS({ inS: 0.9 }, 1.4)).toBeCloseTo(0.9, 9);
-    for (let f = 15; f <= 300; f++) {
-      const out = f / 30;
-      expect(takeInS({ inS: latestInS(out) }, out) * 30).toBeCloseTo(f - 15, 6);
+    // Half a second exactly (1.5 - 1.0, or 1.4 - 0.9 which is 0.49999... in floats): the start point must still hold.
+    expect(takeInS({ inS: 1 }, 1.5)).toBeCloseTo(1, 9);
+    const half = FPS / 2;
+    for (let f = half; f <= 300; f++) {
+      const out = f / FPS;
+      expect(takeInS({ inS: latestInS(out) }, out) * FPS).toBeCloseTo(f - half, 6);
       const { inF, outF } = keptFrames({ id: "t", status: "done", tier: "draft", inS: latestInS(out), outS: out }, { durationS: 10 });
-      expect(outF - inF).toBe(15);
+      expect(outF - inF).toBe(half);
     }
     expect(latestInS(0.4)).toBe(0);
   });

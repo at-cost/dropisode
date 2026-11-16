@@ -124,6 +124,8 @@ describe("local app", () => {
     const ta = take(v, 0);
     const path = `/api/projects/${p.id}/shots/${a.id}/takes/${ta.id}`;
 
+    // Whole frames before a time, at whatever rate the edit runs.
+    const whole = (x: number) => Math.floor(x * FPS + 1e-6);
     v = await json("PATCH", path, { inS: 0.5, outS: 3.5 });
     expect(take(v, 0)).toMatchObject({ inS: 0.5, outS: 3.5 });
     // Moving one end leaves the other.
@@ -131,17 +133,17 @@ describe("local app", () => {
     expect(take(v, 0)).toMatchObject({ inS: 0.5, outS: 3.2 });
     // A start too near the end keeps half a second.
     v = await json("PATCH", path, { inS: 3.1 });
-    expect(take(v, 0).inS).toBeCloseTo(2.7, 5);
+    expect(take(v, 0).inS).toBeCloseTo((whole(3.2) - FPS / 2) / FPS, 5);
     // Ending before the start pulls the start back with it.
     v = await json("PATCH", path, { outS: 1 });
     expect(take(v, 0).inS).toBeCloseTo(0.5, 5);
     // Exactly half a second is kept, not lost to float rounding (1.4 - 0.9 is 0.4999... in floats).
     v = await json("PATCH", path, { inS: 0.9, outS: 1.4 });
-    expect(keptFrames(take(v, 0), a)).toEqual({ inF: 27, outF: 42 });
+    expect(keptFrames(take(v, 0), a)).toEqual({ inF: whole(1.4) - FPS / 2, outF: whole(1.4) });
     // A start point clamped by a new end still keeps half a second.
     await json("PATCH", path, { inS: 2, outS: 3 });
     v = await json("PATCH", path, { outS: 2.33 });
-    expect(keptFrames(take(v, 0), a)).toEqual({ inF: 54, outF: 69 });
+    expect(keptFrames(take(v, 0), a)).toEqual({ inF: whole(2.33) - FPS / 2, outF: whole(2.33) });
     v = await json("PATCH", path, { inS: null, outS: null });
     expect(take(v, 0).inS).toBeUndefined();
     expect(take(v, 0).outS).toBe(ta.analysis.durationS);
@@ -160,7 +162,8 @@ describe("local app", () => {
     const plan = planCut(v.project.episodes[0], "rough");
     const ex = await json("POST", `/api/projects/${p.id}/episodes/${eid}/assemble`, { source: "rough" });
     expect(ex.durationS).toBe(plan.totalF / FPS);
-    expect(plan.totalF).toBe(99 + 120 - 24);
+    // The first take from 0.4 to 3.7 s, the whole 4 s second take, less the 0.8 s dissolve between them.
+    expect(plan.totalF).toBe(whole(3.7) - Math.round(0.4 * FPS) + 4 * FPS - whole(0.8));
   });
 
   it("asks for a key instead of spending when none is set", async () => {
