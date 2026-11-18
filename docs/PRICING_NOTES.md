@@ -102,7 +102,7 @@ figures are fal's own; audio is included at no extra cost either way.
 | `bytedance/seedance-2.0/fast/image-to-video` | 720p (max) | $0.2419 per s | $0.0112 per 1k | 4 to 15 s | same | [page](https://fal.ai/models/bytedance/seedance-2.0/fast/image-to-video) (verified) |
 | `bytedance/seedance-2.0/mini/image-to-video` | 480p / 720p | about $0.0721 / $0.1547 per s | $0.007 per 1k | 4 to 15 s | same | [page](https://fal.ai/models/bytedance/seedance-2.0/mini/image-to-video) (verified, "roughly") |
 | `bytedance/seedance-2.0/reference-to-video` | 720p, no video refs | $0.3024 per s | $0.014 per 1k (0.6x with video refs) | 4 to 15 s | same | [page](https://fal.ai/models/bytedance/seedance-2.0/reference-to-video) (verified) |
-| `bytedance/seedance-2.5/us/image-to-video` | 480p / 720p / 1080p | about $0.2205 / $0.473 / $1.164 per s | $0.0214 per 1k (1080p about $0.0234) | 4 to 30 s | string | [page](https://fal.ai/models/bytedance/seedance-2.5/us/image-to-video) (verified, "roughly") |
+| `bytedance/seedance-2.5/image-to-video` (standard; the `/us/` one refuses realistic faces as first frames) | 480p / 720p / 1080p | about $0.2205 / $0.473 / $1.164 per s | $0.0214 per 1k (1080p about $0.0234) | 4 to 30 s | string | [page](https://fal.ai/models/bytedance/seedance-2.5/image-to-video) (verified 2026-11-18, "roughly") |
 | `fal-ai/bytedance/seedance/v1.5/pro/image-to-video` | 720p with audio | about $0.26 per 5 s | $2.40 per 1M tokens with audio, $1.20 without | 4 to 12 s | same | [page](https://fal.ai/models/fal-ai/bytedance/seedance/v1.5/pro/image-to-video) (verified) |
 
 Notes:

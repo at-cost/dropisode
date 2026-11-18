@@ -1,8 +1,10 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { assembleEpisode } from "../src/assemble";
+import { assembleEpisode, mixArgs } from "../src/assemble";
 import { addEpisode, addScene, addShot, createProject, findEpisode, findShot } from "../src/edit";
-import { hasAudio, mediaDuration, runFfmpeg } from "../src/ffmpeg";
+import { gainTo, hasAudio, measureLoudness, mediaDuration, runFfmpeg } from "../src/ffmpeg";
 import { drain, setup } from "./helpers";
 
 async function scene() {
@@ -51,6 +53,61 @@ describe("sound pass", () => {
     const audioOnly = join(t.root, "rough-audio.m4a");
     await runFfmpeg(["-y", "-i", res.episodeFile, "-vn", "-c:a", "copy", audioOnly]);
     expect(await mediaDuration(audioOnly)).toBeGreaterThan(res.durationS - 0.2);
+    // One loudness for every episode, and the background is heard from the first second.
+    const whole = await measureLoudness(res.episodeFile);
+    expect(whole?.i).toBeGreaterThan(-18);
+    expect(whole?.i).toBeLessThan(-14);
+    const opening = join(t.root, "opening.m4a");
+    await runFfmpeg(["-y", "-i", res.episodeFile, "-t", "2", "-vn", "-c:a", "aac", opening]);
+    expect((await measureLoudness(opening))?.i).toBeGreaterThan(-30);
+  });
+
+  it("an episode with no talking, only background, still comes out at the episode's loudness", async () => {
+    const t = await scene();
+    await t.store.mutate(t.projectId, (p) => {
+      for (const id of [t.talk, t.look]) {
+        const sh = findShot(p, id).shot;
+        sh.audio = "none";
+        sh.dialogue = [];
+      }
+    });
+    for (const id of [t.talk, t.look]) await t.studio.generateTake(t.projectId, id, "draft");
+    await t.studio.generateSound(t.projectId, t.episodeId);
+    await drain(t.studio, t.projectId, 40);
+    await t.store.mutate(t.projectId, (p) => {
+      findEpisode(p, t.episodeId).music = null;
+    });
+    const res = await assembleEpisode({ projects: t.store, media: t.store }, t.projectId, t.episodeId, {
+      source: "rough",
+      outDir: join(t.root, "quiet"),
+    });
+    expect(res.soundBeds).toBe(1);
+    const whole = await measureLoudness(res.episodeFile);
+    expect(whole?.i).toBeGreaterThan(-18);
+    expect(whole?.i).toBeLessThan(-14);
+  });
+
+  it("a background is heard from its first second, as loud as in the middle", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "reel-bed-"));
+    try {
+      const j = join(dir, "joined.mp4");
+      const bed = join(dir, "bed.wav");
+      const out = join(dir, "mixed.mp4");
+      await runFfmpeg(["-f", "lavfi", "-i", "color=c=black:s=180x320:r=24:d=8", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "8", "-c:v", "libx264", "-c:a", "aac", j]);
+      await runFfmpeg(["-f", "lavfi", "-i", "anoisesrc=d=10:c=pink:a=0.05", "-ac", "2", bed]);
+      const gainDb = gainTo(-34, await measureLoudness(bed));
+      await runFfmpeg(mixArgs(j, [{ path: bed, start: 0, len: 8, gainDb }], undefined, 8, out));
+      const window = async (from: number) => {
+        const f = join(dir, `w${from}.wav`);
+        await runFfmpeg(["-ss", String(from), "-t", "2", "-i", out, "-vn", f]);
+        return (await measureLoudness(f))?.i ?? -99;
+      };
+      const [start, middle] = [await window(0.5), await window(4)];
+      expect(middle).toBeGreaterThan(-40);
+      expect(Math.abs(start - middle)).toBeLessThan(3);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("making the sound also lifts the voices out of clips made before it", async () => {

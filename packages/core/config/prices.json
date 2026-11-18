@@ -446,7 +446,7 @@
       "kind": "video",
       "label": "Seedance 2.5 (480p)",
       "provider": "fal",
-      "endpoint": "bytedance/seedance-2.5/us/image-to-video",
+      "endpoint": "bytedance/seedance-2.5/image-to-video",
       "tiers": [
         "draft"
       ],
@@ -484,10 +484,10 @@
         "unit": "second",
         "usd": 0.2205,
         "audioUsd": 0.2205,
-        "source": "https://fal.ai/models/bytedance/seedance-2.5/us/image-to-video",
-        "verifiedOn": "2026-11-04",
+        "source": "https://fal.ai/models/bytedance/seedance-2.5/image-to-video",
+        "verifiedOn": "2026-11-18",
         "status": "verified",
-        "notes": "Token billed; per-second figure from fal's page. Same price with or without audio. Realistic faces reportedly sometimes blocked as inputs (unverified)."
+        "notes": "Token billed; per-second figure from fal's page. Same price with or without audio. The standard endpoint: the /us/ one refused a realistic face as a first frame (2026-11-16); this one accepted one (2026-11-18). Can add speech to shots with no lines (heard 2026-11-18): a scene background replaces the clip's own sound."
       },
       "input": {
         "prompt": "prompt",
@@ -502,6 +502,13 @@
       },
       "output": {
         "url": "video.url"
+      },
+      "quality": {
+        "elo": 1161,
+        "board": "AA-Video-I2V v2.1 (with audio)",
+        "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
+        "verifiedOn": "2026-11-16",
+        "notes": "1st on the board. In a side-by-side with MiniMax H3 (2026-11-18) it followed camera and acting directions more closely."
       }
     },
     {
@@ -509,7 +516,7 @@
       "kind": "video",
       "label": "Seedance 2.5 (720p)",
       "provider": "fal",
-      "endpoint": "bytedance/seedance-2.5/us/image-to-video",
+      "endpoint": "bytedance/seedance-2.5/image-to-video",
       "tiers": [
         "draft",
         "final"
@@ -548,10 +555,10 @@
         "unit": "second",
         "usd": 0.473,
         "audioUsd": 0.473,
-        "source": "https://fal.ai/models/bytedance/seedance-2.5/us/image-to-video",
-        "verifiedOn": "2026-11-04",
+        "source": "https://fal.ai/models/bytedance/seedance-2.5/image-to-video",
+        "verifiedOn": "2026-11-18",
         "status": "verified",
-        "notes": "Token billed; per-second figure from fal's page. Same price with or without audio. Realistic faces reportedly sometimes blocked as inputs (unverified)."
+        "notes": "Token billed; per-second figure from fal's page. Same price with or without audio. The standard endpoint: the /us/ one refused a realistic face as a first frame (2026-11-16); this one accepted one (2026-11-18). Can add speech to shots with no lines (heard 2026-11-18): a scene background replaces the clip's own sound."
       },
       "input": {
         "prompt": "prompt",
@@ -566,6 +573,13 @@
       },
       "output": {
         "url": "video.url"
+      },
+      "quality": {
+        "elo": 1161,
+        "board": "AA-Video-I2V v2.1 (with audio)",
+        "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
+        "verifiedOn": "2026-11-16",
+        "notes": "1st on the board. In a side-by-side with MiniMax H3 (2026-11-18) it followed camera and acting directions more closely."
       }
     },
     {

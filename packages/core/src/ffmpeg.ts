@@ -69,6 +69,40 @@ export function runFfmpeg(args: string[], opts: { timeoutMs?: number; cwd?: stri
   });
 }
 
+/**
+ * A file's integrated loudness (LUFS) and true peak (dBTP), measured over the whole file in a pass of its own.
+ * Null when it has no measurable sound. The studio sets levels from this with a plain volume change: loudnorm
+ * inside the mix swallowed the end of the episode on the bundled ffmpeg 6.0.
+ */
+export function measureLoudness(path: string): Promise<{ i: number; tp: number } | null> {
+  const f = requireFfmpeg();
+  return new Promise((resolve) => {
+    execFile(
+      f.path,
+      ["-hide_banner", "-nostats", "-i", path, "-vn", "-af", "loudnorm=print_format=json", "-f", "null", "-"],
+      { timeout: 5 * 60_000, maxBuffer: 16 * 1024 * 1024 },
+      (err, _out, stderr) => {
+        const m = /\{[^{}]*"input_i"[^{}]*\}/.exec(String(stderr));
+        if (err || !m) return resolve(null);
+        try {
+          const j = JSON.parse(m[0]) as { input_i: string; input_tp: string };
+          const i = Number(j.input_i);
+          const tp = Number(j.input_tp);
+          resolve(Number.isFinite(i) && i > -70 ? { i, tp: Number.isFinite(tp) ? tp : 0 } : null);
+        } catch {
+          resolve(null);
+        }
+      },
+    );
+  });
+}
+
+/** The gain (dB) that brings a measured loudness to a target, within sane bounds. 0 when unmeasured. */
+export function gainTo(target: number, measured: { i: number } | null, max = 30): number {
+  if (!measured) return 0;
+  return Math.max(-max, Math.min(max, target - measured.i));
+}
+
 /** Media duration in seconds, read from ffmpeg's own report. */
 export function mediaDuration(path: string): Promise<number> {
   const f = requireFfmpeg();

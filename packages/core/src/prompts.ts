@@ -91,7 +91,7 @@ export function storyboardPrompt(p: {
   const continuous = p.cutting !== "cuts";
   return {
     system:
-      "You are a storyboard artist for short vertical dramas. You break a scene into shots a video model can render: one clear action per shot, the camera stated, characters named exactly as in the cast list. Answer with JSON only.",
+      "You are a storyboard artist for short vertical dramas. You break a scene into shots a video model can render: one clear beat per shot, the camera stated, characters named exactly as in the cast list. Answer with JSON only.",
     prompt: [
       `SCENE: ${p.heading}`,
       p.sceneScript.slice(0, 20_000),
@@ -125,7 +125,8 @@ export function storyboardPrompt(p: {
               'When a shot picks up exactly where the previous one ends (same moment, the camera simply carrying on), set "continues": true.',
               "The video model can't write legible text: never rely on printed words being read on screen. Let a character say it, or keep it out of focus.",
             ]),
-      "Every shot shows one visible action or reaction that happens during it (someone turns, looks up, flinches, grips something, steps forward), described as it unfolds. Never a still picture.",
+      "Let tension build; don't rush to the action. Before anything happens, show where we are: the place, the hour, the weather, that someone is alone. Give the audience a moment to notice something before the character does. Quiet shots belong here: an establishing shot of the place, a slow look at a detail that matters later, someone waiting.",
+      "Every shot has something moving during it, described as it unfolds: an action or reaction (someone turns, looks up, flinches, grips something, steps forward), or, in a quiet shot, the place itself (rain, a flickering light, breath in cold air, a slow camera push). Never a still picture.",
       "Say where each person looks, consistent with the staging: someone watching the funeral looks towards it, not into the camera. A close-up shows only the head and shoulders; say whose hands they are in a hands shot.",
       "Put each line of dialogue in the shot where it is spoken, with its speaker.",
       "Speakers: use the speaker the script names. If that speaker is not in the cast list (a voice from a memory, a crowd, an announcer), set speaker to null. Never give a line to a different character.",
@@ -206,12 +207,12 @@ export function sceneMasterPrompt(p: {
     .join(" ")
     .slice(0, 900);
   return [
-    `A single cinematic establishing film still, ${p.aspect === "9:16" ? "vertical 9:16" : "horizontal 16:9"} frame, photorealistic, natural light: the master shot of this scene.`,
+    `A single cinematic establishing film still, ${p.aspect === "9:16" ? "vertical 9:16" : "horizontal 16:9"} frame, photorealistic, natural light: the master shot of this scene. One photograph of one moment, never a collage, grid, split screen or storyboard of several moments.`,
     `Scene: ${p.heading}.`,
     p.place ? `Place: ${describe(p.place)}` : "",
     p.people.length ? `Everyone in the scene is here, where the scene starts: ${p.people.map(describe).join(" | ")}` : "",
     p.staging?.trim()
-      ? `Staging, keep to it exactly (where each person is, which way they face, who is hidden from whom): ${p.staging.trim()}`
+      ? `Staging, keep to it exactly (where each person is, which way they face, who is hidden from whom). Show only its first moment, even where it says what happens later: ${p.staging.trim()}`
       : staging
         ? `What happens (stage them for its opening moment): ${staging}`
         : "",

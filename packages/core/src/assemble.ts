@@ -7,7 +7,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { findEpisode } from "./edit";
-import { hasAudio, mediaDuration, requireFfmpeg, runFfmpeg } from "./ffmpeg";
+import { gainTo, hasAudio, measureLoudness, mediaDuration, requireFfmpeg, runFfmpeg } from "./ffmpeg";
 import { FPS, cutawaySpan, dissolveFrames, keptFrames, pickTake } from "./cut";
 import type { MediaRef } from "./project";
 import type { MediaStore, ProjectStore } from "./stores";
@@ -279,19 +279,25 @@ export async function assembleEpisode(
 
     // The sound pass: each scene's background bed under its shots, the music under everything
     // (dipping whenever someone speaks), and one even loudness for the whole episode.
-    const beds: { path: string; start: number; len: number }[] = [];
+    // Levels are set from each file's measured loudness: backgrounds well under the voices, music a little louder.
+    const beds: { path: string; start: number; len: number; gainDb: number }[] = [];
     for (const sc of episode.scenes) {
       const ref = bedRef(sc.ambience);
       const mine = out.filter((o) => sceneOf.get(o.shotId)?.id === sc.id);
       if (!ref || !mine.length) continue;
       const start = mine[0]!.startS;
       const end = mine[mine.length - 1]!.startS + mine[mine.length - 1]!.durationS;
-      beds.push({ path: await pathOf(ref), start, len: end - start });
+      const path = await pathOf(ref);
+      beds.push({ path, start, len: end - start, gainDb: gainTo(BED_LUFS, await measureLoudness(path)) });
     }
     const musicRef = bedRef(episode.music);
     if (beds.length || musicRef) {
       const mixed = join(work, "mixed.mp4");
-      await runFfmpeg(mixArgs(joined, beds, musicRef ? await pathOf(musicRef) : undefined, t, mixed, episode.soundLead));
+      const musicPath = musicRef ? await pathOf(musicRef) : undefined;
+      const musicGainDb = musicPath
+        ? gainTo(episode.soundLead === "music" ? MUSIC_LEAD_LUFS : MUSIC_UNDER_LUFS, await measureLoudness(musicPath))
+        : 0;
+      await runFfmpeg(mixArgs(joined, beds, musicPath, t, mixed, episode.soundLead, musicGainDb));
       joined = mixed;
       soundBeds = beds.length + (musicRef ? 1 : 0);
     }
@@ -332,6 +338,10 @@ export async function assembleEpisode(
     const fadeIn = Math.min(episode.fadeInS, t / 3);
     const fadeOut = Math.min(episode.fadeOutS, t / 3);
     const afilters: string[] = [];
+    // One loudness for every episode, whatever it holds: measured, then a plain gain and a peak limiter. Without it
+    // an episode with no talking came out at its backgrounds' level, about 18 dB too quiet.
+    const level = await measureLoudness(joined);
+    if (level) afilters.push(`volume=${gainTo(EPISODE_LUFS, level, 24).toFixed(2)}dB`, "alimiter=limit=0.89:level=disabled");
     if (fadeIn > 0) {
       vfilters.push(`fade=t=in:st=0:d=${fadeIn.toFixed(3)}`);
       afilters.push(`afade=t=in:st=0:d=${fadeIn.toFixed(3)}`);
@@ -340,7 +350,7 @@ export async function assembleEpisode(
       vfilters.push(`fade=t=out:st=${(t - fadeOut).toFixed(3)}:d=${fadeOut.toFixed(3)}`);
       afilters.push(`afade=t=out:st=${(t - fadeOut).toFixed(3)}:d=${fadeOut.toFixed(3)}`);
     }
-    if (vfilters.length) {
+    if (vfilters.length || afilters.length) {
       await runFfmpeg(
         [
           "-i",
@@ -557,14 +567,21 @@ async function spliceCutaway(
   return true;
 }
 
+/** Loudness targets (LUFS): the finished episode, a scene's background, and music under voices or leading. */
+export const EPISODE_LUFS = -16;
+const BED_LUFS = -34;
+const MUSIC_UNDER_LUFS = -28;
+const MUSIC_LEAD_LUFS = -18;
+
 /** ffmpeg arguments for the sound pass over the joined episode. */
 export function mixArgs(
   joined: string,
-  beds: { path: string; start: number; len: number }[],
+  beds: { path: string; start: number; len: number; gainDb?: number }[],
   music: string | undefined,
   total: number,
   out: string,
   lead: "voices" | "music" = "voices",
+  musicGainDb = 0,
 ): string[] {
   const args = ["-i", joined];
   const f: string[] = [];
@@ -586,7 +603,7 @@ export function mixArgs(
     const ms = Math.round(b.start * 1000);
     const fade = Math.min(0.4, b.len / 4);
     f.push(
-      `[${i + 1}:a]${fmt},loudnorm=I=-34:TP=-9:LRA=7,atrim=0:${b.len.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=${fade.toFixed(2)},afade=t=out:st=${Math.max(0, b.len - fade).toFixed(3)}:d=${fade.toFixed(2)},adelay=${ms}|${ms}[bed${i}]`,
+      `[${i + 1}:a]${fmt},volume=${(b.gainDb ?? 0).toFixed(2)}dB,atrim=0:${b.len.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=${fade.toFixed(2)},afade=t=out:st=${Math.max(0, b.len - fade).toFixed(3)}:d=${fade.toFixed(2)},adelay=${ms}|${ms}[bed${i}]`,
     );
     mixIn.push(`[bed${i}]`);
   });
@@ -594,14 +611,14 @@ export function mixArgs(
     const k = beds.length + 1;
     args.push("-stream_loop", "-1", "-i", music as string);
     f.push(
-      `[${k}:a]${fmt},loudnorm=I=-16:TP=-2:LRA=11,atrim=0:${total.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=0.5,afade=t=out:st=${Math.max(0, total - 2).toFixed(3)}:d=2[musd]`,
+      `[${k}:a]${fmt},volume=${musicGainDb.toFixed(2)}dB,atrim=0:${total.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=0.5,afade=t=out:st=${Math.max(0, total - 2).toFixed(3)}:d=2[musd]`,
     );
     mixIn.push("[musd]");
   } else if (music) {
     const k = beds.length + 1;
     args.push("-stream_loop", "-1", "-i", music);
     f.push(
-      `[${k}:a]${fmt},loudnorm=I=-28:TP=-9:LRA=7,atrim=0:${total.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=1.5,afade=t=out:st=${Math.max(0, total - 2.5).toFixed(3)}:d=2.5[mus]`,
+      `[${k}:a]${fmt},volume=${musicGainDb.toFixed(2)}dB,atrim=0:${total.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=1.5,afade=t=out:st=${Math.max(0, total - 2.5).toFixed(3)}:d=2.5[mus]`,
     );
     f.push("[dlg]asplit=2[dlgm][key]");
     // Ducking: the music dips while anyone speaks and comes back up between lines.
@@ -610,7 +627,7 @@ export function mixArgs(
   } else {
     f.push("[dlg]anull[dlgm]");
   }
-  f.push(`${mixIn.join("")}amix=inputs=${mixIn.length}:duration=longest:normalize=0,apad=whole_dur=${(total + 5).toFixed(3)},alimiter=limit=0.95[mix]`);
+  f.push(`${mixIn.join("")}amix=inputs=${mixIn.length}:duration=longest:normalize=0,apad=whole_dur=${(total + 5).toFixed(3)},alimiter=limit=0.95:level=disabled[mix]`);
   return [
     ...args,
     "-filter_complex",
