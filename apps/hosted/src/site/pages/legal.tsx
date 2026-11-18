@@ -6,14 +6,7 @@ import { page } from "../ui";
 const OPERATOR = "Dropisode, London, United Kingdom";
 const EMAIL = "transparent-ai-businesses@proton.me";
 const SUPPORT = <a href={`mailto:${EMAIL}`}>{EMAIL}</a>;
-const UPDATED = "2026-10-31";
-
-const Draft = () => (
-  <p class="notice strong">
-    <strong>Draft: to be reviewed before launch.</strong> This is a plain-language draft. It is not yet in force and has not been checked by
-    a lawyer.
-  </p>
-);
+const UPDATED = "2026-11-18";
 
 function legal(c: Ctx, title: string, description: string, body: Child) {
   return page(c, {
@@ -22,7 +15,6 @@ function legal(c: Ctx, title: string, description: string, body: Child) {
     body: (
       <>
         <h1>{title}</h1>
-        <Draft />
         <p class="small muted">Last updated {UPDATED}.</p>
         {body}
       </>

@@ -41,7 +41,6 @@ describe("public pages", () => {
     [
       "/terms",
       [
-        "Draft: to be reviewed before launch",
         "Dropisode, London, United Kingdom",
         "mailto:transparent-ai-businesses@proton.me",
         "18 or over",
@@ -51,8 +50,8 @@ describe("public pages", () => {
         "does not expire",
       ],
     ],
-    ["/aup", ["Draft: to be reviewed before launch", "Harassment", "Impersonation"]],
-    ["/privacy", ["Draft: to be reviewed before launch", "Stripe", "fal.ai", "transparent-ai-businesses@proton.me", "1 year"]],
+    ["/aup", ["Harassment", "Impersonation"]],
+    ["/privacy", ["Stripe", "fal.ai", "transparent-ai-businesses@proton.me", "1 year"]],
     ["/demo", ["The script", "The cast", "The storyboard", "The cost log", "/demo/exports/episode.mp4"]],
   ];
   for (const [path, needles] of pages) {
@@ -62,6 +61,8 @@ describe("public pages", () => {
       expect(res.headers.get("content-type")).toContain("text/html");
       expect(body.startsWith("<!doctype html>")).toBe(true);
       for (const n of needles) expect(body, `${path} should contain ${n}`).toContain(n);
+      // The legal pages are in force: no page calls them a draft.
+      expect(body).not.toContain("not yet in force");
       // House style: no em dashes anywhere.
       expect(body).not.toContain("\u2014");
     });

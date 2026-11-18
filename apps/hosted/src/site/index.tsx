@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-/** The public site: landing, pricing calculator, finances, docs, legal drafts, demo, robots and sitemap. */
+/** The public site: landing, pricing calculator, finances, docs, legal pages, demo, robots and sitemap. */
 import { Hono } from "hono";
 import type { AppEnv } from "../context";
 import { financesSummary } from "../finances";
