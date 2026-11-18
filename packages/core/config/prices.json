@@ -1227,11 +1227,11 @@
   "defaults": {
     "draft": {
       "image": "gpt-image-2.5",
-      "video": "omni-1.2-720p"
+      "video": "minimax-h3"
     },
     "final": {
       "image": "gpt-image-2.5",
-      "video": "omni-1.2-720p"
+      "video": "minimax-h3"
     },
     "castImage": "gpt-image-2.5",
     "tts": "minimax-speech-2.8-turbo",

@@ -919,7 +919,7 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
         <small className="muted">
           {endImageModel(app.config, c.p.models?.draftVideo)
             ? "A target picture is made from this shot's own first frame (same camera), and the video ends on it. Hide the change in a movement, like a spin."
-            : "Your video model can't end on a target picture. Gemini Omni and Seedance 2.5 can."}
+            : "Your video model can't end on a target picture. MiniMax H3, Gemini Omni and Seedance 2.5 can."}
         </small>
       </label>
       {index > 0 && (
