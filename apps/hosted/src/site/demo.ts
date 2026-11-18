@@ -13,6 +13,8 @@ export interface DemoMeta {
   builtAt?: string;
   episodeId?: string;
   episodeDurationS?: number;
+  /** Whether the episode has its subtitles burned into the picture. */
+  subtitlesBurned?: boolean;
 }
 
 export interface Demo {

@@ -48,6 +48,7 @@ export function demoPage(c: Ctx, demo: Demo | null) {
   const episode = p.episodes.find((e) => e.id === demo.meta.episodeId) ?? p.episodes[0];
   const shots: Shot[] = episode ? episode.scenes.flatMap((s) => s.shots) : [];
   const shotNo = new Map(shots.map((s, i) => [s.id, i + 1]));
+  const anyFinal = shots.some((s) => s.takes.some((t) => t.tier === "final" && t.status === "done"));
   const castName = new Map(p.cast.map((m) => [m.id, m.name]));
   const charge = (l: CostLine) => generationCharge(l.providerCostMicro, platform);
   const totalProvider = p.costLog.reduce((a, l) => a + l.providerCostMicro, 0);
@@ -106,8 +107,8 @@ export function demoPage(c: Ctx, demo: Demo | null) {
 
         <h2 id="script">1. The script</h2>
         <p class="muted">
-          Started from the idea "{p.idea.replace(/[.\s]+$/, "")}". The script model wrote this. It could also have been pasted or written by
-          hand, and it stays editable.
+          The idea: "{p.idea.replace(/[.\s]+$/, "")}". Dropisode can write the script from an idea like this, or you paste or write your
+          own. It stays editable.
         </p>
         <ScriptView text={episode?.script ?? ""} />
 
@@ -134,8 +135,10 @@ export function demoPage(c: Ctx, demo: Demo | null) {
 
         <h2 id="storyboard">3. The storyboard</h2>
         <p class="muted">
-          The scene became {shots.length} shot cards. Each shot was drafted on a cheap model first, approved, then rendered once on a
-          premium model. Prices are what you would pay on Dropisode.
+          {anyFinal
+            ? `The story became ${shots.length} shot cards. Each shot was drafted on a cheap model first, approved, then rendered once on a premium model.`
+            : `The story became ${shots.length} shot cards. Each shot was made, watched and remade until a take worked; the price includes every try.`}{" "}
+          Prices are what you would pay on Dropisode.
         </p>
         <div class="media-grid shots-grid">
           {shots.map((s, i) => {
@@ -170,9 +173,10 @@ export function demoPage(c: Ctx, demo: Demo | null) {
                   </p>
                 ))}
                 <p class="small muted" style="margin:6px 0 0">
-                  {drafts.length} draft{drafts.length === 1 ? "" : "s"}
-                  {drafts[0] ? ` on ${label(drafts[0].videoModel)}` : ""}, {finals.length} final{finals.length === 1 ? "" : "s"}
-                  {finals[0] ? ` on ${label(finals[0].videoModel)}` : ""}. {usd(lines.reduce((a, l) => a + charge(l), 0))}
+                  {finals.length
+                    ? `${drafts.length} draft${drafts.length === 1 ? "" : "s"}${drafts[0] ? ` on ${label(drafts[0].videoModel)}` : ""}, ${finals.length} final${finals.length === 1 ? "" : "s"} on ${label(finals[0]!.videoModel)}.`
+                    : `${s.takes.length} take${s.takes.length === 1 ? "" : "s"}${sel ? `, the one used made on ${label(sel.videoModel)}` : ""}.`}{" "}
+                  {usd(lines.reduce((a, l) => a + charge(l), 0))}
                 </p>
               </div>
             );
@@ -252,7 +256,10 @@ export function demoPage(c: Ctx, demo: Demo | null) {
         </details>
 
         <h2 id="episode">5. The episode</h2>
-        <p class="muted">The approved finals, joined in order with burned-in subtitles.</p>
+        <p class="muted">
+          {anyFinal ? "The approved finals" : "The chosen takes"}, cut and joined in the studio
+          {demo.meta.subtitlesBurned ? ", with burned-in subtitles." : ". Subtitles are a separate file: switch them on in the player."}
+        </p>
         {episodeUrl ? (
           <div class="player">
             <video controls preload="metadata" playsinline src={episodeUrl} {...(poster ? { poster } : {})} />

@@ -3,6 +3,25 @@
   "version": "0.1.0",
   "description": "Dropisode: an open-source AI drama studio. Runs locally with your own fal.ai key. Exact price before every shot.",
   "license": "MIT",
+  "homepage": "https://dropisode.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/at-cost/dropisode.git",
+    "directory": "apps/local"
+  },
+  "bugs": {
+    "url": "https://github.com/at-cost/dropisode/issues"
+  },
+  "keywords": [
+    "ai",
+    "video",
+    "short-drama",
+    "storyboard",
+    "fal",
+    "open-source",
+    "studio",
+    "vertical-video"
+  ],
   "type": "module",
   "bin": {
     "dropisode": "dist/cli.js"

@@ -2,6 +2,8 @@
 
 An open-source AI studio for short dramas and serialised vertical video. Write or paste a script, build a cast of characters, locations and props with reference images, get a storyboard, try every shot as a cheap draft, render the shots you approve on a premium model, and Dropisode assembles them into a finished episode.
 
+**See one finished:** [dropisode.com/demo](https://dropisode.com/demo) shows a 47-second film made in the studio, with every shot's prompt, take and cost.
+
 You see the exact price on every generate button before you press it. Dropisode runs two ways:
 
 - **Locally, free:** `npx dropisode` with your own fal.ai key. You pay fal directly; Dropisode adds nothing.

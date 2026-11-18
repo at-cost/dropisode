@@ -53,7 +53,7 @@ describe("public pages", () => {
     ],
     ["/aup", ["Draft: to be reviewed before launch", "Harassment", "Impersonation"]],
     ["/privacy", ["Draft: to be reviewed before launch", "Stripe", "fal.ai", "transparent-ai-businesses@proton.me", "1 year"]],
-    ["/demo", ["clips are placeholders", "The script", "The cast", "The storyboard", "The cost log", "/demo/exports/episode.mp4"]],
+    ["/demo", ["The script", "The cast", "The storyboard", "The cost log", "/demo/exports/episode.mp4"]],
   ];
   for (const [path, needles] of pages) {
     it(`GET ${path}`, async () => {
@@ -212,10 +212,12 @@ describe("demo", () => {
     expect(body).toContain(`data-k="demo-total">${formatUsd(total)}`);
     for (const m of demo!.project.cast) expect(body).toContain(m.name);
 
-    const img = demo!.project.media.find((m) => m.contentType === "image/png")!;
+    // A real project: no placeholder notice, and every picture is served with its own type.
+    expect(body).not.toContain("clips are placeholders");
+    const img = demo!.project.media.find((m) => m.contentType.startsWith("image/"))!;
     const r = await t.request("GET", `/demo/${img.path}`);
     expect(r.status).toBe(200);
-    expect(r.headers.get("content-type")).toBe("image/png");
+    expect(r.headers.get("content-type")).toBe(img.contentType);
 
     const ep = await t.request("GET", "/demo/exports/episode.mp4", { headers: { range: "bytes=0-99" } });
     expect(ep.status).toBe(206);
@@ -238,6 +240,6 @@ describe("demo", () => {
       readdirSync(dir).reduce((a, f) => a + (statSync(join(dir, f)).isDirectory() ? size(join(dir, f)) : statSync(join(dir, f)).size), 0);
     const dir = loadDemo()!.dir;
     expect(size(dir)).toBeLessThan(15 * 1024 * 1024);
-    expect(JSON.parse(readFileSync(join(dir, "demo.json"), "utf8")).placeholder).toBe(true);
+    expect(JSON.parse(readFileSync(join(dir, "demo.json"), "utf8")).placeholder).toBe(false);
   });
 });

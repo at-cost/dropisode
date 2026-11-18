@@ -1,64 +1,120 @@
 {
-  "project": "The Letter",
-  "episode": "Episode 1: The Letter",
+  "project": "Mental Surgery",
+  "episode": "Mental Surgery",
   "aspect": "9:16",
-  "fps": 30,
-  "resolution": "1080x1920",
-  "source": "final",
+  "fps": 24,
+  "resolution": "720x1280",
+  "source": "rough",
   "shots": [
     {
       "index": 1,
-      "shotId": "shot_g4lROQKP",
-      "takeId": "take_GhtqZGhE",
-      "tier": "final",
-      "file": "shots/01_shot_g4lROQKP.mp4",
+      "shotId": "shot_OHfJk5Pn",
+      "takeId": "take_7ZXGV0Lw",
+      "tier": "draft",
+      "file": "shots/01_shot_OHfJk5Pn.mp4",
       "startS": 0,
-      "durationS": 5
+      "durationS": 2.5833333333333335,
+      "inS": 2.5833333333333335
     },
     {
       "index": 2,
-      "shotId": "shot_Ju57QHOH",
-      "takeId": "take_ExfMxyXL",
-      "tier": "final",
-      "file": "shots/02_shot_Ju57QHOH.mp4",
-      "startS": 5,
-      "durationS": 5
+      "shotId": "shot_SQQOGhVK",
+      "takeId": "take_o7wdKRxO",
+      "tier": "draft",
+      "file": "shots/02_shot_SQQOGhVK.mp4",
+      "startS": 2.5833333333333335,
+      "durationS": 6.375,
+      "inS": 0
     },
     {
       "index": 3,
-      "shotId": "shot_hooNK3W3",
-      "takeId": "take_ZFC_bxjW",
-      "tier": "final",
-      "file": "shots/03_shot_hooNK3W3.mp4",
-      "startS": 10,
-      "durationS": 5
+      "shotId": "shot_jf56rDl-",
+      "takeId": "take_yGGnf3tu",
+      "tier": "draft",
+      "file": "shots/03_shot_jf56rDl-.mp4",
+      "startS": 8.958333333333334,
+      "durationS": 8,
+      "inS": 0
     },
     {
       "index": 4,
-      "shotId": "shot_Rp-ndmyj",
-      "takeId": "take_FOZBfJS4",
-      "tier": "final",
-      "file": "shots/04_shot_Rp-ndmyj.mp4",
-      "startS": 15,
-      "durationS": 5
+      "shotId": "shot_AcQS3WeT",
+      "takeId": "take_gJRxbIGO",
+      "tier": "draft",
+      "file": "shots/04_shot_AcQS3WeT.mp4",
+      "startS": 16.958333333333332,
+      "durationS": 5.083333333333333,
+      "inS": 0
     },
     {
       "index": 5,
-      "shotId": "shot__PKIHGTD",
-      "takeId": "take_FxbU0K5g",
-      "tier": "final",
-      "file": "shots/05_shot__PKIHGTD.mp4",
-      "startS": 20,
-      "durationS": 5
+      "shotId": "shot_PdCoiAoP",
+      "takeId": "take_EdeMXUSJ",
+      "tier": "draft",
+      "file": "shots/05_shot_PdCoiAoP.mp4",
+      "startS": 22.041666666666668,
+      "durationS": 5,
+      "inS": 0.08333333333333333
     },
     {
       "index": 6,
-      "shotId": "shot_Q0OwvOy6",
-      "takeId": "take_h-ZgbdBo",
-      "tier": "final",
-      "file": "shots/06_shot_Q0OwvOy6.mp4",
-      "startS": 25,
-      "durationS": 5
+      "shotId": "shot_Mmn4bKF2",
+      "takeId": "take_-xV8OYBf",
+      "tier": "draft",
+      "file": "shots/06_shot_Mmn4bKF2.mp4",
+      "startS": 27.041666666666668,
+      "durationS": 5.166666666666667,
+      "inS": 0
+    },
+    {
+      "index": 7,
+      "shotId": "shot_kSumNUDS",
+      "takeId": "take_Gc4IpWa4",
+      "tier": "draft",
+      "file": "shots/07_shot_kSumNUDS.mp4",
+      "startS": 32.208333333333336,
+      "durationS": 2.5,
+      "inS": 0.5
+    },
+    {
+      "index": 8,
+      "shotId": "shot_M1nUYwQ3",
+      "takeId": "take_cci1r54M",
+      "tier": "draft",
+      "file": "shots/08_shot_M1nUYwQ3.mp4",
+      "startS": 34.708333333333336,
+      "durationS": 6.791666666666667,
+      "inS": 0.20833333333333334
+    },
+    {
+      "index": 9,
+      "shotId": "shot_6CF8224o",
+      "takeId": "take_YTW0TBtc",
+      "tier": "draft",
+      "file": "shots/09_shot_6CF8224o.mp4",
+      "startS": 41.5,
+      "durationS": 2.375,
+      "inS": 2.7916666666666665
+    },
+    {
+      "index": 10,
+      "shotId": "shot_a_KwjfsY",
+      "takeId": "take_I0YGz5jI",
+      "tier": "draft",
+      "file": "shots/10_shot_a_KwjfsY.mp4",
+      "startS": 43.875,
+      "durationS": 1.2916666666666667,
+      "inS": 3.7083333333333335
+    },
+    {
+      "index": 11,
+      "shotId": "shot_GQ55bI6O",
+      "takeId": "take_rykCFBJZ",
+      "tier": "draft",
+      "file": "shots/11_shot_GQ55bI6O.mp4",
+      "startS": 45.166666666666664,
+      "durationS": 2.25,
+      "inS": 2.9166666666666665
     }
   ],
   "subtitles": "subtitles.srt",
