@@ -253,15 +253,13 @@ export async function assembleEpisode(
           s.file,
           "-filter_complex",
           // Both clips on one clock first: without it the bundled ffmpeg 6.0 snaps to the second clip a few frames in.
-          `[0:v]settb=AVTB,fps=${FPS}[xa];[1:v]settb=AVTB,fps=${FPS}[xb];[xa][xb]xfade=transition=fade:duration=${x.toFixed(6)}:offset=${((cur.f - xF) / FPS).toFixed(6)},format=yuv420p[v];[0:a][1:a]acrossfade=d=${x.toFixed(6)}:c1=tri:c2=tri[a]`,
+          `[0:v]settb=AVTB,fps=${FPS}[xa];[1:v]settb=AVTB,fps=${FPS}[xb];[xa][xb]xfade=transition=fade:duration=${x.toFixed(6)}:offset=${((cur.f - xF) / FPS).toFixed(6)},format=yuv420p,trim=end_frame=${lenF},setpts=N/(${FPS}*TB)[v];[0:a][1:a]acrossfade=d=${x.toFixed(6)}:c1=tri:c2=tri,apad,atrim=0:${(lenF / FPS).toFixed(6)}[a]`,
           "-map",
           "[v]",
           "-map",
           "[a]",
-          "-frames:v",
-          String(lenF),
-          "-t",
-          (lenF / FPS).toFixed(6),
+          "-r",
+          String(FPS),
           ...ENC,
           merged,
         ]);
@@ -355,19 +353,29 @@ export async function assembleEpisode(
         [
           "-i",
           joined,
-          "-vf",
           // The joined video can start a fraction of a frame late (the concat's timestamps); re-encoding that at a
           // constant rate adds a frame. Starting it at zero keeps the episode exactly as long as the cut.
-          ["setpts=PTS-STARTPTS", ...vfilters].join(","),
-          "-frames:v",
-          String(tF),
-          "-c:v",
-          "libx264",
-          "-preset",
-          "veryfast",
-          "-crf",
-          "18",
-          ...(afilters.length ? ["-af", afilters.join(","), "-c:a", "aac", "-b:a", "192k", "-ar", "48000"] : ["-c:a", "copy"]),
+          // Lengths are set by trim filters, never -frames:v: with ffmpeg 7 that stops the whole file when the
+          // picture reaches its count, dropping the last third of a second of sound queued behind it.
+          // A picture with nothing to draw (no fades, no text) is copied as it is: only the sound is reworked.
+          ...(vfilters.length
+            ? [
+                "-vf",
+                ["setpts=PTS-STARTPTS", `fps=${FPS}`, `trim=end_frame=${tF}`, `setpts=N/(${FPS}*TB)`, ...vfilters].join(","),
+                // Renumbering the frames drops the rate on ffmpeg 7, which then writes 25 fps and adds frames.
+                "-r",
+                String(FPS),
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "18",
+              ]
+            : ["-map", "0:v", "-map", "0:a?", "-c:v", "copy"]),
+          ...(afilters.length
+            ? ["-af", [...afilters, "apad", `atrim=0:${(tF / FPS).toFixed(6)}`].join(","), "-c:a", "aac", "-b:a", "192k", "-ar", "48000"]
+            : ["-c:a", "copy"]),
           "-movflags",
           "+faststart",
           episodeFile,
