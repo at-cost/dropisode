@@ -76,6 +76,8 @@ export const Take = z.object({
   waitsForMaster: z.boolean().optional(),
   /** The clip's voices on their own (background removed), for a steady mix under the cuts. */
   voiceMediaId: z.string().optional(),
+  /** A shot with no lines: the clip's sound effects with any voice taken out (models sometimes add speech nobody wrote). */
+  effectsMediaId: z.string().optional(),
   error: z.string().optional(),
   /** A continued shot's final waits for the shot before it to finish its own final. */
   waitsForShotId: z.string().optional(),

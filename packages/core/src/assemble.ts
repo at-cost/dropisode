@@ -146,9 +146,11 @@ export async function assembleEpisode(
       // With a background bed under the scene, each clip gives only its voices (lifted out of the clip),
       // so the room sound doesn't change at every cut. Without a bed, or without lifted voices, the clip's own sound.
       const sceneBed = bedRef(sceneOf.get(shot.id)?.ambience);
-      const voiceRef = sceneBed && pick.voiceMediaId ? mediaById.get(pick.voiceMediaId) : undefined;
-      const voicePath = voiceRef ? await pathOf(voiceRef) : undefined;
       const speaksNatively = shot.audio === "native" && hasClipAudio && shot.dialogue.some((l) => l.text.trim());
+      // A shot with no lines keeps its sound effects (voices taken out) over the bed, instead of going silent.
+      const liftedId = speaksNatively ? pick.voiceMediaId : shot.audio === "native" ? pick.effectsMediaId : undefined;
+      const voiceRef = sceneBed && liftedId ? mediaById.get(liftedId) : undefined;
+      const voicePath = voiceRef ? await pathOf(voiceRef) : undefined;
       const clipAudio = hasClipAudio && !voicePath && !(sceneBed && !speaksNatively);
       const timed: { at: number; len: number; text: string; path?: string }[] = [];
       let cursor = 0.3;

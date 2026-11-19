@@ -216,3 +216,29 @@ describe("fal adapter", () => {
     expect(f.calls[0]!.auth).toBe("Key b");
   });
 });
+
+describe("separated stems", () => {
+  it("reads every stem a model returns, and mixes them back into one track", async () => {
+    const { Catalog } = await import("../src/catalog");
+    const { readOutput } = await import("../src/providers/fal");
+    const { mixAudio, mediaDuration, runFfmpeg } = await import("../src/ffmpeg");
+    const { readFileSync, mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const fixture = JSON.parse(readFileSync(new URL("./catalog.fixture.json", import.meta.url), "utf8"));
+    const model = new Catalog(fixture).get("demucs-effects");
+    const out = readOutput(model, { other: { url: "https://x/o.wav" }, drums: { url: "https://x/d.wav" }, bass: { url: "https://x/b.wav" } });
+    expect(out).toEqual({ url: "https://x/o.wav", mixUrls: ["https://x/d.wav", "https://x/b.wav"] });
+    const dir = mkdtempSync(join(tmpdir(), "reel-stems-"));
+    const tone = async (f: number, d: number) => {
+      const p = join(dir, `${f}.wav`);
+      await runFfmpeg(["-f", "lavfi", "-i", `sine=frequency=${f}:duration=${d}`, p]);
+      return new Uint8Array(readFileSync(p));
+    };
+    const mixed = await mixAudio([await tone(220, 3), await tone(440, 2)]);
+    const p = join(dir, "mix.wav");
+    writeFileSync(p, mixed);
+    expect(await mediaDuration(p)).toBeCloseTo(3, 1);
+  });
+});
+

@@ -73,6 +73,8 @@ export const OutputMap = z.object({
   outputTokens: z.string().optional(),
   /** Dot path to a cost in USD the endpoint reports for this request, if any. */
   costUsd: z.string().optional(),
+  /** Dot paths to more audio files, mixed with the one at `url` into a single track (e.g. separated stems). */
+  mix: z.array(z.string()).optional(),
 });
 
 export const ModelKind = z.enum(["video", "image", "tts", "llm", "audio"]);
@@ -130,6 +132,8 @@ export const PricesConfig = z.object({
     music: z.string().optional(),
     ambience: z.string().optional(),
     voiceIsolation: z.string().optional(),
+    /** Separates a shot's sound effects from any voices, for shots with no lines. */
+    effectsIsolation: z.string().optional(),
   }),
   /** Non-model prices used by hosted billing (storage, moderation). Same rules: source + date. */
   services: z.record(

@@ -45,6 +45,8 @@ export interface ProviderInput {
 export interface ProviderOutput {
   /** Where to download the media (short-lived). */
   url?: string;
+  /** More audio files to mix with the one at `url` into a single track. */
+  mixUrls?: string[];
   /** Media bytes, when the provider returns them directly. */
   bytes?: Uint8Array;
   contentType?: string;

@@ -516,6 +516,7 @@ export function createStudioApi(resolve: ResolveContext): Hono {
       prompts: ctx.studio.soundPrompts(p, eid),
       musicMicro: e.music ? ctx.price(e.music.providerCostMicro) : 0,
       ambienceMicro: e.ambience ? ctx.price(e.ambience.providerCostMicro) : 0,
+      separationMicro: e.separation ? ctx.price(e.separation.providerCostMicro) : 0,
     });
   });
 

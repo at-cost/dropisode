@@ -32,6 +32,32 @@ describe("sound pass", () => {
     expect(t.mock.submitted.filter((x) => x.job.purpose === "isolate")).toHaveLength(1);
   });
 
+  it("a shot with no lines keeps its sound effects, voices taken out, under the scene's background", async () => {
+    const t = await scene();
+    // The test catalog's final model makes sound; the draft model is silent.
+    for (const id of [t.talk, t.look]) await t.studio.generateTake(t.projectId, id, "draft", { video: "vid-final" });
+    await drain(t.studio, t.projectId, 40);
+    // No background yet: no effects either (the edit wouldn't use them, so nobody pays for them).
+    expect(findShot(await t.store.get(t.projectId), t.look).shot.takes[0]!.effectsMediaId).toBeUndefined();
+    await t.studio.generateSound(t.projectId, t.episodeId);
+    await drain(t.studio, t.projectId, 40);
+    const p = await t.store.get(t.projectId);
+    // The talking shot gets its voice lifted out, the silent one its effects: never both, never the wrong one.
+    expect(findShot(p, t.talk).shot.takes[0]!.voiceMediaId).toBeTruthy();
+    expect(findShot(p, t.talk).shot.takes[0]!.effectsMediaId).toBeUndefined();
+    expect(findShot(p, t.look).shot.takes[0]!.effectsMediaId).toBeTruthy();
+    expect(t.mock.submitted.filter((x) => x.job.purpose === "effects")).toHaveLength(1);
+    const res = await assembleEpisode({ projects: t.store, media: t.store }, t.projectId, t.episodeId, {
+      source: "rough",
+      outDir: join(t.root, "fx"),
+    });
+    // The silent shot's file carries sound (its effects), not silence under the bed.
+    const lookFile = res.shots.find((s) => s.shotId === t.look)!.file;
+    const wav = join(t.root, "look.wav");
+    await runFfmpeg(["-y", "-i", lookFile, "-vn", wav]);
+    expect((await measureLoudness(wav))?.i ?? -99).toBeGreaterThan(-60);
+  });
+
   it("makes music for the episode and a background for each scene, then mixes them under the cut", async () => {
     const t = await scene();
     for (const id of [t.talk, t.look]) await t.studio.generateTake(t.projectId, id, "draft");
@@ -85,6 +111,36 @@ describe("sound pass", () => {
     const whole = await measureLoudness(res.episodeFile);
     expect(whole?.i).toBeGreaterThan(-18);
     expect(whole?.i).toBeLessThan(-14);
+  });
+
+  it("a shot with a target picture still gets its sound effects separated", async () => {
+    const t = await scene();
+    // A model that both makes sound and ends on a target picture, like Seedance 2.5.
+    t.catalog.get("vid-final").input.endImage = "end_image_url";
+    await t.store.mutate(t.projectId, (p) => {
+      findShot(p, t.look).shot.endPicture = "Nora is on her feet at the gate.";
+    });
+    // The scene already has its background, so the effects are separated as soon as the take is in.
+    await t.studio.generateSound(t.projectId, t.episodeId);
+    await drain(t.studio, t.projectId, 40);
+    await t.studio.generateTake(t.projectId, t.look, "draft", { video: "vid-final" });
+    await drain(t.studio, t.projectId, 40);
+    const take = findShot(await t.store.get(t.projectId), t.look).shot.takes[0]!;
+    expect(take.endFrameMediaId).toBeTruthy();
+    expect(take.effectsMediaId).toBeTruthy();
+    expect(take.effectsMediaId).not.toBe(take.endFrameMediaId);
+  });
+
+  it("the sound price includes separating the takes made before it, and drops once they are", async () => {
+    const t = await scene();
+    for (const id of [t.talk, t.look]) await t.studio.generateTake(t.projectId, id, "draft", { video: "vid-final" });
+    await drain(t.studio, t.projectId, 40);
+    const before = t.studio.estimateSound(await t.store.get(t.projectId), t.episodeId);
+    // The talking shot's voice was lifted out when its take came in; the silent shot still waits for its effects.
+    expect(before.separation?.providerCostMicro ?? 0).toBeGreaterThan(0);
+    await t.studio.generateSound(t.projectId, t.episodeId);
+    await drain(t.studio, t.projectId, 40);
+    expect(t.studio.estimateSound(await t.store.get(t.projectId), t.episodeId).separation).toBeNull();
   });
 
   it("a background is heard from its first second, as loud as in the middle", async () => {

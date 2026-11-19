@@ -203,7 +203,7 @@ export function pick(obj: unknown, path: string): unknown {
 export function readOutput(
   model: CatalogModel,
   data: unknown,
-): { url?: string; text?: string; inputTokens?: number; outputTokens?: number; actualCostMicro?: number } {
+): { url?: string; mixUrls?: string[]; text?: string; inputTokens?: number; outputTokens?: number; actualCostMicro?: number } {
   const o = model.output;
   const num = (p?: string) => {
     const v = p ? pick(data, p) : undefined;
@@ -226,7 +226,8 @@ export function readOutput(
   }
   const url = pick(data, o.url);
   if (typeof url !== "string") throw new Error(`fal returned no output at "${o.url}"`);
-  return { url };
+  const mixUrls = (o.mix ?? []).map((p) => pick(data, p)).filter((u): u is string => typeof u === "string");
+  return mixUrls.length ? { url, mixUrls } : { url };
 }
 
 /** Sums the cost of one request's billing events. null if there are none yet. */

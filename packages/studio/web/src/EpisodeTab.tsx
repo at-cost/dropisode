@@ -293,6 +293,8 @@ function SoundPanel({ ep }: { ep: Episode }) {
     prompts: { music: string; ambience: Record<string, string> };
     musicMicro: number;
     ambienceMicro: number;
+    /** Separating the voices or effects of takes made before the sound: added to whichever button runs first. */
+    separationMicro: number;
   } | null>(null);
   const [music, setMusic] = useState("");
   const [amb, setAmb] = useState<Record<string, string>>({});
@@ -334,7 +336,7 @@ function SoundPanel({ ep }: { ep: Episode }) {
           onClick={() => void make("snd-music", { music: true, prompts: { music } })}
         >
           {isBusy("snd-music") && <Spinner />} {ep.music?.status === "done" ? "Remake music" : "Make music"}
-          {info && <Ticket micro={info.musicMicro} />}
+          {info && <Ticket micro={info.musicMicro + info.separationMicro} />}
         </button>
       </div>
       {ep.scenes.map((sc, i) => (
@@ -353,7 +355,7 @@ function SoundPanel({ ep }: { ep: Episode }) {
             onClick={() => void make(`snd-${sc.id}`, { music: false, sceneIds: [sc.id], prompts: { ambience: { [sc.id]: amb[sc.id] } } })}
           >
             {isBusy(`snd-${sc.id}`) && <Spinner />} {sc.ambience?.status === "done" ? "Remake background" : "Make background"}
-            {info && <Ticket micro={perScene} />}
+            {info && <Ticket micro={perScene + info.separationMicro} />}
           </button>
         </div>
       ))}
@@ -365,7 +367,7 @@ function SoundPanel({ ep }: { ep: Episode }) {
           onClick={() => void make("snd-all", { music: true, sceneIds: ep.scenes.map((s) => s.id), prompts })}
         >
           {isBusy("snd-all") && <Spinner />} {ep.music?.status === "done" ? "Remake all sound" : "Make all sound"}
-          {info && <Ticket micro={info.musicMicro + info.ambienceMicro} />}
+          {info && <Ticket micro={info.musicMicro + info.ambienceMicro + info.separationMicro} />}
         </button>
         {anyRunning && <span className="muted small-text">Making sound. Under a minute.</span>}
       </div>

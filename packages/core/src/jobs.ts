@@ -15,6 +15,7 @@
  */
 import { type Catalog, type EstimateInput, estimate } from "./catalog";
 import { newId } from "./edit";
+import { mixAudio } from "./ffmpeg";
 import type { CostLine, MediaRef, Project, Tier } from "./project";
 import {
   BlockedError,
@@ -395,7 +396,7 @@ export class JobRunner {
 
   private async storeOutput(
     job: JobRecord,
-    out: { url?: string; bytes?: Uint8Array; contentType?: string; text?: string },
+    out: { url?: string; mixUrls?: string[]; bytes?: Uint8Array; contentType?: string; text?: string },
   ): Promise<JobResult> {
     if (job.kind === "llm") return { text: out.text ?? "" };
     let bytes = out.bytes;
@@ -405,6 +406,12 @@ export class JobRunner {
       const dl = await this.deps.provider.download(out.url);
       bytes = dl.bytes;
       contentType = contentType ?? dl.contentType;
+      // Several files (stems) come back as one track.
+      if (out.mixUrls?.length) {
+        const more = await Promise.all(out.mixUrls.map(async (u) => (await this.deps.provider.download(u)).bytes));
+        bytes = await mixAudio([bytes, ...more]);
+        contentType = "audio/wav";
+      }
     }
     const media = await this.deps.media.put(job.projectId, {
       bytes,

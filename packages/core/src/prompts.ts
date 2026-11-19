@@ -329,7 +329,8 @@ export function endFramePrompt(p: { shot: Shot; cast: CastMember[]; aspect: Aspe
 
 export function castImagePrompt(c: CastMember): string {
   if (c.kind === "character") {
-    return `Casting photo of a real actor standing upright, framed from the knees up, a slight three-quarter turn, arms relaxed at their sides, relaxed natural expression, soft natural daylight, a plain neutral wall behind. Real skin texture with pores and small imperfections, natural hair, not retouched, not a studio glamour shot. ${c.name}: ${c.description}. No text.`;
+    // Characters are not always people: an animal or creature is photographed as itself, never as an actor in costume.
+    return `Reference photo of one character: ${c.name}: ${c.description}. If this character is a person: a casting photo of a real actor standing upright, framed from the knees up, a slight three-quarter turn, arms relaxed at their sides, relaxed natural expression, soft natural daylight, a plain neutral wall behind; real skin texture with pores and small imperfections, natural hair, not retouched, not a studio glamour shot. If it is an animal, creature or machine: a sharp, naturally lit photo of the whole of it as itself, at its true size and shape, its distinguishing marks clearly visible, against a plain uncluttered background; no person, no costume. No text.`;
   }
   if (c.kind === "location")
     return `Establishing reference image of a location, no people, cinematic, photorealistic. ${c.name}: ${c.description}. No text.`;

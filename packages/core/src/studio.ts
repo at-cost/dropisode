@@ -631,25 +631,38 @@ export class Studio {
     await this.isolateTake(job.projectId, job.refs.shotId!, job.refs.takeId!, job.owner);
   }
 
-  private async isolateTake(projectId: string, shotId: string, takeId: string, owner?: Record<string, string>): Promise<void> {
-    const modelId = this.catalog.config.defaults.voiceIsolation;
-    if (!modelId) return;
+  /**
+   * A speaking shot: its voices on their own. A shot with no lines: its sound effects with any voice taken out,
+   * since video models sometimes add speech nobody wrote. Either way the edit lays one steady background under it.
+   */
+  private async isolateTake(
+    projectId: string,
+    shotId: string,
+    takeId: string,
+    owner?: Record<string, string>,
+    opts: { forSound?: boolean } = {},
+  ): Promise<void> {
     const project = await this.projects.get(projectId);
     const { shot, episode, scene } = findShot(project, shotId);
     const take = shot.takes.find((t) => t.id === takeId);
-    if (!take?.videoMediaId || take.voiceMediaId) return;
-    const speaks = shot.audio === "native" && shot.dialogue.some((l) => l.text.trim());
-    if (!speaks) return;
+    if (!take?.videoMediaId || take.voiceMediaId || take.effectsMediaId || shot.audio !== "native") return;
+    const speaks = shot.dialogue.some((l) => l.text.trim());
+    // Effects are only needed under a scene background: separate them when the scene has one, or when the sound
+    // pass is made, so nobody pays for a track the edit will never use.
+    if (!speaks && !opts.forSound && !scene.ambience) return;
+    const modelId = speaks ? this.catalog.config.defaults.voiceIsolation : this.catalog.config.defaults.effectsIsolation;
+    if (!modelId) return;
     const clipRef = project.media.find((m) => m.id === take.videoMediaId);
     if (!clipRef) return;
     const audio = await clipAudioTrack(await this.deps.media.read(projectId, clipRef));
     if (!audio) return;
     const model = this.catalog.get(modelId);
     await this.runner.start({
-      id: `job_i_${take.id}`,
+      // "fx", not "e": job_e_ is a take's target picture, and a clash made the runner skip this job.
+      id: `job_${speaks ? "i" : "fx"}_${take.id}`,
       projectId,
       kind: "audio",
-      purpose: "isolate",
+      purpose: speaks ? "isolate" : "effects",
       modelId: model.id,
       tier: take.tier,
       refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId },
@@ -681,13 +694,26 @@ export class Studio {
     return ep.scenes.flatMap((s) => s.shots).reduce((a, s) => a + (s.cutaway ? 0 : s.durationS), 0);
   }
 
-  estimateSound(project: Project, episodeId: string): { music: Estimate | null; ambience: Estimate | null; scenes: number } {
+  estimateSound(
+    project: Project,
+    episodeId: string,
+  ): { music: Estimate | null; ambience: Estimate | null; separation: Estimate | null; scenes: number } {
     const d = this.catalog.config.defaults;
     const ep = findEpisode(project, episodeId);
     const secs = Math.max(30, Math.min(300, Math.ceil(this.episodeSeconds(project, episodeId))));
+    // Making sound also separates the voices or effects of every chosen take that hasn't been yet: price that too.
+    let sepSecs = 0;
+    for (const sh of ep.scenes.flatMap((s) => s.shots)) {
+      if (sh.audio !== "native") continue;
+      for (const t of sh.takes)
+        if (t.status === "done" && t.videoMediaId && !t.voiceMediaId && !t.effectsMediaId && (t.id === sh.selectedTakeId || t.tier === "final"))
+          sepSecs += t.analysis?.durationS ?? sh.durationS;
+    }
+    const sepModel = d.effectsIsolation ?? d.voiceIsolation;
     return {
       music: d.music ? estimate(this.catalog.get(d.music), { durationS: secs }) : null,
       ambience: d.ambience ? estimate(this.catalog.get(d.ambience), { durationS: AMBIENCE_SECONDS * ep.scenes.length }) : null,
+      separation: sepModel && sepSecs > 0 ? estimate(this.catalog.get(sepModel), { durationS: Math.ceil(sepSecs) }) : null,
       scenes: ep.scenes.length,
     };
   }
@@ -737,8 +763,14 @@ export class Studio {
     // Clips made before the sound pass existed get their voices lifted out too.
     for (const sh of ep.scenes.flatMap((s) => s.shots))
       for (const t of sh.takes)
-        if (t.status === "done" && t.videoMediaId && !t.voiceMediaId && (t.id === sh.selectedTakeId || t.tier === "final"))
-          await this.isolateTake(projectId, sh.id, t.id, p.owner).catch(() => {});
+        if (
+          t.status === "done" &&
+          t.videoMediaId &&
+          !t.voiceMediaId &&
+          !t.effectsMediaId &&
+          (t.id === sh.selectedTakeId || t.tier === "final")
+        )
+          await this.isolateTake(projectId, sh.id, t.id, p.owner, { forSound: true }).catch(() => {});
     if (!starts.length) return;
     await this.projects.mutate(projectId, (proj) => {
       const e = findEpisode(proj, episodeId);
@@ -1173,6 +1205,12 @@ export class Studio {
       apply: (project, job, r) => {
         const t = takeOf(project, job);
         if (t && r.media) t.voiceMediaId = r.media.id;
+      },
+    });
+    this.runner.on("effects", {
+      apply: (project, job, r) => {
+        const t = takeOf(project, job);
+        if (t && r.media) t.effectsMediaId = r.media.id;
       },
     });
     const bedOf = (project: Project, job: JobRecord): SoundBed | null | undefined => {

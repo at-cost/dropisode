@@ -7,7 +7,10 @@
       "label": "Test image",
       "provider": "fal",
       "endpoint": "fal-ai/test-image",
-      "tiers": ["draft", "final"],
+      "tiers": [
+        "draft",
+        "final"
+      ],
       "maxRefImages": 4,
       "price": {
         "unit": "image",
@@ -31,8 +34,13 @@
       "label": "Test draft video",
       "provider": "fal",
       "endpoint": "fal-ai/test-draft",
-      "tiers": ["draft"],
-      "durations": [5, 10],
+      "tiers": [
+        "draft"
+      ],
+      "durations": [
+        5,
+        10
+      ],
       "price": {
         "unit": "second",
         "usd": 0.05,
@@ -57,8 +65,14 @@
       "label": "Test final video",
       "provider": "fal",
       "endpoint": "fal-ai/test-final",
-      "tiers": ["final"],
-      "durations": [4, 6, 8],
+      "tiers": [
+        "final"
+      ],
+      "durations": [
+        4,
+        6,
+        8
+      ],
       "nativeAudio": true,
       "price": {
         "unit": "second",
@@ -87,7 +101,10 @@
       "provider": "fal",
       "endpoint": "fal-ai/test-clip",
       "tiers": [],
-      "durations": [6, 10],
+      "durations": [
+        6,
+        10
+      ],
       "price": {
         "unit": "video",
         "byDurationUsd": {
@@ -175,12 +192,50 @@
         "media": "audio_url",
         "extra": {
           "model": "htdemucs",
-          "stems": ["vocals"],
+          "stems": [
+            "vocals"
+          ],
           "output_format": "wav"
         }
       },
       "output": {
         "url": "vocals.url"
+      }
+    },
+    {
+      "id": "demucs-effects",
+      "kind": "audio",
+      "label": "Demucs sound effects (voices removed)",
+      "provider": "fal",
+      "endpoint": "fal-ai/demucs",
+      "tiers": [],
+      "durations": [],
+      "price": {
+        "unit": "second",
+        "usd": 0.0007,
+        "source": "https://fal.ai/models/fal-ai/demucs",
+        "verifiedOn": "2026-11-02",
+        "status": "verified",
+        "notes": "Billed per second of input audio."
+      },
+      "input": {
+        "media": "audio_url",
+        "extra": {
+          "model": "htdemucs",
+          "stems": [
+            "drums",
+            "bass",
+            "other"
+          ],
+          "output_format": "wav"
+        }
+      },
+      "output": {
+        "url": "other.url",
+        "mix": [
+          "drums.url",
+          "bass.url"
+        ]
       }
     },
     {
@@ -218,7 +273,13 @@
       "provider": "fal",
       "endpoint": "fal-ai/elevenlabs/music",
       "tiers": [],
-      "durations": [60, 120, 180, 240, 300],
+      "durations": [
+        60,
+        120,
+        180,
+        240,
+        300
+      ],
       "price": {
         "unit": "second",
         "usd": 0.01,
@@ -254,7 +315,8 @@
     "llm": "llm",
     "music": "elevenlabs-music",
     "ambience": "elevenlabs-sfx-v2",
-    "voiceIsolation": "demucs-vocals"
+    "voiceIsolation": "demucs-vocals",
+    "effectsIsolation": "demucs-effects"
   },
   "services": {
     "r2_storage": {

@@ -82,9 +82,11 @@ describe("idea to episode", () => {
 
     // Every try has a cost line: 2 LLM + 3 cast images + 6×2 frames + 6×2 videos,
     // + voices lifted out of the 3 finals that speak (the draft model here is silent), + the scene's master still.
+    // No scene background, so no sound effects are separated.
     const totals = projectTotals(p);
     expect(totals.tries).toBe(2 + 3 + 24 + 3 + 1);
     expect(p.costLog.filter((l) => l.purpose === "isolate")).toHaveLength(3);
+    expect(p.costLog.filter((l) => l.purpose === "effects")).toHaveLength(0);
     expect(totals.pending).toBe(0);
     const sum = p.costLog.reduce((a, l) => a + l.estimateMicro, 0);
     const llm = p.costLog.filter((l) => l.kind === "llm").reduce((a, l) => a + l.estimateMicro, 0);

@@ -103,6 +103,33 @@ export function gainTo(target: number, measured: { i: number } | null, max = 30)
   return Math.max(-max, Math.min(max, target - measured.i));
 }
 
+/** Mixes several audio files into one WAV at their own levels (e.g. separated stems back into one track). */
+export async function mixAudio(files: Uint8Array[]): Promise<Uint8Array> {
+  const { mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "reel-mix-"));
+  try {
+    const inputs = files.map((b, i) => {
+      const p = join(dir, `in${i}`);
+      writeFileSync(p, b);
+      return p;
+    });
+    const out = join(dir, "mix.wav");
+    await runFfmpeg([
+      ...inputs.flatMap((p) => ["-i", p]),
+      "-filter_complex",
+      `${inputs.map((_, i) => `[${i}:a]`).join("")}amix=inputs=${inputs.length}:duration=longest:normalize=0[a]`,
+      "-map",
+      "[a]",
+      out,
+    ]);
+    return new Uint8Array(readFileSync(out));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /** Media duration in seconds, read from ffmpeg's own report. */
 export function mediaDuration(path: string): Promise<number> {
   const f = requireFfmpeg();

@@ -1176,6 +1176,42 @@
       }
     },
     {
+      "id": "demucs-effects",
+      "kind": "audio",
+      "label": "Demucs sound effects (voices removed)",
+      "provider": "fal",
+      "endpoint": "fal-ai/demucs",
+      "tiers": [],
+      "durations": [],
+      "price": {
+        "unit": "second",
+        "usd": 0.0007,
+        "source": "https://fal.ai/models/fal-ai/demucs",
+        "verifiedOn": "2026-11-19",
+        "status": "verified",
+        "notes": "Billed per second of input audio. Three stems (everything but vocals), mixed back into one track."
+      },
+      "input": {
+        "media": "audio_url",
+        "extra": {
+          "model": "htdemucs",
+          "stems": [
+            "drums",
+            "bass",
+            "other"
+          ],
+          "output_format": "wav"
+        }
+      },
+      "output": {
+        "url": "other.url",
+        "mix": [
+          "drums.url",
+          "bass.url"
+        ]
+      }
+    },
+    {
       "id": "elevenlabs-sfx-v2",
       "kind": "audio",
       "label": "ElevenLabs Sound Effects v2",
@@ -1253,7 +1289,8 @@
     "draftAudio": true,
     "music": "elevenlabs-music",
     "ambience": "elevenlabs-sfx-v2",
-    "voiceIsolation": "demucs-vocals"
+    "voiceIsolation": "demucs-vocals",
+    "effectsIsolation": "demucs-effects"
   },
   "services": {
     "r2_storage": {
