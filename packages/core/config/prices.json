@@ -1146,69 +1146,27 @@
       }
     },
     {
-      "id": "demucs-vocals",
+      "id": "elevenlabs-isolation",
       "kind": "audio",
-      "label": "Demucs voice isolation",
+      "label": "ElevenLabs voice isolation",
       "provider": "fal",
-      "endpoint": "fal-ai/demucs",
+      "endpoint": "fal-ai/elevenlabs/audio-isolation",
       "tiers": [],
       "durations": [],
       "price": {
         "unit": "second",
-        "usd": 0.0007,
-        "source": "https://fal.ai/models/fal-ai/demucs",
-        "verifiedOn": "2026-11-02",
+        "usd": 0.0016667,
+        "source": "https://fal.ai/models/fal-ai/elevenlabs/audio-isolation",
+        "verifiedOn": "2026-11-20",
         "status": "verified",
-        "notes": "Billed per second of input audio."
+        "notes": "$0.10 per minute of input audio. Needs at least 4.6 s of audio, so shorter clips are padded with silence (and billed for it). Replaces Demucs, which fal retired on 2026-11-20 (results answer 410 Gone)."
       },
       "input": {
         "media": "audio_url",
-        "extra": {
-          "model": "htdemucs",
-          "stems": [
-            "vocals"
-          ],
-          "output_format": "wav"
-        }
+        "minMediaS": 4.6
       },
       "output": {
-        "url": "vocals.url"
-      }
-    },
-    {
-      "id": "demucs-effects",
-      "kind": "audio",
-      "label": "Demucs sound effects (voices removed)",
-      "provider": "fal",
-      "endpoint": "fal-ai/demucs",
-      "tiers": [],
-      "durations": [],
-      "price": {
-        "unit": "second",
-        "usd": 0.0007,
-        "source": "https://fal.ai/models/fal-ai/demucs",
-        "verifiedOn": "2026-11-19",
-        "status": "verified",
-        "notes": "Billed per second of input audio. Three stems (everything but vocals), mixed back into one track."
-      },
-      "input": {
-        "media": "audio_url",
-        "extra": {
-          "model": "htdemucs",
-          "stems": [
-            "drums",
-            "bass",
-            "other"
-          ],
-          "output_format": "wav"
-        }
-      },
-      "output": {
-        "url": "other.url",
-        "mix": [
-          "drums.url",
-          "bass.url"
-        ]
+        "url": "audio.url"
       }
     },
     {
@@ -1289,8 +1247,7 @@
     "draftAudio": true,
     "music": "elevenlabs-music",
     "ambience": "elevenlabs-sfx-v2",
-    "voiceIsolation": "demucs-vocals",
-    "effectsIsolation": "demucs-effects"
+    "voiceIsolation": "elevenlabs-isolation"
   },
   "services": {
     "r2_storage": {

@@ -87,7 +87,8 @@ export class FalProvider implements Provider {
     } catch (err) {
       // Only errors about the request itself end the job. Auth, rate limits, gateways
       // and network errors are thrown, so the next pass asks again.
-      if (err instanceof ApiError && (err.status === 422 || err.status === 400 || err.status === 500)) {
+      // 410: fal retired the endpoint and won't hand over results; asking again never helps.
+      if (err instanceof ApiError && (err.status === 422 || err.status === 400 || err.status === 500 || err.status === 410)) {
         const note = err.status === 500 ? "" : " (fal may bill some rejected requests; billing events will show it)";
         return { state: "failed", error: `${apiMessage(err)}${note}`, billed: false };
       }

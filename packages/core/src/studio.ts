@@ -110,7 +110,9 @@ export class Studio {
     const audio =
       tier === "draft" && !this.catalog.config.defaults.draftAudio ? "none" : this.audioPlan(shot.audio, video, shot.dialogue.length > 0);
     // A continued shot takes its first frame from the previous clip: no image to pay for.
-    const frame = continuesFrom(project, shotId) ? estimate(image, { images: 0 }) : estimate(image, { images: 1 });
+    // So does a scene's opening wide shot, which starts on the scene's master still.
+    const frame =
+      continuesFrom(project, shotId) || opensOnMaster(project, shotId) ? estimate(image, { images: 0 }) : estimate(image, { images: 1 });
     const vid = estimate(video, { durationS: shot.durationS, audio: this.clipAudio(audio, video, tier) });
     const endFrame = wantsEndFrame(shot, video) ? estimate(image, { images: 1 }) : null;
     const tts =
@@ -455,6 +457,19 @@ export class Studio {
     const { shot, episode, scene } = findShot(project, shotId);
     const take = shot.takes.find((t) => t.id === takeId);
     if (!take) return;
+    const opening = opensOnMaster(project, shotId);
+    if (opening) {
+      await this.projects.mutate(projectId, (proj) => {
+        const t = findShot(proj, shotId).shot.takes.find((x) => x.id === takeId);
+        if (t) {
+          t.frameMediaId = opening.id;
+          t.status = "running";
+          delete t.waitsForMaster;
+        }
+      });
+      await this.startVideo(projectId, shotId, takeId, owner);
+      return;
+    }
     const image = this.catalog.get(take.imageModel);
     const master =
       scene.master?.status === "done" && scene.master.mediaId ? project.media.find((m) => m.id === scene.master!.mediaId) : undefined;
@@ -654,9 +669,9 @@ export class Studio {
     if (!modelId) return;
     const clipRef = project.media.find((m) => m.id === take.videoMediaId);
     if (!clipRef) return;
-    const audio = await clipAudioTrack(await this.deps.media.read(projectId, clipRef));
-    if (!audio) return;
     const model = this.catalog.get(modelId);
+    const audio = await clipAudioTrack(await this.deps.media.read(projectId, clipRef), model.input.minMediaS);
+    if (!audio) return;
     await this.runner.start({
       // "fx", not "e": job_e_ is a take's target picture, and a clash made the runner skip this job.
       id: `job_${speaks ? "i" : "fx"}_${take.id}`,
@@ -702,18 +717,33 @@ export class Studio {
     const ep = findEpisode(project, episodeId);
     const secs = Math.max(30, Math.min(300, Math.ceil(this.episodeSeconds(project, episodeId))));
     // Making sound also separates the voices or effects of every chosen take that hasn't been yet: price that too.
-    let sepSecs = 0;
+    // Priced per kind: a shot with lines has its voices lifted, one without has its effects (when a model does that).
+    const sepPrice = { voice: 0, effects: 0 };
     for (const sh of ep.scenes.flatMap((s) => s.shots)) {
       if (sh.audio !== "native") continue;
+      const kind = sh.dialogue.some((l) => l.text.trim()) ? "voice" : "effects";
+      const modelId = kind === "voice" ? d.voiceIsolation : d.effectsIsolation;
+      if (!modelId) continue;
+      const model = this.catalog.get(modelId);
       for (const t of sh.takes)
-        if (t.status === "done" && t.videoMediaId && !t.voiceMediaId && !t.effectsMediaId && (t.id === sh.selectedTakeId || t.tier === "final"))
-          sepSecs += t.analysis?.durationS ?? sh.durationS;
+        if (
+          t.status === "done" &&
+          t.videoMediaId &&
+          !t.voiceMediaId &&
+          !t.effectsMediaId &&
+          (t.id === sh.selectedTakeId || t.tier === "final")
+        ) {
+          const s = Math.max(1, Math.ceil(Math.max(t.analysis?.durationS ?? sh.durationS, (model.input.minMediaS ?? 0) + 0.1)));
+          sepPrice[kind] += estimate(model, { durationS: s }).providerCostMicro;
+        }
     }
-    const sepModel = d.effectsIsolation ?? d.voiceIsolation;
+    const sepModel = d.voiceIsolation ?? d.effectsIsolation;
+    const sepMicro = sepPrice.voice + sepPrice.effects;
     return {
       music: d.music ? estimate(this.catalog.get(d.music), { durationS: secs }) : null,
       ambience: d.ambience ? estimate(this.catalog.get(d.ambience), { durationS: AMBIENCE_SECONDS * ep.scenes.length }) : null,
-      separation: sepModel && sepSecs > 0 ? estimate(this.catalog.get(sepModel), { durationS: Math.ceil(sepSecs) }) : null,
+      separation:
+        sepModel && sepMicro > 0 ? { ...estimate(this.catalog.get(sepModel), { durationS: 0 }), providerCostMicro: sepMicro } : null,
       scenes: ep.scenes.length,
     };
   }
@@ -1262,6 +1292,18 @@ export function assertNothingRunning(shots: { takes: Take[] }[]): void {
   }
 }
 
+/**
+ * The scene's master still, when it is this shot's first frame as it stands: the scene's opening wide shot.
+ * The master is drawn as that opening moment, so re-imagining it only moves people from where the staging put them.
+ */
+export function opensOnMaster(project: Project, shotId: string): MediaRef | undefined {
+  const { shot, scene, index } = findShot(project, shotId);
+  if (index !== 0 || shot.continueFromPrevious || !isWideShot(shot)) return undefined;
+  const m = scene.master;
+  const media = m?.status === "done" && m.mediaId ? project.media.find((x) => x.id === m.mediaId) : undefined;
+  return media && !media.hidden ? media : undefined;
+}
+
 /** The shot this one continues from: the one before it in its scene, if it asks to continue. */
 export function continuesFrom(project: Project, shotId: string): Shot | undefined {
   const { shot, scene, index } = findShot(project, shotId);
@@ -1291,14 +1333,15 @@ export function wantsEndFrame(shot: Shot, video: CatalogModel): boolean {
 const AMBIENCE_SECONDS = 22;
 
 /** A clip's soundtrack as WAV, or null when it has none. */
-async function clipAudioTrack(clip: Uint8Array): Promise<{ bytes: Uint8Array; seconds: number } | null> {
+async function clipAudioTrack(clip: Uint8Array, minS = 0): Promise<{ bytes: Uint8Array; seconds: number } | null> {
   const dir = mkdtempSync(join(tmpdir(), "reel-voice-"));
   try {
     const src = join(dir, "clip.mp4");
     const out = join(dir, "audio.wav");
     writeFileSync(src, clip);
     if (!(await hasAudio(src))) return null;
-    await runFfmpeg(["-i", src, "-vn", "-ac", "2", "-ar", "44100", out]);
+    // Padded with silence up to the shortest audio the model accepts; the edit trims it back to the clip.
+    await runFfmpeg(["-i", src, "-vn", "-ac", "2", "-ar", "44100", ...(minS > 0 ? ["-af", `apad=whole_dur=${minS + 0.1}`] : []), out]);
     return { bytes: new Uint8Array(readFileSync(out)), seconds: Math.max(1, Math.ceil(await mediaDuration(out))) };
   } finally {
     rmSync(dir, { recursive: true, force: true });

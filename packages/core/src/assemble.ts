@@ -151,7 +151,9 @@ export async function assembleEpisode(
       const liftedId = speaksNatively ? pick.voiceMediaId : shot.audio === "native" ? pick.effectsMediaId : undefined;
       const voiceRef = sceneBed && liftedId ? mediaById.get(liftedId) : undefined;
       const voicePath = voiceRef ? await pathOf(voiceRef) : undefined;
-      const clipAudio = hasClipAudio && !voicePath && !(sceneBed && !speaksNatively);
+      // Under a bed, a native shot with no lines whose effects weren't separated keeps its own sound: its hits and
+      // splashes matter more than the odd stray voice. Other shots without lines give way to the bed.
+      const clipAudio = hasClipAudio && !voicePath && !(sceneBed && !speaksNatively && shot.audio !== "native");
       const timed: { at: number; len: number; text: string; path?: string }[] = [];
       let cursor = 0.3;
       for (const line of shot.dialogue) {
@@ -637,7 +639,9 @@ export function mixArgs(
   } else {
     f.push("[dlg]anull[dlgm]");
   }
-  f.push(`${mixIn.join("")}amix=inputs=${mixIn.length}:duration=longest:normalize=0,apad=whole_dur=${(total + 5).toFixed(3)},alimiter=limit=0.95:level=disabled[mix]`);
+  f.push(
+    `${mixIn.join("")}amix=inputs=${mixIn.length}:duration=longest:normalize=0,apad=whole_dur=${(total + 5).toFixed(3)},alimiter=limit=0.95:level=disabled[mix]`,
+  );
   return [
     ...args,
     "-filter_complex",

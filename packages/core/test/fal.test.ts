@@ -154,6 +154,19 @@ describe("fal adapter", () => {
     });
   });
 
+  it("a retired endpoint (410 Gone) ends the job instead of being asked about forever", async () => {
+    const { client } = fakeClient({
+      result: () => {
+        throw new ApiError({
+          message: "Gone",
+          status: 410,
+          body: { detail: "This endpoint is deprecated and no longer available." },
+        } as never);
+      },
+    });
+    expect(await new FalProvider({ key: "", client, catalog }).check(job("vid-final"))).toMatchObject({ state: "failed", billed: false });
+  });
+
   it("output we can't read is a failure fal billed", async () => {
     const { client } = fakeClient({ result: () => ({ nothing: true }) });
     const st = await new FalProvider({ key: "", client, catalog }).check(job("vid-final"));
@@ -227,7 +240,11 @@ describe("separated stems", () => {
     const { join } = await import("node:path");
     const fixture = JSON.parse(readFileSync(new URL("./catalog.fixture.json", import.meta.url), "utf8"));
     const model = new Catalog(fixture).get("demucs-effects");
-    const out = readOutput(model, { other: { url: "https://x/o.wav" }, drums: { url: "https://x/d.wav" }, bass: { url: "https://x/b.wav" } });
+    const out = readOutput(model, {
+      other: { url: "https://x/o.wav" },
+      drums: { url: "https://x/d.wav" },
+      bass: { url: "https://x/b.wav" },
+    });
     expect(out).toEqual({ url: "https://x/o.wav", mixUrls: ["https://x/d.wav", "https://x/b.wav"] });
     const dir = mkdtempSync(join(tmpdir(), "reel-stems-"));
     const tone = async (f: number, d: number) => {
@@ -241,4 +258,3 @@ describe("separated stems", () => {
     expect(await mediaDuration(p)).toBeCloseTo(3, 1);
   });
 });
-

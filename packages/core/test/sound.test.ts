@@ -58,6 +58,37 @@ describe("sound pass", () => {
     expect((await measureLoudness(wav))?.i ?? -99).toBeGreaterThan(-60);
   });
 
+  it("with no effects model, a shot with no lines keeps its own clip sound under the background", async () => {
+    const t = await scene();
+    delete (t.catalog.config.defaults as { effectsIsolation?: string }).effectsIsolation;
+    for (const id of [t.talk, t.look]) await t.studio.generateTake(t.projectId, id, "draft", { video: "vid-final" });
+    await drain(t.studio, t.projectId, 40);
+    // Only the voice of the talking shot is priced and separated.
+    const est = t.studio.estimateSound(await t.store.get(t.projectId), t.episodeId);
+    expect(est.separation).toBeNull(); // already lifted when the take landed
+    await t.studio.generateSound(t.projectId, t.episodeId);
+    await drain(t.studio, t.projectId, 40);
+    expect(t.mock.submitted.filter((x) => x.job.purpose === "effects")).toHaveLength(0);
+    const res = await assembleEpisode({ projects: t.store, media: t.store }, t.projectId, t.episodeId, {
+      source: "rough",
+      outDir: join(t.root, "nofx"),
+    });
+    const lookFile = res.shots.find((s) => s.shotId === t.look)!.file;
+    const wav = join(t.root, "look-nofx.wav");
+    await runFfmpeg(["-y", "-i", lookFile, "-vn", wav]);
+    expect((await measureLoudness(wav))?.i ?? -99).toBeGreaterThan(-60);
+  });
+
+  it("audio shorter than the isolation model accepts is padded up to its minimum, and priced so", async () => {
+    const t = await scene();
+    const iso = t.catalog.get(t.catalog.config.defaults.voiceIsolation!);
+    (iso.input as { minMediaS?: number }).minMediaS = 4.6;
+    await t.studio.generateTake(t.projectId, t.talk, "draft", { video: "vid-final" });
+    await drain(t.studio, t.projectId, 40);
+    const sent = t.mock.submitted.find((x) => x.job.purpose === "isolate")!;
+    expect(sent.input.durationS).toBeGreaterThanOrEqual(5);
+  });
+
   it("makes music for the episode and a background for each scene, then mixes them under the cut", async () => {
     const t = await scene();
     for (const id of [t.talk, t.look]) await t.studio.generateTake(t.projectId, id, "draft");
@@ -149,7 +180,23 @@ describe("sound pass", () => {
       const j = join(dir, "joined.mp4");
       const bed = join(dir, "bed.wav");
       const out = join(dir, "mixed.mp4");
-      await runFfmpeg(["-f", "lavfi", "-i", "color=c=black:s=180x320:r=24:d=8", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "8", "-c:v", "libx264", "-c:a", "aac", j]);
+      await runFfmpeg([
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=180x320:r=24:d=8",
+        "-f",
+        "lavfi",
+        "-i",
+        "anullsrc=r=48000:cl=stereo",
+        "-t",
+        "8",
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        j,
+      ]);
       await runFfmpeg(["-f", "lavfi", "-i", "anoisesrc=d=10:c=pink:a=0.05", "-ac", "2", bed]);
       const gainDb = gainTo(-34, await measureLoudness(bed));
       await runFfmpeg(mixArgs(j, [{ path: bed, start: 0, len: 8, gainDb }], undefined, 8, out));

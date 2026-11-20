@@ -118,6 +118,10 @@ export function storyboardPrompt(p: {
             ]
           : [
               "Cut it the way vertical short dramas are cut: the picture changes every 2 to 4 seconds, and most shots are close-ups or medium close-ups of faces. Open on one establishing shot, then stay close.",
+              "Every cut changes both the camera angle and the shot size from the shot before (wide to close-up, low angle to high, side-on to overhead). Never put two similar framings of the same moment next to each other: the viewer reads that as a jump, not a cut.",
+              "Cut on action: end a shot in the middle of a movement and let the next shot, from its new angle, carry the same movement on.",
+              "Keep each character on the same side of the screen for the whole scene, so the viewer always knows who is where, even in a fast fight.",
+              "Vary the length to the beat: about 1 to 2 seconds for a strike, a glance or a reaction, 3 to 5 for a set piece or a reveal. Use the shortest allowed duration when the moment is short: the edit trims each take to its best moment.",
               "Whoever speaks is seen saying the line: facing the camera or three-quarter on, mouth moving. One speaker per shot, and pick the shortest duration that fits their words (about 2.5 words a second).",
               'The cut that makes it feel real: while someone is still talking, cut to the person listening (their face reacting) or to a detail (hands, a prop), and the line carries on underneath. Do it with a cutaway shot right after the speaking shot: "cutaway": {"at": seconds into the speaking shot where the picture cuts away, "length": 1.5 to 3}. A cutaway has no dialogue, nobody in it speaks, and its duration is the shortest allowed. Give most lines longer than 3 seconds a cutaway, and keep every cutaway inside its speaking shot.',
               "Sometimes, instead, let the camera drift or pan off the speaker onto a listener while the speaker keeps talking: say so in the description and camera.",
@@ -132,6 +136,7 @@ export function storyboardPrompt(p: {
       "Speakers: use the speaker the script names. If that speaker is not in the cast list (a voice from a memory, a crowd, an announcer), set speaker to null. Never give a line to a different character.",
       "Keep every concrete detail the script gives in the description: on-screen text quoted exactly as written, props, clothes, injuries, weather, who faces which way.",
       "Each description must stand alone: a video model sees only that description and the cast's reference images.",
+      'A shot\'s "cast" lists only who is visible in it: the video model draws everyone it is given, so a close-up of one character lists only that character.',
       ...(p.silentVideo
         ? [
             "The video is silent and every line is added afterwards as a voice-over, so nobody may be seen speaking. Stage each speaker from behind, off screen, out of focus or in shadow, and say in the description that everyone visible keeps their mouth closed.",

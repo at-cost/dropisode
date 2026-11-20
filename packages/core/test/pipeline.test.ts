@@ -64,7 +64,8 @@ describe("idea to episode", () => {
 
     // The frame prompt carries the cast's reference images, every time.
     const frames = t.mock.submitted.filter((x) => x.job.purpose === "frame");
-    expect(frames).toHaveLength(12);
+    // Two takes of each of six shots, but the opening wide shot starts on the scene's master still.
+    expect(frames).toHaveLength(10);
     expect(frames.every((f) => (f.input.images?.length ?? 0) >= 1)).toBe(true);
     // Native audio goes to the final model, which supports it.
     const finals = t.mock.submitted.filter((x) => x.job.purpose === "video" && x.job.tier === "final");
@@ -80,11 +81,11 @@ describe("idea to episode", () => {
     expect(readFileSync(join(outDir, "subtitles.srt"), "utf8")).toContain("tomorrow's date");
     expect(readFileSync(join(outDir, "edit-list.edl"), "utf8")).toMatch(/^006 {2}SHOT006/m);
 
-    // Every try has a cost line: 2 LLM + 3 cast images + 6×2 frames + 6×2 videos,
+    // Every try has a cost line: 2 LLM + 3 cast images + 5×2 frames (the opener starts on the master) + 6×2 videos,
     // + voices lifted out of the 3 finals that speak (the draft model here is silent), + the scene's master still.
     // No scene background, so no sound effects are separated.
     const totals = projectTotals(p);
-    expect(totals.tries).toBe(2 + 3 + 24 + 3 + 1);
+    expect(totals.tries).toBe(2 + 3 + 22 + 3 + 1);
     expect(p.costLog.filter((l) => l.purpose === "isolate")).toHaveLength(3);
     expect(p.costLog.filter((l) => l.purpose === "effects")).toHaveLength(0);
     expect(totals.pending).toBe(0);
@@ -118,7 +119,7 @@ describe("failures and refunds", () => {
   it("a failure the provider didn't bill is a refund line and the take fails", async () => {
     const t = await storyboarded();
     const p = await t.store.get(t.projectId);
-    const shot = p.episodes[0]!.scenes[0]!.shots[0]!;
+    const shot = p.episodes[0]!.scenes[0]!.shots[1]!;
     t.mock.failNext(1, "unbilled");
     await t.studio.generateTake(t.projectId, shot.id, "draft");
     await drain(t.studio, t.projectId);
@@ -170,6 +171,29 @@ describe("failures and refunds", () => {
     expect(master.input.prompt).toMatch(/MAYA/);
   });
 
+  it("a scene's opening wide shot starts on the master still itself: no frame to make or pay for", async () => {
+    const t = await storyboarded();
+    await drain(t.studio, t.projectId); // the scene's master still
+    let p = await t.store.get(t.projectId);
+    const scene = p.episodes[0]!.scenes[0]!;
+    const setCamera = (camera: string) =>
+      t.store.mutate(t.projectId, (x) => {
+        findShot(x, scene.shots[0]!.id).shot.camera = camera;
+      });
+    await setCamera("extreme wide, high angle");
+    p = await t.store.get(t.projectId);
+    expect(t.studio.estimateTake(p, scene.shots[0]!.id, "draft").frame.providerCostMicro).toBe(0);
+    await t.studio.generateTake(t.projectId, scene.shots[0]!.id, "draft");
+    await drain(t.studio, t.projectId);
+    p = await t.store.get(t.projectId);
+    const take = p.episodes[0]!.scenes[0]!.shots[0]!.takes[0]!;
+    expect(take.status).toBe("done");
+    expect(take.frameMediaId).toBe(p.episodes[0]!.scenes[0]!.master!.mediaId);
+    expect(t.mock.submitted.filter((x) => x.job.purpose === "frame")).toHaveLength(0);
+    // A later shot still gets its own frame.
+    expect(t.studio.estimateTake(p, scene.shots[1]!.id, "draft").frame.providerCostMicro).toBeGreaterThan(0);
+  });
+
   it("a provider account out of credit reads as our problem, not the user's", () => {
     const msg = plainJobError("Not accepted by the provider: fal 403: User is locked. Reason: Exhausted balance.", true);
     expect(msg).toMatch(/paused on our side/);
@@ -180,7 +204,7 @@ describe("failures and refunds", () => {
   it("a failure the provider billed is charged and says so", async () => {
     const t = await storyboarded();
     await drain(t.studio, t.projectId); // the scene's master still
-    const shot = (await t.store.get(t.projectId)).episodes[0]!.scenes[0]!.shots[0]!;
+    const shot = (await t.store.get(t.projectId)).episodes[0]!.scenes[0]!.shots[1]!;
     await t.studio.generateTake(t.projectId, shot.id, "draft");
     t.mock.failNext(1, "billed"); // the video, after the frame
     await drain(t.studio, t.projectId);
@@ -257,7 +281,7 @@ describe("crash safety", () => {
 
   it("a video job is never started twice for one take", async () => {
     const t = await storyboarded();
-    const shot = (await t.store.get(t.projectId)).episodes[0]!.scenes[0]!.shots[0]!;
+    const shot = (await t.store.get(t.projectId)).episodes[0]!.scenes[0]!.shots[1]!;
     const take = await t.studio.generateTake(t.projectId, shot.id, "draft");
     await t.studio.tick(t.projectId);
     // Run the frame's completion again, as after a crash.

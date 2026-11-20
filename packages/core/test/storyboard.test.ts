@@ -272,6 +272,12 @@ describe("storyboard", () => {
     const base = { sceneScript: "x", heading: "h", cast: [], durations: [5] };
     expect(storyboardPrompt({ ...base, silentVideo: true }).prompt).toMatch(/nobody may be seen speaking/);
     expect(storyboardPrompt({ ...base, silentVideo: false }).prompt).not.toMatch(/nobody may be seen speaking/);
+    // Quick cuts: every cut is a new angle and size, on action, with each character kept to one side.
+    const cuts = storyboardPrompt({ ...base, cutting: "cuts" }).prompt;
+    expect(cuts).toMatch(/changes both the camera angle and the shot size/);
+    expect(cuts).toMatch(/Cut on action/);
+    expect(cuts).toMatch(/same side of the screen/);
+    expect(cuts).toMatch(/lists only who is visible/);
   });
 
   it("keeps described text in frames, and closes mouths under a voice-over", () => {

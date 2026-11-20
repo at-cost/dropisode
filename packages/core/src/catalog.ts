@@ -47,6 +47,8 @@ export const InputMap = z.object({
   durationFormat: z.enum(["number", "string", "string_s", "ms"]).default("number"),
   /** An audio file to process (voice isolation): its URL goes in this field. */
   media: z.string().optional(),
+  /** The shortest audio the endpoint accepts, in seconds: shorter media is padded with silence. */
+  minMediaS: z.number().optional(),
   aspect: z.string().optional(),
   /** Values to send for each aspect, when the endpoint doesn't take "9:16"/"16:9" (e.g. "portrait_16_9"). */
   aspectValues: z.record(z.string(), z.string()).optional(),
