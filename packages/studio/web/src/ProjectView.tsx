@@ -40,13 +40,25 @@ function priceSignature(p: Project): string {
   return JSON.stringify([
     p.models ?? {},
     p.idea.length,
-    p.cast.map((c) => [c.id, c.refImageIds.length, c.description.length]),
+    p.cast.map((c) => [c.id, c.refImageIds.join(","), c.description.length]),
     p.episodes.map((e) =>
       e.scenes.map((s) => [
         s.id,
         s.script.length,
         s.heading,
-        s.shots.map((sh) => [sh.id, sh.durationS, sh.audio, sh.castIds.length, sh.dialogue.map((l) => [l.text.length, !!l.ttsMediaId])]),
+        s.cutting,
+        s.start,
+        s.shots.map((sh) => [
+          sh.id,
+          sh.durationS,
+          sh.audio,
+          sh.castIds.join(","),
+          sh.dialogue.map((l) => [l.text.length, !!l.ttsMediaId]),
+          sh.beats?.length ?? 0,
+          !!sh.writtenPrompt?.trim(),
+          !!sh.promptStale,
+          sh.takes.map((t) => [t.id, t.review?.status]),
+        ]),
       ]),
     ),
   ]);

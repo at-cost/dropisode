@@ -53,7 +53,36 @@ export interface Take {
   inS?: number;
   /** Where the edit ends this clip, and where a shot that continues from it starts. */
   outS?: number;
+  /** The exact video prompt sent for this take. */
+  prompt?: string;
+  /** Made from the cast pictures (no first frame). */
+  byReference?: boolean;
+  /** What the check found against the plan. */
+  review?: TakeReview;
+  retakeOf?: string;
+  autoRetake?: boolean;
   createdAt: string;
+}
+
+export interface TakeReview {
+  status: "running" | "done" | "failed";
+  pass?: boolean;
+  problems: { atS: number | null; text: string }[];
+  fixedPrompt: string;
+  error?: string;
+}
+
+/** One shot inside a sequence (seconds into the clip). */
+export interface Beat {
+  startS: number;
+  endS: number;
+  size: string;
+  angle: string;
+  height: string;
+  lens: string;
+  movement: string;
+  action: string;
+  endState: string;
 }
 
 export interface Shot {
@@ -76,6 +105,16 @@ export interface Shot {
   joinIn?: "cut" | "dissolve";
   joinS?: number;
   move?: "none" | "push-in" | "pull-out";
+  /** A sequence: several shots with hard cuts inside one generation. */
+  beats?: Beat[];
+  logline?: string;
+  startState?: string;
+  sounds?: string[];
+  slowMotion?: boolean;
+  /** The video prompt, sent as it is. */
+  writtenPrompt?: string;
+  writtenFor?: string;
+  promptStale?: boolean;
 }
 
 export interface Scene {
@@ -87,8 +126,17 @@ export interface Scene {
   ambience?: SoundBed | null;
   /** Where everyone is in the scene and who is hidden from whom. */
   staging?: string;
-  /** Long chained takes, or quick vertical-drama cuts. */
-  cutting?: "continuous" | "cuts";
+  /** Long chained takes, quick vertical-drama cuts, or several shots per clip. */
+  cutting?: "continuous" | "cuts" | "sequences";
+  /** The world, fixed in every shot. */
+  plate?: string;
+  grade?: string;
+  castNotes?: { name: string; size: string; anatomy: string; acting: string; side: string }[];
+  counts?: { what: string; n: number }[];
+  whitelist?: string[];
+  /** Sequences start from the cast pictures, or from a made first frame. */
+  start?: "references" | "first-frame";
+  autoRetake?: boolean;
   /** Everyone in the place, lit by it: every shot's first frame is a new angle on it. */
   master?: SoundBed | null;
 }
@@ -195,7 +243,28 @@ export interface Estimates {
   castImage: number;
   script: number;
   storyboard: Record<string, number>;
-  shots: Record<string, { draft: number; final: number }>;
+  shots: Record<
+    string,
+    {
+      draft: number;
+      final: number;
+      /** Writing the sequence's prompt on its own. */
+      write?: number | null;
+      /** Checking one take. */
+      review?: number | null;
+      /** The most one automatic retake adds. */
+      autoRetake?: number;
+      /** "Retake with fix", per checked take. */
+      retakes?: Record<string, number>;
+    }
+  >;
+}
+
+export interface PromptPreview {
+  prompt: string;
+  source: "written" | "plan" | "template";
+  model: string;
+  references: string[];
 }
 
 export interface Wallet {

@@ -88,6 +88,17 @@ const Aspect = z.enum(["9:16", "16:9"]);
 const Tier = z.enum(["draft", "final"]);
 const CastKind = z.enum(["character", "location", "prop"]);
 const Line = z.object({ id: z.string().optional(), castId: z.string().nullable(), text: z.string().max(1000) });
+const BeatIn = z.object({
+  startS: z.number().min(0).max(30),
+  endS: z.number().min(0).max(30),
+  size: z.string().max(80).default(""),
+  angle: z.string().max(160).default(""),
+  height: z.string().max(160).default(""),
+  lens: z.string().max(80).default(""),
+  movement: z.string().max(160).default(""),
+  action: z.string().max(2000).default(""),
+  endState: z.string().max(600).default(""),
+});
 
 async function body<T extends z.ZodType>(c: Context, schema: T): Promise<z.infer<T>> {
   let json: unknown;
@@ -361,14 +372,49 @@ export function createStudioApi(resolve: ResolveContext): Hono {
     const seconds = Math.min(600, Math.max(5, Number(c.req.query("targetSeconds")) || 30));
     const script = ctx.price(s.estimateScript(p.idea || "x".repeat(200), seconds).providerCostMicro);
     const scenes: Record<string, number> = {};
-    const shots: Record<string, { draft: number; final: number; draftDetail: unknown; finalDetail: unknown }> = {};
+    const shots: Record<
+      string,
+      {
+        draft: number;
+        final: number;
+        draftDetail: unknown;
+        finalDetail: unknown;
+        /** Writing or rewriting the sequence's prompt on its own. */
+        write: number | null;
+        /** Checking one take on its own. */
+        review: number | null;
+        /** The most one automatic retake adds (a draft with the corrected prompt). */
+        autoRetake: number;
+        /** "Retake with fix", per checked take. */
+        retakes: Record<string, number>;
+      }
+    > = {};
     for (const ep of p.episodes) {
       for (const sc of ep.scenes) {
         scenes[sc.id] = ctx.price(s.estimateStoryboard(p, sc.id).providerCostMicro);
         for (const sh of sc.shots) {
           const d = s.estimateTake(p, sh.id, "draft");
           const f = s.estimateTake(p, sh.id, "final");
-          shots[sh.id] = { draft: ctx.price(d.providerCostMicro), final: ctx.price(f.providerCostMicro), draftDetail: d, finalDetail: f };
+          const review = s.estimateReview(p, sh.id);
+          const retakes: Record<string, number> = {};
+          for (const t of sh.takes)
+            if (t.review?.status === "done") retakes[t.id] = ctx.price(s.estimateRetake(p, sh.id, t.id).providerCostMicro);
+          shots[sh.id] = {
+            draft: ctx.price(d.providerCostMicro),
+            final: ctx.price(f.providerCostMicro),
+            draftDetail: d,
+            finalDetail: f,
+            write: sh.beats.length ? ctx.price(s.estimateWrite(p, sh.id).providerCostMicro) : null,
+            review: review ? ctx.price(review.providerCostMicro) : null,
+            // A retake runs at the tier of the take that failed: the dearer of the two is the most it can add.
+            autoRetake: ctx.price(
+              Math.max(
+                s.estimateTake(p, sh.id, "draft", {}, { skipWrite: true }).providerCostMicro,
+                s.estimateTake(p, sh.id, "final", {}, { skipWrite: true }).providerCostMicro,
+              ),
+            ),
+            retakes,
+          };
         }
       }
     }
@@ -485,13 +531,38 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         script: z.string().max(40_000).optional(),
         locationId: z.string().nullable().optional(),
         staging: z.string().max(3000).optional(),
-        cutting: z.enum(["continuous", "cuts"]).optional(),
+        cutting: z.enum(["continuous", "cuts", "sequences"]).optional(),
+        plate: z.string().max(3000).optional(),
+        grade: z.string().max(1000).optional(),
+        castNotes: z
+          .array(
+            z.object({
+              name: z.string().max(120),
+              size: z.string().max(200).default(""),
+              anatomy: z.string().max(1000).default(""),
+              acting: z.string().max(400).default(""),
+              side: z.string().max(60).default(""),
+            }),
+          )
+          .max(20)
+          .optional(),
+        counts: z
+          .array(z.object({ what: z.string().min(1).max(120), n: z.number().int().min(0).max(99) }))
+          .max(30)
+          .optional(),
+        whitelist: z.array(z.string().max(200)).max(40).optional(),
+        start: z.enum(["references", "first-frame"]).optional(),
+        autoRetake: z.boolean().optional(),
       }),
     );
     await mutate(c, ctx, (p) => {
       const { scene } = findScene(p, c.req.param("scid"));
       if (b.locationId) findCast(p, b.locationId);
       Object.assign(scene, b);
+      // The plan's counts and sides are put back into every written prompt; a change to its prose makes them out of date.
+      const prose = b.plate !== undefined || b.grade !== undefined || b.castNotes !== undefined;
+      if (prose || b.counts !== undefined || b.whitelist !== undefined || b.start !== undefined)
+        ctx.studio.refreshScenePrompts(p, scene.id, { prose });
     });
     return c.json(await view(ctx, await project(c, ctx)));
   });
@@ -604,9 +675,22 @@ export function createStudioApi(resolve: ResolveContext): Hono {
         joinIn: z.enum(["cut", "dissolve"]).optional(),
         joinS: z.number().min(0.2).max(2).optional(),
         move: z.enum(["none", "push-in", "pull-out"]).optional(),
+        beats: z.array(BeatIn).max(8).optional(),
+        logline: z.string().max(600).optional(),
+        startState: z.string().max(1000).optional(),
+        sounds: z.array(z.string().max(200)).max(20).optional(),
+        slowMotion: z.boolean().optional(),
+        writtenPrompt: z.string().max(12_000).optional(),
       }),
     );
-    await mutate(c, ctx, (p) => updateShot(p, c.req.param("sid"), b));
+    await mutate(c, ctx, (p) => {
+      updateShot(p, c.req.param("sid"), b);
+      // A sequence prompt edited by hand still ends with the scene plan's counts and constraints.
+      if (b.writtenPrompt?.trim()) {
+        const { scene } = findShot(p, c.req.param("sid"));
+        ctx.studio.refreshScenePrompts(p, scene.id, { prose: false, shotId: c.req.param("sid") });
+      }
+    });
     return c.json(await view(ctx, await project(c, ctx)));
   });
 
@@ -675,6 +759,51 @@ export function createStudioApi(resolve: ResolveContext): Hono {
     const take = await ctx.studio.generateTake(c.req.param("pid"), c.req.param("sid"), b.tier, {
       ...(b.image ? { image: b.image } : {}),
       ...(b.video ? { video: b.video } : {}),
+      ...(ctx.owner ? { owner: ctx.owner } : {}),
+    });
+    return c.json({ take, ...(await view(ctx, await project(c, ctx))) }, 202);
+  });
+
+  /** The exact video prompt the next take of this shot sends, and where it comes from. */
+  app.get("/projects/:pid/shots/:sid/prompt", async (c) => {
+    const ctx = await resolve(c);
+    const p = await project(c, ctx);
+    const sid = c.req.param("sid");
+    const { shot } = findShot(p, sid);
+    const tier = Tier.parse(c.req.query("tier") ?? "draft");
+    const video = ctx.studio.catalog.get(ctx.studio.modelsFor(p, tier).video);
+    return c.json({
+      prompt: ctx.studio.videoPromptFor(p, sid, video, tier),
+      source: shot.writtenPrompt.trim() ? "written" : shot.beats.length ? "plan" : "template",
+      model: video.id,
+      references: ctx.studio.referenceMembers(p, sid, video).map((r) => r.name),
+    });
+  });
+
+  /** Writes (or rewrites) a sequence's video prompt for its model. */
+  app.post("/projects/:pid/shots/:sid/write", async (c) => {
+    const ctx = await resolve(c);
+    await project(c, ctx);
+    await ctx.studio.writeShotPrompt(c.req.param("pid"), c.req.param("sid"), ctx.owner ? { owner: ctx.owner } : {});
+    return c.json(await view(ctx, await project(c, ctx)));
+  });
+
+  /** Checks a finished take against the plan (a vision model reads a sheet of its frames). */
+  app.post("/projects/:pid/shots/:sid/takes/:tid/review", async (c) => {
+    const ctx = await resolve(c);
+    await project(c, ctx);
+    await ctx.studio.reviewTake(c.req.param("pid"), c.req.param("sid"), c.req.param("tid"), {
+      again: true,
+      ...(ctx.owner ? { owner: ctx.owner } : {}),
+    });
+    return c.json(await view(ctx, await project(c, ctx)), 202);
+  });
+
+  /** A new take with the check's corrected prompt. */
+  app.post("/projects/:pid/shots/:sid/takes/:tid/retake", async (c) => {
+    const ctx = await resolve(c);
+    await project(c, ctx);
+    const take = await ctx.studio.retakeWithFix(c.req.param("pid"), c.req.param("sid"), c.req.param("tid"), {
       ...(ctx.owner ? { owner: ctx.owner } : {}),
     });
     return c.json({ take, ...(await view(ctx, await project(c, ctx))) }, 202);
@@ -798,6 +927,8 @@ function costLabel(p: Project, l: { purpose: string; shotId: string | null; cast
     parse: "Read into scenes",
     tts: "Voice line",
     assemble: "Episode",
+    write: "Video prompt",
+    review: "Take check",
   };
   return names[l.purpose] ?? l.purpose.replace(/_/g, " ");
 }

@@ -8,12 +8,25 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Catalog, type CatalogModel, type Estimate, billedDuration, estimate, roughTokens, supportsAspect } from "./catalog";
-import { EditError, addCast, addEpisode, addScene, addShot, castByName, findCast, findEpisode, findScene, findShot, newId } from "./edit";
+import {
+  EditError,
+  addCast,
+  addEpisode,
+  addScene,
+  addShot,
+  castByName,
+  findCast,
+  findEpisode,
+  findScene,
+  findShot,
+  newId,
+  sequenceSeconds,
+} from "./edit";
 import { FPS, takeOutS } from "./assemble";
 import { hasAudio, mediaDuration, runFfmpeg } from "./ffmpeg";
-import { analyseClip, frameAt } from "./motion";
+import { analyseClip, contactSheet, frameAt } from "./motion";
 import { JobRunner, plainJobError, type RunnerDeps } from "./jobs";
-import type { CastMember, MediaRef, Project, Scene, Shot, SoundBed, Take, Tier } from "./project";
+import type { Beat, CastMember, MediaRef, Project, Scene, Shot, SoundBed, Take, Tier } from "./project";
 import {
   type LlmPrompt,
   castExtractPrompt,
@@ -34,7 +47,23 @@ import {
   isWideShot,
   sceneMasterPrompt,
   parseStaging,
+  parseSequenceBoard,
+  sequenceDescription,
 } from "./prompts";
+import {
+  type SequenceContext,
+  beatCamera,
+  fitPrompt,
+  keepsStructure,
+  finishWrittenPrompt,
+  parseReview,
+  refreshConstraints,
+  referenceHeader,
+  reviewPrompt,
+  sequencePrompt,
+  withReferenceHeader,
+  writerPrompt,
+} from "./writer";
 import type { JobRecord, MediaInput } from "./providers/types";
 
 export type StudioDeps = RunnerDeps;
@@ -48,11 +77,20 @@ export interface TakeEstimate {
   endFrame: Estimate | null;
   video: Estimate;
   tts: Estimate[];
+  /** Writing the sequence's video prompt first, when it has none or it is out of date. */
+  write: Estimate | null;
+  /** The vision check of the finished clip, when it runs by itself (sequences). */
+  review: Estimate | null;
+  /** Made from the cast pictures as references: no first frame to pay for. */
+  byReference: boolean;
   /** Provider cost of the whole take. */
   providerCostMicro: number;
   durationS: number;
   audio: "native" | "tts" | "none";
 }
+
+/** A vision model reads a sheet of frames as about this many input tokens (measured: ~1,100 per picture). */
+const SHEET_TOKENS = 1500;
 
 export class Studio {
   readonly runner: JobRunner;
@@ -80,9 +118,80 @@ export class Studio {
     return { ...s, units: s.units + c.units, providerCostMicro: s.providerCostMicro + c.providerCostMicro };
   }
 
+  /**
+   * Storyboarding a scene: the plan itself and, for sequences, writing each sequence's prompt (about one per
+   * 10 seconds), plus the scene's master still when one will be made.
+   */
   estimateStoryboard(project: Project, sceneId: string): Estimate {
+    const { scene, episode } = findScene(project, sceneId);
+    const video = this.catalog.get(this.modelsFor(project, "final").video);
+    const target = sceneTargetSeconds(
+      scene.script,
+      episode.scenes.map((s) => s.script),
+    );
+    const board = this.llmEstimate(
+      storyboardPrompt({
+        sceneScript: scene.script,
+        heading: scene.heading,
+        cast: project.cast,
+        durations: video.durations,
+        targetSeconds: target,
+        cutting: scene.cutting,
+      }),
+    );
+    let micro = board.providerCostMicro;
+    let units = board.units;
+    if (scene.cutting === "sequences") {
+      const w = this.writeEstimateFor(project, sceneId, video);
+      const n = Math.max(1, Math.ceil(target / 10));
+      micro += w.providerCostMicro * n;
+      units += w.units * n;
+    }
+    if (this.makesMaster(scene, video))
+      micro += estimate(this.catalog.get(this.modelsFor(project, "draft").image), { images: 1 }).providerCostMicro;
+    return { ...board, units, providerCostMicro: micro };
+  }
+
+  /** Sequences that start from the cast pictures need no master still; everything else gets one. */
+  private makesMaster(scene: Scene, video: CatalogModel): boolean {
+    return !(scene.cutting === "sequences" && scene.start === "references" && video.reference);
+  }
+
+  /** What writing one sequence's prompt costs: the writer's prompt for a typical three-shot sequence. */
+  private writeEstimateFor(project: Project, sceneId: string, video: CatalogModel, shot?: Shot): Estimate {
     const { scene } = findScene(project, sceneId);
-    return this.llmEstimate(storyboardPrompt({ sceneScript: scene.script, heading: scene.heading, cast: project.cast, durations: [] }));
+    const beat = (a: number, b: number): Beat => ({
+      startS: a,
+      endS: b,
+      size: "MS",
+      angle: "low three-quarter",
+      height: "at ground level",
+      lens: "35mm",
+      movement: "handheld",
+      action: "x".repeat(320),
+      endState: "x".repeat(90),
+    });
+    const sample: Shot =
+      shot ??
+      ({
+        ...(scene.shots[0] ?? ({} as Shot)),
+        id: "estimate",
+        description: "",
+        camera: "",
+        castIds: project.cast.slice(0, 3).map((c) => c.id),
+        dialogue: [],
+        durationS: 10,
+        beats: [beat(0, 3), beat(3, 7), beat(7, 10)],
+        logline: "x".repeat(150),
+        startState: "x".repeat(150),
+        sounds: ["x".repeat(30), "x".repeat(30), "x".repeat(30), "x".repeat(30)],
+        slowMotion: false,
+        writtenPrompt: "",
+        writtenFor: "",
+        promptStale: false,
+      } as Shot);
+    const ctx = this.contextFor(project, scene, sample, video, []);
+    return this.llmEstimate(writerPrompt(ctx, video));
   }
 
   estimateCastImage(modelId = this.catalog.config.defaults.castImage): Estimate {
@@ -102,8 +211,14 @@ export class Studio {
   }
 
   /** The exact price shown on a shot's generate button. */
-  estimateTake(project: Project, shotId: string, tier: Tier, models: { image?: string; video?: string } = {}): TakeEstimate {
-    const { shot } = findShot(project, shotId);
+  estimateTake(
+    project: Project,
+    shotId: string,
+    tier: Tier,
+    models: { image?: string; video?: string } = {},
+    o: { skipWrite?: boolean } = {},
+  ): TakeEstimate {
+    const { shot, scene } = findShot(project, shotId);
     const d = this.modelsFor(project, tier);
     const image = this.catalog.get(models.image ?? d.image);
     const video = this.catalog.get(models.video ?? d.video);
@@ -111,10 +226,15 @@ export class Studio {
       tier === "draft" && !this.catalog.config.defaults.draftAudio ? "none" : this.audioPlan(shot.audio, video, shot.dialogue.length > 0);
     // A continued shot takes its first frame from the previous clip: no image to pay for.
     // So does a scene's opening wide shot, which starts on the scene's master still.
+    const byReference = this.referenceMembers(project, shotId, video).length > 0;
     const frame =
-      continuesFrom(project, shotId) || opensOnMaster(project, shotId) ? estimate(image, { images: 0 }) : estimate(image, { images: 1 });
+      byReference || continuesFrom(project, shotId) || opensOnMaster(project, shotId)
+        ? estimate(image, { images: 0 })
+        : estimate(image, { images: 1 });
     const vid = estimate(video, { durationS: shot.durationS, audio: this.clipAudio(audio, video, tier) });
-    const endFrame = wantsEndFrame(shot, video) ? estimate(image, { images: 1 }) : null;
+    const endFrame = !byReference && wantsEndFrame(shot, video) ? estimate(image, { images: 1 }) : null;
+    const write = !o.skipWrite && needsWrite(shot) ? this.writeEstimateFor(project, scene.id, video, shot) : null;
+    const review = shot.beats.length ? this.estimateReview(project, shotId) : null;
     const tts =
       audio === "tts"
         ? shot.dialogue
@@ -129,14 +249,166 @@ export class Studio {
       endFrame,
       video: vid,
       tts,
+      write,
+      review,
+      byReference,
       providerCostMicro:
         frame.providerCostMicro +
         (endFrame?.providerCostMicro ?? 0) +
         vid.providerCostMicro +
-        tts.reduce((a, e) => a + e.providerCostMicro, 0),
+        tts.reduce((a, e) => a + e.providerCostMicro, 0) +
+        (write?.providerCostMicro ?? 0) +
+        (review?.providerCostMicro ?? 0),
       durationS: billedDuration(video, shot.durationS),
       audio,
     };
+  }
+
+  /** Writing (or rewriting) one sequence's prompt. */
+  estimateWrite(project: Project, shotId: string): Estimate {
+    const { shot, scene } = findShot(project, shotId);
+    return this.writeEstimateFor(project, scene.id, this.catalog.get(this.modelsFor(project, "final").video), shot);
+  }
+
+  /** One vision check of a finished take (null when no checking model is set). */
+  estimateReview(project: Project, shotId: string): Estimate | null {
+    const id = this.catalog.config.defaults.review;
+    if (!id) return null;
+    const { shot, scene } = findShot(project, shotId);
+    const video = this.catalog.get(this.modelsFor(project, "final").video);
+    const ctx = this.contextFor(project, scene, shot, video, []);
+    const sent = shot.writtenPrompt || "x".repeat(4000);
+    const p = reviewPrompt({
+      ctx,
+      sentPrompt: sent,
+      sheet: { times: Array.from({ length: 16 }, (_, i) => i), cols: 4, rows: 4 },
+      clipS: 16,
+    });
+    return estimate(this.catalog.get(id), { inputTokens: roughTokens(p.system + p.prompt) + SHEET_TOKENS, outputTokens: p.maxTokens });
+  }
+
+  /** "Retake with fix": the same tier again with the corrected prompt (nothing to write first). */
+  estimateRetake(project: Project, shotId: string, takeId: string): TakeEstimate {
+    const { shot } = findShot(project, shotId);
+    const take = shot.takes.find((t) => t.id === takeId);
+    if (!take) throw new EditError("No such take", "not_found");
+    return this.estimateTake(
+      project,
+      shotId,
+      take.tier,
+      { image: take.imageModel, video: take.videoModel },
+      { skipWrite: !!take.review?.fixedPrompt.trim() },
+    );
+  }
+
+  // Sequences: the plan, the written prompt, the cast pictures as references
+
+  /** Everything the writer and the check need to know about one shot. */
+  private contextFor(project: Project, scene: Scene, shot: Shot, video: CatalogModel, references: string[]): SequenceContext {
+    const cast = shot.castIds.map((id) => project.cast.find((c) => c.id === id)).filter((c): c is CastMember => !!c);
+    const location = scene.locationId ? project.cast.find((c) => c.id === scene.locationId) : undefined;
+    return {
+      shot,
+      scene,
+      cast,
+      location,
+      aspect: project.aspect,
+      nativeAudio: video.nativeAudio && shot.audio !== "none",
+      references,
+      ...(video.reference ? { imageToken: video.reference.imageToken } : {}),
+    };
+  }
+
+  /**
+   * The cast pictures a sequence sends as references, in order: characters, then props, then the place.
+   * Empty when the shot starts from a first frame instead (an ordinary shot, a continued one, a model without
+   * a reference endpoint, the scene set to first frames, or nobody has a picture).
+   */
+  referenceMembers(project: Project, shotId: string, video: CatalogModel): { member: CastMember; name: string; media: MediaRef }[] {
+    const { shot, scene } = findShot(project, shotId);
+    if (!shot.beats.length || scene.start !== "references" || !video.reference || continuesFrom(project, shotId)) return [];
+    const order = { character: 0, prop: 1, location: 2 } as const;
+    const ids = [...new Set([...shot.castIds, ...(scene.locationId ? [scene.locationId] : [])])];
+    const out: { member: CastMember; name: string; media: MediaRef }[] = [];
+    for (const m of ids
+      .map((id) => project.cast.find((c) => c.id === id))
+      .filter((c): c is CastMember => !!c)
+      .sort((a, b) => order[a.kind] - order[b.kind])) {
+      const media = m.refImageIds.map((id) => project.media.find((x) => x.id === id)).find((x) => x && !x.hidden);
+      if (!media) continue;
+      const name = m.kind === "location" ? `the place (${m.name})` : m.name.trim().toUpperCase();
+      out.push({ member: m, name, media });
+    }
+    // A picture of the place alone doesn't hold anyone's look: references only when a character or prop has one.
+    if (!out.some((x) => x.member.kind !== "location")) return [];
+    return out.slice(0, video.reference.maxImages);
+  }
+
+  /**
+   * The exact video prompt a take of this shot sends: its written prompt (with the reference line matching
+   * the pictures sent), else a sequence's plan, else the template for an ordinary shot.
+   */
+  videoPromptFor(project: Project, shotId: string, video: CatalogModel, tier: Tier, endPicture?: string): string {
+    const { shot, scene } = findShot(project, shotId);
+    const refs = this.referenceMembers(project, shotId, video).map((r) => r.name);
+    const header = refs.length ? referenceHeader(refs, video.reference?.imageToken) : "";
+    if (shot.writtenPrompt.trim()) return withReferenceHeader(shot.writtenPrompt.trim(), header);
+    if (shot.beats.length) return sequencePrompt(this.contextFor(project, scene, shot, video, refs));
+    const cast = shot.castIds.map((id) => project.cast.find((c) => c.id === id)).filter((c): c is CastMember => !!c);
+    const plan = this.audioPlan(shot.audio, video, shot.dialogue.length > 0);
+    return videoPrompt({
+      shot: { ...shot, endPicture: endPicture ?? shot.endPicture },
+      cast,
+      nativeAudio: this.clipAudio(plan, video, tier),
+      speak: plan === "native",
+      counts: scene.counts,
+    });
+  }
+
+  /**
+   * After the scene's plan changes: counts, whitelist and sides are code, so every written prompt in the scene
+   * gets them put back at once; a change to the world, grade or characters' notes makes the prompts out of date.
+   * Runs inside a project mutation.
+   */
+  refreshScenePrompts(project: Project, sceneId: string, o: { prose: boolean; shotId?: string }): void {
+    const { scene } = findScene(project, sceneId);
+    const video = this.catalog.get(this.modelsFor(project, "final").video);
+    for (const sh of scene.shots) {
+      if (!sh.beats.length || !sh.writtenPrompt.trim() || (o.shotId && sh.id !== o.shotId)) continue;
+      const refs = this.referenceMembers(project, sh.id, video).map((r) => r.name);
+      sh.writtenPrompt = fitPrompt(refreshConstraints(sh.writtenPrompt, this.contextFor(project, scene, sh, video, refs)));
+      if (o.prose) sh.promptStale = true;
+    }
+  }
+
+  /**
+   * Writes a sequence's final video prompt for its video model (an LLM step with its own cost line), with the
+   * counts and constraints added in code. Falls back to the plan's own prompt if the answer loses its shape.
+   */
+  async writeShotPrompt(projectId: string, shotId: string, p: { owner?: Record<string, string> } = {}): Promise<string> {
+    const project = await this.projects.get(projectId);
+    const { shot, scene, episode } = findShot(project, shotId);
+    if (!shot.beats.length) throw new EditError("Only a sequence (a shot with several shots inside it) has a prompt to write");
+    const video = this.catalog.get(this.modelsFor(project, "final").video);
+    const refs = this.referenceMembers(project, shotId, video).map((r) => r.name);
+    const ctx = this.contextFor(project, scene, shot, video, refs);
+    const plan = planPrint(shot);
+    const { text } = await this.llm(
+      projectId,
+      "write",
+      writerPrompt(ctx, video),
+      { episodeId: episode.id, sceneId: scene.id, shotId },
+      p.owner,
+    );
+    const prompt = fitPrompt(finishWrittenPrompt(text, ctx).prompt);
+    await this.projects.mutate(projectId, (proj) => {
+      const s = findShot(proj, shotId).shot;
+      s.writtenPrompt = prompt;
+      s.writtenFor = video.id;
+      // Edited while the prompt was being written: it stays out of date.
+      s.promptStale = planPrint(s) !== plan;
+    });
+    return prompt;
   }
 
   /** Whether the video model makes sound: its own voices, or room sound under voice-over lines. */
@@ -279,6 +551,7 @@ export class Studio {
       { episodeId: episode.id, sceneId },
       p.owner,
     );
+    if (scene.cutting === "sequences") return this.applySequenceBoard(projectId, sceneId, answer, video, p.owner);
     const shots = parseStoryboard(answer);
     const staging = parseStaging(answer);
     const speakers = scriptSpeakers(scene.script);
@@ -319,6 +592,73 @@ export class Studio {
     // A fresh master still for the new staging; shots drafted meanwhile wait for it.
     await this.makeSceneMaster(projectId, sceneId, p.owner).catch(() => {});
     return n;
+  }
+
+  /** A sequences storyboard: the scene's plan, one shot per sequence with its beats, then each sequence's prompt written. */
+  private async applySequenceBoard(
+    projectId: string,
+    sceneId: string,
+    answer: string,
+    video: CatalogModel,
+    owner?: Record<string, string>,
+  ): Promise<number> {
+    const plan = parseSequenceBoard(answer);
+    const project = await this.projects.get(projectId);
+    const speakers = scriptSpeakers(findScene(project, sceneId).scene.script);
+    const maxS = video.durations.length ? Math.max(...video.durations) : 30;
+    const ids = await this.projects.mutate(projectId, (proj) => {
+      const { scene: sc } = findScene(proj, sceneId);
+      assertNothingRunning(sc.shots);
+      sc.shots = [];
+      sc.staging = plan.staging;
+      sc.plate = plan.plate;
+      sc.grade = plan.grade;
+      sc.castNotes = plan.castNotes;
+      sc.counts = plan.counts;
+      sc.whitelist = plan.whitelist;
+      sc.master = null;
+      for (const q of plan.sequences) {
+        const beats = fitBeats(q.beats, video, maxS);
+        const castIds = q.cast.map((n) => castByName(proj, n)?.id).filter((x): x is string => !!x);
+        if (sc.locationId && !castIds.includes(sc.locationId)) castIds.push(sc.locationId);
+        addShot(sc, {
+          description: sequenceDescription({ logline: q.logline, beats }),
+          camera: beats[0] ? beatCamera(beats[0]).slice(0, 500) : "",
+          castIds,
+          dialogue: q.dialogue.map((d) => {
+            const who = scriptSpeakerFor(speakers, d.text) ?? d.speaker;
+            return { castId: who ? (castByName(proj, who)?.id ?? null) : null, text: d.text };
+          }),
+          durationS: sequenceSeconds(beats),
+          audio: "native",
+          beats,
+          logline: q.logline,
+          startState: q.start,
+          sounds: q.sounds,
+          slowMotion: q.slowMotion,
+        });
+      }
+      return sc.shots.map((x) => x.id);
+    });
+    // Each sequence's prompt, written for the video model (in parallel). One that fails keeps the plan's own prompt.
+    await Promise.all(
+      ids.map((id) =>
+        this.writeShotPrompt(projectId, id, owner ? { owner } : {}).catch(async () => {
+          const proj = await this.projects.get(projectId);
+          const prompt = this.videoPromptFor(proj, id, video, "final");
+          await this.projects.mutate(projectId, (x) => {
+            const sh = findShot(x, id).shot;
+            if (!sh.writtenPrompt) {
+              sh.writtenPrompt = prompt;
+              sh.writtenFor = video.id;
+            }
+          });
+        }),
+      ),
+    );
+    const after = await this.projects.get(projectId);
+    if (this.makesMaster(findScene(after, sceneId).scene, video)) await this.makeSceneMaster(projectId, sceneId, owner).catch(() => {});
+    return ids.length;
   }
 
   // Cast images
@@ -376,12 +716,22 @@ export class Studio {
     projectId: string,
     shotId: string,
     tier: Tier,
-    p: { image?: string; video?: string; owner?: Record<string, string> } = {},
+    p: { image?: string; video?: string; owner?: Record<string, string>; retakeOf?: string; autoRetake?: boolean } = {},
   ): Promise<Take> {
-    const project = await this.projects.get(projectId);
-    const { shot, episode, scene } = findShot(project, shotId);
-    if (tier === "final" && !shot.approved) throw new EditError("Approve this shot before sending it to final", "not_approved");
-    const est = this.estimateTake(project, shotId, tier, p);
+    let project = await this.projects.get(projectId);
+    const first = findShot(project, shotId);
+    if (tier === "final" && !first.shot.approved) throw new EditError("Approve this shot before sending it to final", "not_approved");
+    // A sequence with no prompt yet, or one out of date: write it first (priced in the take's estimate).
+    if (needsWrite(first.shot)) {
+      await this.writeShotPrompt(projectId, shotId, p.owner ? { owner: p.owner } : {});
+      project = await this.projects.get(projectId);
+    }
+    const { shot, scene } = findShot(project, shotId);
+    if (!shot.beats.length && shot.writtenPrompt.trim() && shot.promptStale)
+      throw new EditError(
+        "This shot changed after its own prompt was set. Keep the prompt as it is, or go back to the prompt made from the direction.",
+      );
+    const est = this.estimateTake(project, shotId, tier, p, { skipWrite: true });
     const image = this.catalog.get(est.imageModel);
     const video = this.catalog.get(est.videoModel);
     if (image.kind !== "image") throw new EditError(`${image.label} is not an image model`);
@@ -395,9 +745,21 @@ export class Studio {
       videoModel: video.id,
       status: "queued",
       // Fixed now, with the price: editing the shot later doesn't add or drop a paid picture mid-take.
-      ...(wantsEndFrame(shot, video) ? { endPicture: shot.endPicture.trim() } : {}),
+      ...(!est.byReference && wantsEndFrame(shot, video) ? { endPicture: shot.endPicture.trim() } : {}),
+      ...(est.byReference ? { byReference: true } : {}),
+      ...(p.retakeOf ? { retakeOf: p.retakeOf } : {}),
+      ...(p.autoRetake ? { autoRetake: true } : {}),
       createdAt: new Date().toISOString(),
     };
+    // From the cast pictures: no first frame, straight to the video.
+    if (est.byReference) {
+      await this.projects.mutate(projectId, (proj) => {
+        findShot(proj, shotId).shot.takes.push({ ...take, status: "running" });
+      });
+      if (est.audio === "tts") await this.generateMissingTts(projectId, shotId, p.owner).catch(() => {});
+      await this.startVideo(projectId, shotId, take.id, p.owner);
+      return { ...take, status: "running" };
+    }
     const prev = continuesFrom(project, shotId);
     const source = prev ? chainSource(prev, tier) : undefined;
     // No clip to start from yet: wait for one of the same tier that's on its way, else ask for it.
@@ -507,12 +869,14 @@ export class Studio {
         refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId: take.id },
         input: {
           prompt: framePrompt({
-            shot,
+            shot: firstMoment(shot),
             cast,
             location,
             aspect: project.aspect,
             fromMaster,
             staging: scene.staging,
+            opening: findShot(project, shotId).index === 0 && !shot.continueFromPrevious,
+            counts: scene.counts,
             voiceOver: shot.dialogue.length > 0 && this.audioPlan(shot.audio, this.catalog.get(take.videoModel), true) !== "native",
           }),
           aspect: project.aspect,
@@ -903,8 +1267,8 @@ export class Studio {
     const project = await this.projects.get(projectId);
     const { shot, episode, scene } = findShot(project, shotId);
     const take = shot.takes.find((t) => t.id === takeId);
-    if (!take || !take.frameMediaId || take.videoJobId || take.status !== "running") return;
-    const frame = project.media.find((m) => m.id === take.frameMediaId)!;
+    if (!take || (!take.frameMediaId && !take.byReference) || take.videoJobId || take.status !== "running") return;
+    const frame = take.frameMediaId ? project.media.find((m) => m.id === take.frameMediaId) : undefined;
     const video = this.catalog.get(take.videoModel);
     // A shot with a target picture: make it from this take's own first frame first, then the video.
     if (take.endPicture && video.input.endImage && !take.endFrameMediaId) {
@@ -912,10 +1276,24 @@ export class Studio {
       return;
     }
     const endRef = take.endFrameMediaId ? project.media.find((m) => m.id === take.endFrameMediaId) : undefined;
-    const cast = shot.castIds.map((id) => project.cast.find((c) => c.id === id)).filter((c): c is CastMember => !!c);
     const plan = this.audioPlan(shot.audio, video, shot.dialogue.length > 0);
     const audio = this.clipAudio(plan, video, take.tier);
     const durationS = billedDuration(video, shot.durationS);
+    const refs = take.byReference ? this.referenceMembers(project, shotId, video) : [];
+    if (take.byReference && !refs.length) {
+      await this.projects.mutate(projectId, (proj) => {
+        const t = findShot(proj, shotId).shot.takes.find((x) => x.id === takeId);
+        if (t) {
+          t.status = "failed";
+          t.error = "The cast pictures this take was to start from are gone. Make the take again.";
+        }
+      });
+      return;
+    }
+    // A take from pictures sends exactly those; a take from a first frame sends no reference line.
+    const prompt = take.byReference
+      ? this.videoPromptFor(project, shotId, video, take.tier)
+      : withReferenceHeader(this.videoPromptFor(project, shotId, video, take.tier, take.endPicture ?? ""), "");
     try {
       const job = await this.runner.start({
         id: `job_v_${take.id}`,
@@ -926,12 +1304,28 @@ export class Studio {
         tier: take.tier,
         refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId },
         input: {
-          prompt: videoPrompt({ shot: { ...shot, endPicture: take.endPicture ?? "" }, cast, nativeAudio: audio, speak: plan === "native" }),
-          image: {
-            bytes: await this.deps.media.read(projectId, frame),
-            contentType: frame.contentType,
-            name: frame.path.split("/").pop()!,
-          },
+          prompt,
+          ...(frame
+            ? {
+                image: {
+                  bytes: await this.deps.media.read(projectId, frame),
+                  contentType: frame.contentType,
+                  name: frame.path.split("/").pop()!,
+                },
+              }
+            : {}),
+          ...(refs.length
+            ? {
+                images: await Promise.all(
+                  refs.map(async (r) => ({
+                    bytes: await this.deps.media.read(projectId, r.media),
+                    contentType: r.media.contentType,
+                    name: `${r.member.name}.${r.media.path.split(".").pop()}`,
+                    origin: r.media.source === "upload" ? ("upload" as const) : ("generated" as const),
+                  })),
+                ),
+              }
+            : {}),
           ...(endRef
             ? {
                 endImage: {
@@ -950,7 +1344,10 @@ export class Studio {
       });
       await this.projects.mutate(projectId, (proj) => {
         const t = findShot(proj, shotId).shot.takes.find((x) => x.id === takeId);
-        if (t) t.videoJobId = job.id;
+        if (t) {
+          t.videoJobId = job.id;
+          t.prompt = prompt.slice(0, 16_000);
+        }
       });
     } catch (err) {
       await this.projects.mutate(projectId, (proj) => {
@@ -958,6 +1355,7 @@ export class Studio {
         if (t) {
           t.status = "failed";
           t.error = (err as Error).message;
+          t.prompt = prompt.slice(0, 16_000);
         }
       });
       await this.failWaiting(projectId, shotId, take.tier);
@@ -1067,7 +1465,11 @@ export class Studio {
     }
     const ref = take?.videoMediaId ? project.media.find((m) => m.id === take!.videoMediaId) : undefined;
     if (!take || !ref || take.analysis) return;
-    const shotLen = findShot(project, job.refs.shotId!).shot.durationS;
+    const shotNow = findShot(project, job.refs.shotId!).shot;
+    const shotLen = shotNow.durationS;
+    // A sequence cuts on purpose: a jump at one of its own cuts is the plan, not a fault.
+    const cuts = shotNow.beats.slice(1).map((b) => b.startS);
+    const planned = (t: number) => cuts.some((c) => Math.abs(c - t) <= 0.35);
     // If the clip can't be measured, record that it wasn't, so the take can still be used and chained.
     const m = await analyseClip(await this.deps.media.read(job.projectId, ref)).catch(() => ({
       durationS: shotLen,
@@ -1082,14 +1484,30 @@ export class Studio {
       t.analysis = {
         durationS: m.durationS,
         motion: m.motion,
-        jumps: m.jumps,
+        jumps: m.jumps.filter((j) => !planned(j)),
         suggestedOutS: m.suggestedOutS,
         ...(m.stallFromS !== undefined ? { stallFromS: m.stallFromS } : {}),
         ...("suggestedInS" in m && m.suggestedInS !== undefined ? { suggestedInS: m.suggestedInS } : {}),
       };
-      if (t.outS === undefined && m.suggestedOutS < m.durationS) t.outS = m.suggestedOutS;
+      // A sequence's last shot may be still on purpose (a held reaction): never trimmed by itself.
+      if (t.outS === undefined && m.suggestedOutS < m.durationS && !shotNow.beats.length) t.outS = m.suggestedOutS;
       delete t.measuring;
     });
+  }
+
+  /** Sequences are checked when their take lands; ordinary shots only when asked. */
+  private async autoReview(job: JobRecord): Promise<void> {
+    if (!this.catalog.config.defaults.review) return;
+    const project = await this.projects.get(job.projectId);
+    let shot: Shot;
+    try {
+      shot = findShot(project, job.refs.shotId!).shot;
+    } catch {
+      return;
+    }
+    const take = shot.takes.find((t) => t.id === job.refs.takeId);
+    if (!shot.beats.length || !take || take.review || take.status !== "done") return;
+    await this.reviewTake(job.projectId, shot.id, take.id, job.owner ? { owner: job.owner } : {});
   }
 
   /** Text-to-speech for one line (the fallback when the video model has no native audio). */
@@ -1121,6 +1539,183 @@ export class Studio {
     const project = await this.projects.get(projectId);
     const { shot } = findShot(project, shotId);
     for (const l of shot.dialogue) if (l.text.trim() && !l.ttsMediaId) await this.generateTts(projectId, shotId, l.id, owner);
+  }
+
+  // Checking takes against the plan
+
+  /**
+   * Checks a finished take: a contact sheet of its frames and the plan go to a vision model, which answers
+   * pass or fail, the problems with their times, and a corrected prompt. Logged like every other job.
+   */
+  async reviewTake(
+    projectId: string,
+    shotId: string,
+    takeId: string,
+    p: { owner?: Record<string, string>; again?: boolean } = {},
+  ): Promise<void> {
+    const modelId = this.catalog.config.defaults.review;
+    if (!modelId) throw new EditError("No model is set up to check takes");
+    const project = await this.projects.get(projectId);
+    const { shot, scene, episode } = findShot(project, shotId);
+    const take = shot.takes.find((t) => t.id === takeId);
+    if (!take) throw new EditError("No such take", "not_found");
+    if (take.status !== "done" || !take.videoMediaId) throw new EditError("Only a finished take can be checked");
+    // A check already on its way is left alone; one marked running with no live job (the app stopped) is redone.
+    if (take.review?.status === "running") {
+      const job = take.review.jobId ? await this.deps.jobs.get(take.review.jobId) : undefined;
+      if (job && !(job.state === "blocked" || ((job.state === "done" || job.state === "failed") && job.applied))) return;
+    }
+    const clipRef = project.media.find((m) => m.id === take.videoMediaId);
+    if (!clipRef) throw new EditError("This take's clip is missing");
+    // One automatic check per take; asking again is a new, separately priced job.
+    const jobId = p.again || take.review ? newId("job") : `job_r_${take.id}`;
+    const before = take.review?.jobId;
+    // Claimed before any slow work, so two presses can never start two paid checks.
+    const claimed = await this.projects.mutate(projectId, (proj) => {
+      const t = findShot(proj, shotId).shot.takes.find((x) => x.id === takeId);
+      if (!t || t.review?.jobId !== before) return false;
+      t.review = { status: "running", jobId, problems: [], fixedPrompt: "" };
+      return true;
+    });
+    if (!claimed) return;
+    const video = this.catalog.get(take.videoModel);
+    let sheet: Awaited<ReturnType<typeof contactSheet>>;
+    try {
+      sheet = await contactSheet(await this.deps.media.read(projectId, clipRef));
+    } catch (err) {
+      await this.projects.mutate(projectId, (proj) => {
+        const t = findShot(proj, shotId).shot.takes.find((x) => x.id === takeId);
+        if (t?.review?.jobId === jobId) {
+          t.review.status = "failed";
+          t.review.error = `The clip's frames couldn't be read. Nothing was charged.`;
+        }
+      });
+      throw err;
+    }
+    const refs = take.byReference ? this.referenceMembers(project, shotId, video).map((r) => r.name) : [];
+    const ctx = this.contextFor(project, scene, shot, video, refs);
+    const prompt = reviewPrompt({
+      ctx,
+      sentPrompt: take.prompt ?? this.videoPromptFor(project, shotId, video, take.tier),
+      sheet,
+      clipS: sheet.durationS,
+    });
+    try {
+      await this.runner.start({
+        id: jobId,
+        projectId,
+        kind: "llm",
+        purpose: "review",
+        modelId,
+        tier: take.tier,
+        refs: { episodeId: episode.id, sceneId: scene.id, shotId, takeId },
+        input: {
+          prompt: prompt.prompt,
+          system: prompt.system,
+          maxTokens: prompt.maxTokens,
+          images: [{ bytes: sheet.bytes, contentType: "image/jpeg", name: "contact-sheet.jpg", origin: "generated" }],
+        },
+        estimateInput: { inputTokens: roughTokens(prompt.system + prompt.prompt) + SHEET_TOKENS, outputTokens: prompt.maxTokens },
+        ...(p.owner ? { owner: p.owner } : {}),
+      });
+    } catch (err) {
+      await this.projects.mutate(projectId, (proj) => {
+        const t = findShot(proj, shotId).shot.takes.find((x) => x.id === takeId);
+        if (t?.review?.jobId === jobId) {
+          t.review.status = "failed";
+          t.review.error = plainJobError((err as Error).message, true).slice(0, 500);
+        }
+      });
+      throw err;
+    }
+  }
+
+  /**
+   * A new take of the same tier with the check's corrected prompt (the counts and constraints put back in code).
+   * The shot's prompt becomes the corrected one, so the creator sees exactly what is sent.
+   */
+  async retakeWithFix(
+    projectId: string,
+    shotId: string,
+    takeId: string,
+    p: { owner?: Record<string, string>; auto?: boolean } = {},
+  ): Promise<Take> {
+    const project = await this.projects.get(projectId);
+    const { shot, scene } = findShot(project, shotId);
+    const take = shot.takes.find((t) => t.id === takeId);
+    if (!take) throw new EditError("No such take", "not_found");
+    if (take.review?.status !== "done") throw new EditError("Check this take first");
+    if (take.tier === "final" && !shot.approved) throw new EditError("Approve this shot before sending it to final", "not_approved");
+    const fixed = take.review.fixedPrompt.trim();
+    // A correction that lost the sequence's timecodes or cuts is not used: the retake keeps the shot's prompt.
+    if (fixed && (!shot.beats.length || keepsStructure(fixed, shot))) {
+      const video = this.catalog.get(take.videoModel);
+      const refs = this.referenceMembers(project, shotId, video).map((r) => r.name);
+      const prompt = shot.beats.length ? refreshConstraints(fixed, this.contextFor(project, scene, shot, video, refs)) : fixed;
+      // Set directly, not as an edit: a retake of an approved shot stays approved.
+      await this.projects.mutate(projectId, (proj) => {
+        const s = findShot(proj, shotId).shot;
+        s.writtenPrompt = fitPrompt(prompt);
+        s.writtenFor = video.id;
+        s.promptStale = false;
+      });
+    }
+    return this.generateTake(projectId, shotId, take.tier, {
+      image: take.imageModel,
+      video: take.videoModel,
+      retakeOf: take.id,
+      ...(p.auto ? { autoRetake: true } : {}),
+      ...(p.owner ? { owner: p.owner } : {}),
+    });
+  }
+
+  /** After a check: one automatic retake per shot when the scene asks for it and the take failed. */
+  private async maybeAutoRetake(job: JobRecord): Promise<void> {
+    const project = await this.projects.get(job.projectId);
+    let shot: Shot;
+    let scene: Scene;
+    try {
+      ({ shot, scene } = findShot(project, job.refs.shotId!));
+    } catch {
+      return;
+    }
+    const take = shot.takes.find((t) => t.id === job.refs.takeId);
+    // Only the take's own automatic check can start it, never a check asked for again by hand.
+    if (!scene.autoRetake || !take || job.id !== `job_r_${take.id}` || take.review?.jobId !== job.id) return;
+    if (take.review.status !== "done" || take.review.pass !== false) return;
+    // Claimed in one save: at most one automatic retake per shot, however many checks finish together.
+    const claimed = await this.projects.mutate(job.projectId, (proj) => {
+      const sh = findShot(proj, shot.id).shot;
+      if (sh.takes.some((t) => t.autoRetake || t.autoRetakeStarted || t.status === "queued" || t.status === "running")) return false;
+      const t = sh.takes.find((x) => x.id === take.id);
+      if (!t) return false;
+      t.autoRetakeStarted = true;
+      return true;
+    });
+    if (!claimed) return;
+    await this.retakeWithFix(job.projectId, shot.id, take.id, { auto: true, ...(job.owner ? { owner: job.owner } : {}) });
+  }
+
+  /** A take made from pictures has no first frame: one from early in its clip stands in on the cards. */
+  private async thumbnailTake(job: JobRecord): Promise<void> {
+    const project = await this.projects.get(job.projectId);
+    let take: Take | undefined;
+    try {
+      take = findShot(project, job.refs.shotId!).shot.takes.find((t) => t.id === job.refs.takeId);
+    } catch {
+      return;
+    }
+    if (!take?.byReference || take.frameMediaId || !take.videoMediaId) return;
+    const clipRef = project.media.find((m) => m.id === take!.videoMediaId);
+    if (!clipRef) return;
+    const bytes = await frameAt(await this.deps.media.read(job.projectId, clipRef), 0.5, FPS);
+    const ref = await this.deps.media.put(job.projectId, { bytes, contentType: "image/jpeg", source: `thumb_${take.id}` });
+    await this.projects.mutate(job.projectId, (proj) => {
+      const t = findShot(proj, job.refs.shotId!).shot.takes.find((x) => x.id === job.refs.takeId);
+      if (!t || t.frameMediaId) return;
+      proj.media.push(ref);
+      t.frameMediaId = ref.id;
+    });
   }
 
   // Job results
@@ -1190,6 +1785,30 @@ export class Studio {
         if (job.state === "done") await this.ensureAnalysed(job);
         if (job.state === "done" || job.state === "failed") await this.releaseWaiting(job);
         if (job.state === "done") await this.isolateVoices(job).catch(() => {});
+        if (job.state === "done") await this.thumbnailTake(job).catch(() => {});
+        // A sequence is checked against its plan by itself (priced in its estimate).
+        if (job.state === "done") await this.autoReview(job).catch((err) => this.deps.log?.(`Checking ${job.id} failed`, err));
+      },
+    });
+    this.runner.on("review", {
+      apply: (project, job, r) => {
+        const t = takeOf(project, job);
+        if (!t?.review || t.review.jobId !== job.id) return;
+        try {
+          const v = parseReview(r.text ?? "");
+          t.review = { status: "done", jobId: job.id, pass: v.pass, problems: v.problems, fixedPrompt: v.fixedPrompt };
+        } catch (err) {
+          t.review = { status: "failed", jobId: job.id, problems: [], fixedPrompt: "", error: (err as Error).message.slice(0, 500) };
+        }
+      },
+      fail: (project, job, error) => {
+        const t = takeOf(project, job);
+        if (!t?.review || t.review.jobId !== job.id) return;
+        t.review.status = "failed";
+        t.review.error = plainJobError(error, job.providerBilled === false).slice(0, 500);
+      },
+      after: async (job) => {
+        if (job.state === "done") await this.maybeAutoRetake(job);
       },
     });
     this.runner.on("end_frame", {
@@ -1327,6 +1946,48 @@ const isMeasuring = (t: Take) => t.status === "done" && !!t.measuring;
 /** A shot ends on a target picture when it describes one and its video model can take one. */
 export function wantsEndFrame(shot: Shot, video: CatalogModel): boolean {
   return !!shot.endPicture?.trim() && !!video.input.endImage;
+}
+
+/** What a written prompt is made from, to tell whether the shot changed while it was being written. */
+const planPrint = (s: Shot) =>
+  JSON.stringify([
+    s.description,
+    s.camera,
+    s.castIds,
+    s.durationS,
+    s.dialogue.map((l) => l.text),
+    s.beats,
+    s.logline,
+    s.startState,
+    s.sounds,
+    s.slowMotion,
+  ]);
+
+/** A sequence takes its prompt from the writer: one is needed when it has none, or the plan changed since. */
+export function needsWrite(shot: Shot): boolean {
+  return shot.beats.length > 0 && (!shot.writtenPrompt.trim() || shot.promptStale);
+}
+
+/**
+ * A sequence's beats fitted to what the video model renders: squeezed when they run past its longest clip,
+ * and the last one stretched to the clip length it will bill, so the plan and the clip agree.
+ */
+export function fitBeats(beats: Beat[], video: CatalogModel, maxS: number): Beat[] {
+  if (!beats.length) return beats;
+  const total = sequenceSeconds(beats);
+  const k = total > maxS ? maxS / total : 1;
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  const out = beats.map((b) => ({ ...b, startS: r1(b.startS * k), endS: r1(b.endS * k) }));
+  const billed = billedDuration(video, sequenceSeconds(out));
+  if (billed > sequenceSeconds(out)) out[out.length - 1]!.endS = billed;
+  return out;
+}
+
+/** The first moment of a sequence, for its first frame: where everyone is and the first beat's camera. */
+function firstMoment(shot: Shot): Shot {
+  const b = shot.beats[0];
+  if (!b) return shot;
+  return { ...shot, description: [shot.startState, b.action].filter((x) => x.trim()).join(" "), camera: beatCamera(b) };
 }
 
 /** ElevenLabs sound effects top out at 22 s; the loop tiles it under a scene of any length. */

@@ -384,7 +384,8 @@
       },
       "output": {
         "url": "video.url"
-      }
+      },
+      "family": "seedance"
     },
     {
       "id": "seedance-2",
@@ -439,7 +440,8 @@
         "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
         "verifiedOn": "2026-10-30",
         "notes": "Benchmarked at 1080p; Dropisode's entry is 720p. Realistic faces reportedly blocked as inputs (unverified)."
-      }
+      },
+      "family": "seedance"
     },
     {
       "id": "seedance-2.5-480p",
@@ -509,6 +511,26 @@
         "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
         "verifiedOn": "2026-11-16",
         "notes": "1st on the board. In a side-by-side with MiniMax H3 (2026-11-18) it followed camera and acting directions more closely."
+      },
+      "family": "seedance",
+      "reference": {
+        "endpoint": "bytedance/seedance-2.5/reference-to-video",
+        "input": {
+          "prompt": "prompt",
+          "images": "image_urls",
+          "duration": "duration",
+          "durationFormat": "string",
+          "aspect": "aspect_ratio",
+          "audio": "generate_audio",
+          "extra": {
+            "resolution": "480p"
+          }
+        },
+        "maxImages": 9,
+        "imageToken": "@Image{n}",
+        "source": "https://fal.ai/models/bytedance/seedance-2.5/reference-to-video/api",
+        "verifiedOn": "2026-11-22",
+        "notes": "Same token price as image-to-video when only images and audio are sent (fal: 'Image and audio references are not billed'). Up to 30 images; the prompt names them @Image1, @Image2. Checked with one 4 s 480p call on 2026-11-22."
       }
     },
     {
@@ -580,6 +602,26 @@
         "source": "https://artificialanalysis.ai/video/leaderboard/image-to-video",
         "verifiedOn": "2026-11-16",
         "notes": "1st on the board. In a side-by-side with MiniMax H3 (2026-11-18) it followed camera and acting directions more closely."
+      },
+      "family": "seedance",
+      "reference": {
+        "endpoint": "bytedance/seedance-2.5/reference-to-video",
+        "input": {
+          "prompt": "prompt",
+          "images": "image_urls",
+          "duration": "duration",
+          "durationFormat": "string",
+          "aspect": "aspect_ratio",
+          "audio": "generate_audio",
+          "extra": {
+            "resolution": "720p"
+          }
+        },
+        "maxImages": 9,
+        "imageToken": "@Image{n}",
+        "source": "https://fal.ai/models/bytedance/seedance-2.5/reference-to-video/api",
+        "verifiedOn": "2026-11-22",
+        "notes": "Same token price as image-to-video when only images and audio are sent (fal: 'Image and audio references are not billed'). Up to 30 images; the prompt names them @Image1, @Image2. Checked with one 4 s 480p call on 2026-11-22."
       }
     },
     {
@@ -1047,6 +1089,42 @@
       }
     },
     {
+      "id": "gemini-3.8-flash-vision",
+      "kind": "llm",
+      "label": "Gemini 3.8 Flash (sees pictures)",
+      "provider": "fal",
+      "endpoint": "openrouter/router/vision",
+      "hidden": true,
+      "price": {
+        "unit": "tokens",
+        "inputUsdPer1M": 0.825,
+        "outputUsdPer1M": 4.125,
+        "source": "https://fal.ai/models/openrouter/router/vision/api",
+        "verifiedOn": "2026-11-22",
+        "status": "verified",
+        "notes": "OpenRouter token price through fal's openrouter/router/vision endpoint (image_urls in, usage.cost out). Each picture counts as about 1,000 input tokens: two pictures and a short question came to 2,226 input tokens and $0.0023 (checked 2026-11-22). Reasoning can't be switched off on this endpoint."
+      },
+      "input": {
+        "prompt": "prompt",
+        "system": "system_prompt",
+        "maxTokens": "max_tokens",
+        "extra": {
+          "model": "google/gemini-3.8-flash",
+          "temperature": 0.2,
+          "reasoning": true
+        },
+        "images": "image_urls"
+      },
+      "output": {
+        "url": "output",
+        "text": "output",
+        "inputTokens": "usage.prompt_tokens",
+        "outputTokens": "usage.completion_tokens",
+        "costUsd": "usage.cost"
+      },
+      "maxRefImages": 4
+    },
+    {
       "id": "gpt-5-mini",
       "kind": "llm",
       "label": "GPT-5 mini",
@@ -1235,11 +1313,11 @@
   "defaults": {
     "draft": {
       "image": "gpt-image-2.5",
-      "video": "minimax-h3"
+      "video": "seedance-2.5-720p"
     },
     "final": {
       "image": "gpt-image-2.5",
-      "video": "minimax-h3"
+      "video": "seedance-2.5-720p"
     },
     "castImage": "gpt-image-2.5",
     "tts": "minimax-speech-2.8-turbo",
@@ -1247,7 +1325,8 @@
     "draftAudio": true,
     "music": "elevenlabs-music",
     "ambience": "elevenlabs-sfx-v2",
-    "voiceIsolation": "elevenlabs-isolation"
+    "voiceIsolation": "elevenlabs-isolation",
+    "review": "gemini-3.8-flash-vision"
   },
   "services": {
     "r2_storage": {

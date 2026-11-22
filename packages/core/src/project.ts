@@ -61,6 +61,20 @@ export type AudioMode = z.infer<typeof AudioMode>;
 export const TakeStatus = z.enum(["queued", "running", "done", "failed"]);
 export type TakeStatus = z.infer<typeof TakeStatus>;
 
+/** What the vision check found in a finished take, against the plan. */
+export const TakeReview = z.object({
+  status: z.enum(["running", "done", "failed"]),
+  jobId: z.string().optional(),
+  /** true: the take matches the plan; false: it has problems worth a retake. */
+  pass: z.boolean().optional(),
+  /** Each problem, with where it shows (s into the clip) when known. */
+  problems: z.array(z.object({ atS: z.number().nonnegative().nullable().default(null), text: z.string().max(500) })).default([]),
+  /** The video prompt rewritten to avoid the problems. */
+  fixedPrompt: z.string().max(12_000).default(""),
+  error: z.string().max(500).optional(),
+});
+export type TakeReview = z.infer<typeof TakeReview>;
+
 /** One try at a shot: a first frame, then image-to-video. */
 export const Take = z.object({
   id: z.string(),
@@ -104,9 +118,45 @@ export const Take = z.object({
   outS: z.number().positive().optional(),
   /** The clip is in but not measured yet: nothing may continue from it until it is. (Takes from before measuring existed lack it and stay usable.) */
   measuring: z.boolean().optional(),
+  /** The exact video prompt sent for this take. */
+  prompt: z.string().max(16_000).optional(),
+  /** Made from the cast pictures as references (no first frame). */
+  byReference: z.boolean().optional(),
+  /** The vision check of the finished clip against the plan. */
+  review: TakeReview.optional(),
+  /** A retake started from another take's review (the id of that take). */
+  retakeOf: z.string().optional(),
+  /** The retake was started automatically after a failed check. */
+  autoRetake: z.boolean().optional(),
+  /** This take's failed check already started the shot's one automatic retake. */
+  autoRetakeStarted: z.boolean().optional(),
   createdAt: z.string(),
 });
 export type Take = z.infer<typeof Take>;
+
+/**
+ * One shot inside a sequence: a single generation whose clip has hard cuts between its beats.
+ * Times are seconds into the clip.
+ */
+export const Beat = z.object({
+  startS: z.number().min(0).max(30),
+  endS: z.number().min(0).max(30),
+  /** Shot size: EWS, WS, MS, MCU, CU, ECU. */
+  size: z.string().max(80).default(""),
+  /** Camera angle: low front-left, water-level frontal oblique, top-down. */
+  angle: z.string().max(160).default(""),
+  /** Camera height: 30 cm above the water, at the ice edge. */
+  height: z.string().max(160).default(""),
+  /** Lens: 24mm, 85mm. */
+  lens: z.string().max(80).default(""),
+  /** Camera movement: locked, handheld, snap zoom, lateral dolly. */
+  movement: z.string().max(160).default(""),
+  /** What happens, as it unfolds. */
+  action: z.string().max(2000).default(""),
+  /** The state the beat leaves, so the next cut lands: "End with ...". */
+  endState: z.string().max(600).default(""),
+});
+export type Beat = z.infer<typeof Beat>;
 
 export const Shot = z.object({
   id: z.string(),
@@ -140,8 +190,38 @@ export const Shot = z.object({
   joinS: z.number().min(0.2).max(2).default(0.5),
   /** A slow camera move added in the edit, over the whole shot. */
   move: z.enum(["none", "push-in", "pull-out"]).default("none"),
+  /** A sequence: several shots with hard cuts inside this one generation. Empty: one ordinary shot. */
+  beats: z.array(Beat).max(8).default([]),
+  /** One sentence for the whole sequence. */
+  logline: z.string().max(600).default(""),
+  /** Where everyone is when this shot starts (the scene's staging only describes its opening). */
+  startState: z.string().max(1000).default(""),
+  /** The specific sounds heard in this shot (a huff, a splash), instead of "ambient". */
+  sounds: z.array(z.string().max(200)).max(20).default([]),
+  /** The whole generation plays in slow motion. */
+  slowMotion: z.boolean().default(false),
+  /** The final video prompt, written for the video model and sent as it is. Editable. */
+  writtenPrompt: z.string().max(12_000).default(""),
+  /** The video model the prompt was written for. */
+  writtenFor: z.string().max(80).default(""),
+  /** The shot changed after its prompt was written: rewrite it, or keep it as it is. */
+  promptStale: z.boolean().default(false),
 });
 export type Shot = z.infer<typeof Shot>;
+
+/** How big a character really is, how its body works, one acting detail, and its side of the screen. */
+export const CastNote = z.object({
+  name: z.string().max(120),
+  size: z.string().max(200).default(""),
+  anatomy: z.string().max(1000).default(""),
+  acting: z.string().max(400).default(""),
+  side: z.string().max(60).default(""),
+});
+export type CastNote = z.infer<typeof CastNote>;
+
+/** How many of something may be visible: "penguins", 1. */
+export const CountRule = z.object({ what: z.string().max(120), n: z.number().int().min(0).max(99) });
+export type CountRule = z.infer<typeof CountRule>;
 
 /** A sound bed made for the edit: an episode's music, a scene's background. */
 export const SoundBed = z.object({
@@ -163,7 +243,8 @@ export const Scene = z.object({
   staging: z.string().max(3000).default(""),
   /** How the scene is cut: long chained takes, or quick vertical-drama cuts. */
   // Scenes from before continuous takes keep the quick cuts they were storyboarded with; new scenes are continuous.
-  cutting: z.enum(["continuous", "cuts"]).default("cuts"),
+  // "sequences": each generation holds several shots with hard cuts inside it (fast action).
+  cutting: z.enum(["continuous", "cuts", "sequences"]).default("cuts"),
   shots: z.array(Shot).default([]),
   /** One continuous background under the whole scene, so the room doesn't change at every cut. */
   ambience: SoundBed.nullable().default(null),
@@ -172,6 +253,20 @@ export const Scene = z.object({
    * camera angle on it, so people belong in the place instead of being pasted onto a backdrop.
    */
   master: SoundBed.nullable().default(null),
+  /** The world, fixed in every shot: place, light, weather, props with their sizes. */
+  plate: z.string().max(3000).default(""),
+  /** Palette, contrast, key light. */
+  grade: z.string().max(1000).default(""),
+  /** Each character's real size, anatomy, acting detail and side of the screen. */
+  castNotes: z.array(CastNote).max(20).default([]),
+  /** How many of each character or prop may be visible. */
+  counts: z.array(CountRule).max(30).default([]),
+  /** Everything that may be visible; nothing else appears. */
+  whitelist: z.array(z.string().max(200)).max(40).default([]),
+  /** Sequences: start from the cast pictures as references, or from a made first frame. */
+  start: z.enum(["references", "first-frame"]).default("references"),
+  /** After a failed check, retake once automatically (at most one per shot). */
+  autoRetake: z.boolean().default(false),
 });
 export type Scene = z.infer<typeof Scene>;
 

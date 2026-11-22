@@ -299,6 +299,115 @@
       "output": {
         "url": "audio.url"
       }
+    },
+    {
+      "id": "vid-seq",
+      "kind": "video",
+      "label": "Test multi-shot video",
+      "provider": "fal",
+      "endpoint": "bytedance/test-seq/image-to-video",
+      "family": "seedance",
+      "tiers": [
+        "draft",
+        "final"
+      ],
+      "durations": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ],
+      "nativeAudio": true,
+      "price": {
+        "unit": "second",
+        "usd": 0.2,
+        "audioUsd": 0.2,
+        "source": "https://example.com/seq",
+        "verifiedOn": "2026-11-22",
+        "status": "verified"
+      },
+      "input": {
+        "prompt": "prompt",
+        "image": "image_url",
+        "duration": "duration",
+        "durationFormat": "string",
+        "audio": "generate_audio"
+      },
+      "reference": {
+        "endpoint": "bytedance/test-seq/reference-to-video",
+        "input": {
+          "prompt": "prompt",
+          "images": "image_urls",
+          "duration": "duration",
+          "durationFormat": "string",
+          "aspect": "aspect_ratio",
+          "audio": "generate_audio",
+          "extra": {
+            "resolution": "480p"
+          }
+        },
+        "maxImages": 4,
+        "source": "https://example.com/seq-ref",
+        "verifiedOn": "2026-11-22"
+      },
+      "output": {
+        "url": "video.url"
+      }
+    },
+    {
+      "id": "llm-vision",
+      "kind": "llm",
+      "label": "Test vision LLM",
+      "provider": "fal",
+      "endpoint": "openrouter/router/vision",
+      "maxRefImages": 4,
+      "hidden": true,
+      "price": {
+        "unit": "tokens",
+        "inputUsdPer1M": 1.0,
+        "outputUsdPer1M": 4.0,
+        "source": "https://example.com/vision",
+        "verifiedOn": "2026-11-22",
+        "status": "verified"
+      },
+      "input": {
+        "prompt": "prompt",
+        "images": "image_urls",
+        "system": "system_prompt",
+        "maxTokens": "max_tokens",
+        "extra": {
+          "model": "test/vision"
+        }
+      },
+      "output": {
+        "url": "output",
+        "text": "output",
+        "inputTokens": "usage.prompt_tokens",
+        "outputTokens": "usage.completion_tokens"
+      }
     }
   ],
   "defaults": {
@@ -316,7 +425,8 @@
     "music": "elevenlabs-music",
     "ambience": "elevenlabs-sfx-v2",
     "voiceIsolation": "demucs-vocals",
-    "effectsIsolation": "demucs-effects"
+    "effectsIsolation": "demucs-effects",
+    "review": "llm-vision"
   },
   "services": {
     "r2_storage": {

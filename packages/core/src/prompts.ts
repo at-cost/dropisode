@@ -5,7 +5,11 @@
  * reference images (see generate.ts). The approach follows ViMax's
  * character-consistency pipeline (HKUDS/ViMax, MIT); the text here is our own.
  */
-import type { Aspect, CastKind, CastMember, Shot } from "./project";
+import type { Aspect, Beat, CastKind, CastMember, CastNote, CountRule, Shot } from "./project";
+
+/** The fields sequences added to a shot: prompts work on shots from before them too. */
+type SequenceKeys = "beats" | "logline" | "startState" | "sounds" | "slowMotion" | "writtenPrompt" | "writtenFor" | "promptStale";
+export type ShotLike = Omit<Shot, SequenceKeys> & Partial<Pick<Shot, SequenceKeys>>;
 
 export const CAMERA_PRESETS = [
   "wide, static",
@@ -84,9 +88,10 @@ export function storyboardPrompt(p: {
   durations: number[];
   /** The video model makes silent clips; every line becomes a voice-over afterwards. */
   silentVideo?: boolean;
-  /** Long chained takes (deliberate cuts only), or quick vertical-drama cuts. */
-  cutting?: "continuous" | "cuts";
+  /** Long chained takes (deliberate cuts only), quick vertical-drama cuts, or multi-shot sequences. */
+  cutting?: "continuous" | "cuts" | "sequences";
 }): LlmPrompt {
+  if (p.cutting === "sequences") return sequenceBoardPrompt(p);
   const durations = p.durations.length ? p.durations.join(", ") : "5";
   const continuous = p.cutting !== "cuts";
   return {
@@ -153,11 +158,178 @@ export function storyboardPrompt(p: {
   };
 }
 
+/** The longest and shortest sequence the storyboard asks for, within what the model renders. */
+export function sequenceRange(durations: number[]): { min: number; max: number } {
+  const ok = durations.length ? durations : [5, 10];
+  const lo = Math.min(...ok);
+  const hi = Math.max(...ok);
+  return { min: Math.max(lo, Math.min(6, hi)), max: Math.min(hi, 15) };
+}
+
+/**
+ * Fast action, planned the way multi-shot video models work best: each generation is a sequence of
+ * 2 to 4 shots with hard cuts inside it, so the model keeps the world and light across the cuts.
+ * Also fixes the scene's world (plate), each character's real size and anatomy, and the counts.
+ */
+function sequenceBoardPrompt(p: {
+  sceneScript: string;
+  heading: string;
+  cast: CastMember[];
+  targetSeconds?: number;
+  durations: number[];
+  silentVideo?: boolean;
+}): LlmPrompt {
+  const { min, max } = sequenceRange(p.durations);
+  return {
+    system:
+      "You are a film director and storyboard artist planning fast, physical scenes for a multi-shot video model. You think in sequences: one generation holds two to four shots with hard cuts between them. You give every shot a real camera (size, angle, height, lens, movement) and every character its real size and anatomy. Answer with JSON only.",
+    prompt: [
+      `SCENE: ${p.heading}`,
+      p.sceneScript.slice(0, 20_000),
+      "",
+      "CAST (use these names exactly):",
+      ...p.cast.map((c) => `- ${c.name} (${c.kind}): ${c.description.slice(0, 300)}`),
+      "",
+      `Plan the scene as sequences${p.targetSeconds ? ` totalling about ${p.targetSeconds} seconds` : ""}. Each sequence is ONE generation of ${min} to ${max} seconds holding 2 to 4 shots ("beats") with hard cuts between them.`,
+      "Beat times are seconds inside their sequence: the first starts at 0, each starts where the one before ends, no gaps. A beat lasts 1.5 to 5 seconds: shorter for a strike, a glance or a reaction, longer for a set piece.",
+      "Every cut changes both the shot size and the angle. For each beat give: size (EWS, WS, MWS, MS, MCU, CU or ECU), angle (low front-left, water-level frontal oblique, worm's-eye, top-down), camera height (30 cm above the water, at the ice edge), lens in millimetres, and one movement (locked, handheld, lateral dolly, snap zoom, crane). Prefer low, specific angles over centred eye-level coverage.",
+      'Each beat\'s "action" tells what happens as it unfolds, with real physical weight: mass, momentum, inertia, follow-through, spray and debris that carry weight. Its "endsWith" is the state it leaves in its last frame (who is where, facing which way), so the next cut lands. "from" and "to" are its times in seconds.',
+      'A sequence\'s "start" says where everyone is as it begins: it carries on from the previous sequence\'s last "endsWith", not from the scene\'s opening staging.',
+      'Give each sequence 3 to 8 specific diegetic "sounds", each heard once (one huff-snort, one heavy splash, ice chips scattering), never music. Set "slowMotion": true only where the script asks for slow motion.',
+      'Fix the world once in "plate": the place, weather, light, water or ground, and every fixed prop with its real size in metres or centimetres. It stays the same in every shot.',
+      'For each character in "characters": its real size in numbers (45 cm tall, 2.6 metres long), its correct real anatomy (for an animal: its true species and body parts; never human hands, arms or poses it doesn\'t have), one small acting detail (a nostril flare, a crest that lifts), and the side of the screen it keeps for the whole scene ("left" or "right").',
+      'Say in "counts" how many of each character and important prop may be in frame (usually one each), and list everything that may be visible in "whitelist". In "grade": palette, contrast and key light.',
+      "Comedy and action are played completely straight. The video model can't write legible text: never rely on printed words.",
+      'A sequence\'s "cast" lists only who is visible in it. Put each line of dialogue in the sequence where it is spoken, with its speaker; use the speaker the script names, or null for someone outside the cast.',
+      ...(p.silentVideo ? ["The video is silent and every line is added later as a voice-over: nobody is seen speaking."] : []),
+      'Also give "staging": a short paragraph saying where everyone is at the very start of the scene and which way they face.',
+      'Answer as {"staging":"...","plate":"...","grade":"...","characters":[{"name":"NAME","size":"...","anatomy":"...","acting":"...","side":"left"}],"counts":[{"what":"penguins","n":1}],"whitelist":["..."],"sequences":[{"logline":"one sentence","start":"...","cast":["NAME"],"dialogue":[{"speaker":"NAME","text":"..."}],"sounds":["..."],"slowMotion":false,"beats":[{"from":0,"to":4,"size":"EWS","angle":"...","height":"...","lens":"24mm","movement":"locked","action":"...","endsWith":"..."}]}]}.',
+    ].join("\n"),
+    maxTokens: 16000,
+  };
+}
+
+export interface BoardSequence {
+  logline: string;
+  start: string;
+  cast: string[];
+  dialogue: { speaker: string | null; text: string }[];
+  sounds: string[];
+  slowMotion: boolean;
+  beats: Beat[];
+}
+
+export interface SequencePlan {
+  staging: string;
+  plate: string;
+  grade: string;
+  castNotes: CastNote[];
+  counts: CountRule[];
+  whitelist: string[];
+  sequences: BoardSequence[];
+}
+
+const str = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
+
+/**
+ * Reads a sequences storyboard. Beats are re-timed back to back from 0 (keeping each one's length),
+ * so a model's sloppy times can never overlap or leave gaps.
+ */
+export function parseSequenceBoard(text: string): SequencePlan {
+  const d = parseJsonAnswer<Record<string, unknown>>(text);
+  const seqs = Array.isArray(d.sequences) ? d.sequences : [];
+  if (!seqs.length) throw new Error("The storyboard answer had no sequences");
+  const sequences: BoardSequence[] = [];
+  for (const raw of seqs) {
+    const s = (raw ?? {}) as Record<string, unknown>;
+    const rawBeats = Array.isArray(s.beats) ? (s.beats as Record<string, unknown>[]) : [];
+    let at = 0;
+    const beats: Beat[] = [];
+    for (const b of rawBeats.slice(0, 6)) {
+      if (!b || typeof b !== "object") continue;
+      const num = (...vs: unknown[]) => vs.find((v): v is number => typeof v === "number") ?? Number.NaN;
+      const start = num(b.from, b.start, b.startS);
+      const end = num(b.to, b.end, b.endS);
+      const len = Number.isFinite(start) && Number.isFinite(end) && end > start ? end - start : 3;
+      const dur = Math.round(Math.max(1, Math.min(8, len)) * 10) / 10;
+      if (at + dur > 30) break;
+      beats.push({
+        startS: Math.round(at * 10) / 10,
+        endS: Math.round((at + dur) * 10) / 10,
+        size: str(b.size, 80),
+        angle: str(b.angle, 160),
+        height: str(b.height, 160),
+        lens: str(b.lens, 80),
+        movement: str(b.movement, 160),
+        action: str(b.action, 2000),
+        endState: str(b.endsWith ?? b.endState ?? (typeof b.end === "string" ? b.end : ""), 600),
+      });
+      at += dur;
+    }
+    if (!beats.length) continue;
+    sequences.push({
+      logline: str(s.logline, 600),
+      start: str(s.start, 1000),
+      cast: Array.isArray(s.cast) ? s.cast.filter((x): x is string => typeof x === "string") : [],
+      dialogue: Array.isArray(s.dialogue)
+        ? (s.dialogue as { speaker?: unknown; text?: unknown }[])
+            .filter((x) => x && typeof x.text === "string" && x.text.trim())
+            .map((x) => ({ speaker: typeof x.speaker === "string" ? x.speaker : null, text: String(x.text).slice(0, 1000) }))
+        : [],
+      sounds: Array.isArray(s.sounds)
+        ? s.sounds
+            .filter((x): x is string => typeof x === "string")
+            .map((x) => x.slice(0, 200))
+            .slice(0, 20)
+        : [],
+      slowMotion: s.slowMotion === true,
+      beats,
+    });
+  }
+  if (!sequences.length) throw new Error("The storyboard answer had no usable sequences");
+  const castNotes = (Array.isArray(d.characters) ? (d.characters as Record<string, unknown>[]) : [])
+    .filter((c) => c && typeof c.name === "string")
+    .slice(0, 20)
+    .map((c) => ({
+      name: str(c.name, 120),
+      size: str(c.size, 200),
+      anatomy: str(c.anatomy, 1000),
+      acting: str(c.acting, 400),
+      side: str(c.side, 60),
+    }));
+  const counts = (Array.isArray(d.counts) ? (d.counts as Record<string, unknown>[]) : [])
+    .filter((c) => c && typeof c.what === "string" && typeof c.n === "number" && Number.isInteger(c.n) && c.n >= 0 && c.n < 100)
+    .slice(0, 30)
+    .map((c) => ({ what: str(c.what, 120), n: c.n as number }));
+  return {
+    staging: str(d.staging, 3000),
+    plate: str(d.plate, 3000),
+    grade: str(d.grade, 1000),
+    castNotes,
+    counts,
+    whitelist: Array.isArray(d.whitelist)
+      ? d.whitelist
+          .filter((x): x is string => typeof x === "string")
+          .map((x) => x.slice(0, 200))
+          .slice(0, 40)
+      : [],
+    sequences,
+  };
+}
+
+/** A sequence as plain direction: what older code (first frames, the cut) reads as the shot's description. */
+export function sequenceDescription(s: { logline: string; beats: Beat[] }): string {
+  return [s.logline, ...s.beats.map((b) => b.action)]
+    .filter((x) => x.trim())
+    .join(" ")
+    .slice(0, 4000);
+}
+
 const describe = (c: CastMember) => `${c.name}: ${c.description}`.trim();
 
 /** The first-frame prompt. Every cast member's fixed description goes in, every time. */
 export function framePrompt(p: {
-  shot: Shot;
+  shot: ShotLike;
   cast: CastMember[];
   location?: CastMember | undefined;
   aspect: Aspect;
@@ -165,10 +337,16 @@ export function framePrompt(p: {
   voiceOver?: boolean;
   /** The first reference image is the scene's master still. */
   fromMaster?: boolean;
-  /** Where everyone is in the scene: shots keep to it. */
+  /** How the scene starts: where everyone is at its opening. */
   staging?: string;
+  /** This is the scene's opening shot, so the staging is where everyone is now. */
+  opening?: boolean;
+  /** How many of each character or prop may be in frame. */
+  counts?: CountRule[];
 }): string {
   const people = p.cast.filter((c) => c.kind !== "location");
+  const characters = people.filter((c) => c.kind === "character");
+  const now = p.shot.startState?.trim();
   const place = p.location ?? p.cast.find((c) => c.kind === "location");
   return [
     `A single cinematic film still, ${p.aspect === "9:16" ? "vertical 9:16" : "horizontal 16:9"} frame, photorealistic, natural light, shallow depth of field.`,
@@ -180,14 +358,19 @@ export function framePrompt(p: {
       ? "The first reference image is this scene's master shot: keep its place, light, weather, time of day and everyone's clothes exactly. Make a new camera position on it, as this shot describes (closer, or from another side). Never copy the master's framing. The other reference images show faces only."
       : "",
     ...framing(p.shot, people.length > 0, !!place),
+    // The staging describes the scene's start; a later shot says where everyone is now (they may have moved).
+    now ? `Where everyone is at this moment: ${now}` : "",
     p.staging?.trim()
-      ? `Where everyone is in this scene (keep to it; nobody moves out of their place for this shot): ${p.staging.trim()}`
+      ? p.opening && !now
+        ? `Where everyone is at the start of the scene (this shot is that moment; keep to it): ${p.staging.trim()}`
+        : `How the scene started (for sides of the screen and who is hidden from whom; where the shot says someone has moved, follow the shot): ${p.staging.trim()}`
       : "",
     isDetailShot(p.shot)
-      ? "Only the detail the shot describes fills the frame: no faces, and nobody standing in the background looking on."
-      : people.length
-        ? `The only recognisable people in this frame: ${people.map((c) => c.name).join(", ")}. Anyone else is an unnamed extra, out of focus.`
+      ? "Only the detail the shot describes fills the frame, sharp; nobody else standing in the background looking on."
+      : characters.length
+        ? `The only characters in this frame: ${characters.map((c) => c.name).join(", ")}, one of each and never a second copy. Anyone else is an unnamed extra, out of focus.`
         : "",
+    ...countLines(p.counts ?? []),
     p.shot.onScreenText?.trim() ? "Any card, sign, paper or screen in the shot is blank: its text is added afterwards." : "",
     p.voiceOver ? "Nobody in the frame is speaking: every mouth is closed." : "",
     ...speakerFacing(p.shot, people, !!p.voiceOver),
@@ -221,8 +404,8 @@ export function sceneMasterPrompt(p: {
       : staging
         ? `What happens (stage them for its opening moment): ${staging}`
         : "",
-    "They are real people in this place: lit by its light and weather (wet hair and clothes if it rains), at natural scale, standing or seated on the ground, faces recognisable.",
-    "The reference images show the place and who each person is. Do not copy their framing, plain backgrounds or studio lighting.",
+    "Everyone is really in this place: lit by its light and weather (wet if it rains), at true size, resting on the ground, water or a seat as the place allows, each recognisable and each shown once.",
+    "The reference images show the place and who each character is. Do not copy their framing, plain backgrounds or studio lighting.",
     "No captions, subtitles, text or watermarks.",
   ]
     .filter(Boolean)
@@ -242,18 +425,18 @@ export function isWideShot(shot: { camera: string; description?: string }): bool
 }
 
 /** How big people are in the frame, and how they belong in the place rather than being pasted onto it. */
-function framing(shot: Shot, hasPeople: boolean, hasPlace: boolean): string[] {
+function framing(shot: ShotLike, hasPeople: boolean, hasPlace: boolean): string[] {
   const cam = `${shot.camera} ${shot.description.slice(0, 40)}`.toLowerCase();
   const scale = /extreme close|ecu|insert|macro/.test(cam)
     ? "Extreme close-up: one detail fills the frame."
     : /close/.test(cam) && !/medium close/.test(cam)
-      ? "Close-up: head and shoulders fill the frame, face at eye level, a little space above the head."
+      ? "Close-up: the subject's head (or the one part the shot is about) fills the frame, a little space above it."
       : /medium close|over.the.shoulder|ots|two.shot|two shot/.test(cam)
-        ? "Medium close-up: from the chest up, faces large in the frame."
+        ? "Medium close-up: the upper half of the subject, the face large in the frame."
         : /medium/.test(cam)
-          ? "Medium shot: from the waist up."
+          ? "Medium shot: about half of the subject's body in frame."
           : isWideShot(shot)
-            ? "Wide shot: the whole place, people at natural size within it."
+            ? "Wide shot: the whole place, everyone at true size within it."
             : "";
   const out = scale ? [scale] : [];
   out.push(
@@ -261,7 +444,7 @@ function framing(shot: Shot, hasPeople: boolean, hasPlace: boolean): string[] {
   );
   if (hasPeople)
     out.push(
-      "The reference images show only who each person is (face, hair, clothes). Do not copy their pose, framing, lighting or plain background. Each person is really here: lit by this place's light and weather (wet hair and clothes if it rains), at natural scale, feet on the ground or seated, with the same lens depth of field as everything else. Never a cut-out pasted onto a background.",
+      "The reference images show only who each character is (face, markings, build, clothes if any). Do not copy their pose, framing, lighting or plain background. Each character is really here: lit by this place's light and weather (wet if it rains), at true size, resting on the ground, water or a seat as the place allows, with the same lens depth of field as everything else. Never a cut-out pasted onto a background.",
     );
   if (hasPlace && !isWideShot(shot))
     out.push(
@@ -272,7 +455,7 @@ function framing(shot: Shot, hasPeople: boolean, hasPlace: boolean): string[] {
 }
 
 /** Whoever speaks on camera must be seen saying it: face to the camera, never their back. */
-function speakerFacing(shot: Shot, people: CastMember[], voiceOver: boolean): string[] {
+function speakerFacing(shot: ShotLike, people: CastMember[], voiceOver: boolean): string[] {
   if (voiceOver) return [];
   const names = [
     ...new Set(shot.dialogue.filter((l) => l.text.trim() && l.castId).map((l) => people.find((c) => c.id === l.castId)?.name)),
@@ -286,11 +469,13 @@ function speakerFacing(shot: Shot, people: CastMember[], voiceOver: boolean): st
 
 /** The image-to-video prompt. Native-audio models get the dialogue to speak. */
 export function videoPrompt(p: {
-  shot: Shot;
+  shot: ShotLike;
   cast: CastMember[];
   nativeAudio: boolean;
   /** With native audio: whether the clip speaks its lines (false: room sound only, the lines are a voice-over). */
   speak?: boolean;
+  /** How many of each character or prop may be in frame. */
+  counts?: CountRule[];
 }): string {
   const speak = p.speak ?? true;
   const byId = new Map(p.cast.map((c) => [c.id, c]));
@@ -310,17 +495,48 @@ export function videoPrompt(p: {
       ? `By the end of the shot: ${p.shot.endPicture.trim()} The change happens inside the movement, with everything changing at the same moment. Keep moving right through the final moment; never slow down or pause at the end.`
       : "",
     !p.nativeAudio && lines.length ? "Nobody speaks on screen: every mouth stays closed." : "",
-    "Keep faces and wardrobe consistent with the first frame. It is live action, never a still: people breathe, blink, shift their weight and react, the weather and the place move, and the camera drifts slowly (a gentle handheld sway or a slow push in) unless the camera note asks for a locked-off frame.",
+    ...videoGuards(p.shot, p.cast, p.counts ?? []),
   ]
     .filter(Boolean)
     .join(" ");
 }
 
 /**
+ * What every clip is held to: each character's look from the first frame, one of each (models invent doubles),
+ * and life in the picture. Only a quiet talking shot gets "breathe and blink"; the camera moves only as the shot says.
+ */
+function videoGuards(shot: ShotLike, cast: CastMember[], counts: CountRule[]): string[] {
+  const characters = cast.filter((c) => c.kind === "character");
+  const talking = shot.dialogue.some((l) => l.text.trim());
+  const quiet = talking && !ACTION.test(`${shot.camera} ${shot.description}`);
+  return [
+    characters.length
+      ? `Keep every character's look (face, markings, build, clothes) consistent with the first frame. Exactly one of each: ${characters.map((c) => c.name).join(", ")}; nobody is doubled.`
+      : "",
+    ...countLines(counts),
+    quiet
+      ? "It is live action, never a still: whoever is on screen breathes, blinks and reacts while they talk."
+      : "It is live action, never a still: the action keeps moving through the whole shot.",
+    shot.camera.trim() ? "The camera does only what the camera note says." : "",
+    "One full frame throughout: no split screen, no on-screen text.",
+  ].filter(Boolean);
+}
+
+/** Words that mark a shot as action, not a quiet talking moment. */
+const ACTION =
+  /\b(fight|strike|kick|punch|run|chase|leap|jump|dive|crash|explod|slam|whip|tumble|lunge|spin|attack|flee|race|fall|throw|splash)/i;
+
+/** "Count of penguins in frame: one." for each rule. */
+function countLines(counts: CountRule[]): string[] {
+  return counts.length ? [counts.map((c) => `Count of ${c.what.trim()} in frame: ${NUM[c.n] ?? c.n}.`).join(" ")] : [];
+}
+const NUM = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+/**
  * The picture a shot ends on, made by editing the shot's own first frame (the START image): same camera,
  * only what the shot changes. The character pictures that follow keep the faces.
  */
-export function endFramePrompt(p: { shot: Shot; cast: CastMember[]; aspect: Aspect }): string {
+export function endFramePrompt(p: { shot: ShotLike; cast: CastMember[]; aspect: Aspect }): string {
   const people = p.cast.filter((c) => c.kind === "character");
   return [
     "Edit the first image, START: keep exactly the same camera position, height, lens and framing, with the people in the same place and at the same size in the frame.",

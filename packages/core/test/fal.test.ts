@@ -258,3 +258,43 @@ describe("separated stems", () => {
     expect(await mediaDuration(p)).toBeCloseTo(3, 1);
   });
 });
+
+describe("reference-to-video and the vision check", () => {
+  it("a video sent cast pictures goes to the reference endpoint with image_urls and an aspect, and no first frame", async () => {
+    const f = fakeFetch();
+    const fal = new FalProvider({ key: "k", client: fakeClient().client, catalog, fetch: f.fn });
+    const model = catalog.get("vid-seq");
+    const res = await fal.submit(job("vid-seq"), {
+      model,
+      prompt: "References: @Image1 is A.",
+      images: [img, img],
+      durationS: 11,
+      aspect: "9:16",
+      audio: true,
+    });
+    expect(res.endpoint).toBe("bytedance/test-seq/reference-to-video");
+    expect(f.calls[0]!.url).toContain("bytedance/test-seq/reference-to-video");
+    const body = f.calls[0]!.body as Record<string, unknown>;
+    expect(body).toMatchObject({ duration: "11", aspect_ratio: "9:16", generate_audio: true, resolution: "480p" });
+    expect((body.image_urls as string[]).length).toBe(2);
+    expect(body.image_url).toBeUndefined();
+    // With a first frame instead, the same model uses image-to-video.
+    await fal.submit(job("vid-seq"), { model, prompt: "p", image: img, durationS: 6, aspect: "9:16", audio: true });
+    expect(f.calls[1]!.url).toContain("bytedance/test-seq/image-to-video");
+    expect((f.calls[1]!.body as Record<string, unknown>).image_url).toBeDefined();
+  });
+
+  it("the check sends its contact sheet to the vision route as image_urls", async () => {
+    const f = fakeFetch();
+    const fal = new FalProvider({ key: "k", client: fakeClient().client, catalog, fetch: f.fn });
+    await fal.submit(job("llm-vision", "llm"), {
+      model: catalog.get("llm-vision"),
+      prompt: "check",
+      system: "s",
+      maxTokens: 100,
+      images: [img],
+    });
+    expect(f.calls[0]!.url).toContain("openrouter/router/vision");
+    expect((f.calls[0]!.body as Record<string, unknown>).image_urls).toHaveLength(1);
+  });
+});

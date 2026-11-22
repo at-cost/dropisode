@@ -125,11 +125,12 @@ describe("storyboard", () => {
     const master = t.mock.submitted.find((x) => x.job.purpose === "scene_master")!;
     expect(master.input.prompt).toMatch(/Staging, keep to it exactly.*last bench at the very back/);
     const frame = t.mock.submitted.find((x) => x.job.purpose === "frame")!;
-    expect(frame.input.prompt).toMatch(/Where everyone is in this scene.*unnoticed/);
-    expect(frame.input.prompt).toMatch(/The only recognisable people in this frame: NORA/);
+    // The opening shot is the staging's moment; later shots only take sides and hiding from it.
+    expect(frame.input.prompt).toMatch(/Where everyone is at the start of the scene \(this shot is that moment; keep to it\).*unnoticed/);
+    expect(frame.input.prompt).toMatch(/The only characters in this frame: NORA, one of each/);
   });
 
-  it("a hands or object insert shows no faces, even when it names whose hands they are", () => {
+  it("a hands or object insert shows only its detail and no onlookers, even when it names whose hands they are", () => {
     const nora = { id: "n", name: "NORA", kind: "character", description: "red hair", status: "ready", refImageIds: [] } as never;
     const base = {
       id: "s",
@@ -152,10 +153,12 @@ describe("storyboard", () => {
       cast: [nora],
       aspect: "9:16",
     });
-    expect(insert).toMatch(/no faces/);
-    expect(insert).not.toMatch(/only recognisable people/);
+    expect(insert).toMatch(/Only the detail the shot describes fills the frame/);
+    // An extreme close-up of an eye is still allowed: nothing forbids a face.
+    expect(insert).not.toMatch(/no faces/);
+    expect(insert).not.toMatch(/only characters in this frame/);
     const close = framePrompt({ shot: { ...base, description: "Nora watches.", camera: "close-up" }, cast: [nora], aspect: "9:16" });
-    expect(close).toMatch(/only recognisable people in this frame: NORA/);
+    expect(close).toMatch(/only characters in this frame: NORA/);
   });
 
   it("close shots put the place soft behind the people; wide shots use the place's picture", () => {
@@ -237,7 +240,7 @@ describe("storyboard", () => {
     const names = frames.map((f) => (f.input.images ?? []).map((i) => i.name.split(".")[0]));
     expect(names[0]).toEqual(["NORA"]);
     if (loc) expect(names[1]).toContain(loc.name);
-    expect(frames[0]!.input.prompt).toMatch(/Close-up: head and shoulders/);
+    expect(frames[0]!.input.prompt).toMatch(/Close-up: the subject's head/);
     expect(frames[0]!.input.prompt).toMatch(/Never a cut-out pasted onto a background/);
     if (loc) expect(frames[0]!.input.prompt).toMatch(/soft and out of focus/);
   });

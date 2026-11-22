@@ -11,6 +11,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runFfmpeg } from "../ffmpeg";
+import { draftFromWriterPrompt } from "../writer";
 import type { JobRecord, Provider, ProviderInput, ProviderStatus } from "./types";
 
 interface MockRequest {
@@ -167,6 +168,58 @@ export function mockTone(seed: string, seconds: number): Promise<Uint8Array> {
   });
 }
 
+/** A canned action plan: two sequences of shots with hard cuts inside each, for the mock studio. */
+function mockSequenceBoard(): string {
+  const beat = (from: number, to: number, size: string, lens: string, action: string, endsWith: string) => ({
+    from,
+    to,
+    size,
+    angle: "low three-quarter",
+    height: "at waist height",
+    lens,
+    movement: "handheld",
+    action,
+    endsWith,
+  });
+  return JSON.stringify({
+    staging: "Maya stands at the counter on the left, Leo behind it on the right.",
+    plate: "A small corner shop at night: one wooden counter 2 metres long, a brass lamp on it, rain on the front window.",
+    grade: "Warm tungsten inside against cold blue night outside; soft contrast.",
+    characters: [
+      { name: "MAYA", size: "1.68 m tall", anatomy: "an adult woman", acting: "taps the letter with one finger", side: "left" },
+      { name: "LEO", size: "1.80 m tall", anatomy: "an adult man", acting: "pushes his glasses up", side: "right" },
+    ],
+    counts: [
+      { what: "people", n: 2 },
+      { what: "letters", n: 1 },
+    ],
+    whitelist: ["Maya", "Leo", "one letter", "the counter", "the lamp"],
+    sequences: [
+      {
+        logline: "Maya slams the letter on the counter and Leo grabs for it.",
+        start: "Maya at the door, Leo behind the counter.",
+        cast: ["MAYA", "LEO", "CORNER SHOP"],
+        sounds: ["rain on glass", "the door bell", "a palm slap on wood"],
+        beats: [
+          beat(0, 3, "WS", "24mm", "Maya bursts through the door and strides to the counter.", "Maya at the counter, letter raised."),
+          beat(3, 6, "CU", "85mm", "She slams the letter down; Leo's hand shoots out for it.", "Both hands on the letter."),
+        ],
+      },
+      {
+        logline: "A tug of war over the letter tears it in two.",
+        start: "Both hands on the letter across the counter.",
+        cast: ["MAYA", "LEO", "CORNER SHOP"],
+        sounds: ["paper straining", "one sharp rip", "rain on glass"],
+        beats: [
+          beat(0, 2.5, "MCU", "50mm", "They pull; the paper strains.", "The letter taut between them."),
+          beat(2.5, 5, "ECU", "100mm macro", "The letter rips down the middle.", "Each holds half."),
+          beat(5, 8, "MS", "35mm", "They stare at their halves, then at each other.", "Both frozen, halves in hand."),
+        ],
+      },
+    ],
+  });
+}
+
 /** Canned LLM answers in the shape each prompt asks for. */
 export function mockLlm(purpose: string, input: ProviderInput): string {
   const idea = /IDEA:\s*([^\n]+)/.exec(input.prompt ?? "")?.[1]?.trim() ?? "A courier finds a letter addressed to herself, dated tomorrow.";
@@ -189,6 +242,7 @@ export function mockLlm(purpose: string, input: ProviderInput): string {
       "MAYA: It says: don't come back here.",
     ].join("\n");
   }
+  if (purpose === "storyboard" && (input.prompt ?? "").includes('"sequences"')) return mockSequenceBoard();
   if (purpose === "storyboard") {
     const shots = [
       {
@@ -245,5 +299,8 @@ export function mockLlm(purpose: string, input: ProviderInput): string {
       ],
     });
   }
+  // The writer hands back the draft it was given; the check passes.
+  if (purpose === "write") return draftFromWriterPrompt(input.prompt ?? "") || "OK";
+  if (purpose === "review") return JSON.stringify({ pass: true, problems: [], fixedPrompt: "" });
   return "OK";
 }

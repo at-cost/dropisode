@@ -141,3 +141,57 @@ export async function frameAt(clip: Uint8Array, atS: number | undefined, fps = 3
     rmSync(dir, { recursive: true, force: true });
   }
 }
+
+/** A contact sheet of a clip: frames sampled across it, tiled into one JPEG, with the time of each tile. */
+export interface ContactSheet {
+  bytes: Uint8Array;
+  /** Seconds into the clip of each tile, in reading order (left to right, top to bottom). */
+  times: number[];
+  cols: number;
+  rows: number;
+  durationS: number;
+}
+
+/** Where the sheet samples a clip of `durationS`: about one frame a second, 4 to 16 frames, each mid-interval. */
+export function sheetTimes(durationS: number, maxTiles = 16): number[] {
+  const n = Math.max(4, Math.min(maxTiles, Math.round(durationS)));
+  const step = durationS / n;
+  return Array.from({ length: n }, (_, i) => +((i + 0.5) * step).toFixed(2));
+}
+
+/**
+ * Samples a clip about once a second and tiles the frames into one picture for a vision model to check.
+ * Times are given with the sheet (not drawn on it: not every ffmpeg build can draw text).
+ */
+export async function contactSheet(clip: Uint8Array, opts: { tileWidth?: number; cols?: number } = {}): Promise<ContactSheet> {
+  const dir = mkdtempSync(join(tmpdir(), "reel-sheet-"));
+  try {
+    const src = join(dir, "clip.mp4");
+    const out = join(dir, "sheet.jpg");
+    writeFileSync(src, clip);
+    const durationS = await mediaDuration(src);
+    const times = sheetTimes(durationS);
+    const cols = opts.cols ?? 4;
+    const rows = Math.ceil(times.length / cols);
+    const w = opts.tileWidth ?? 240;
+    // One frame per tile, picked at the tile's time: select frames whose time first passes each mark.
+    const marks = times.map((t) => `lt(prev_t,${t})*gte(t,${t})`).join("+");
+    await runFfmpeg([
+      "-y",
+      "-i",
+      src,
+      "-an",
+      "-vf",
+      `select='${marks}',scale=${w}:-2,tile=${cols}x${rows}:padding=4:margin=4`,
+      "-frames:v",
+      "1",
+      "-q:v",
+      "3",
+      out,
+    ]);
+    if (!existsSync(out)) throw new Error("no contact sheet could be made from the clip");
+    return { bytes: new Uint8Array(readFileSync(out)), times, cols, rows, durationS };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}

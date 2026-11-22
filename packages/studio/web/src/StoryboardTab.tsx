@@ -1,6 +1,18 @@
 import { takeInS, takeOutS } from "@reel/core/cut";
 import { type CSSProperties, type ReactNode, type TouchEvent, useEffect, useRef, useState } from "react";
-import { type DialogueLine, type Episode, type Project, type Scene, type Shot, type Take, type View, api, mediaUrl } from "./api";
+import {
+  type Beat,
+  type DialogueLine,
+  type Episode,
+  type Project,
+  type PromptPreview,
+  type Scene,
+  type Shot,
+  type Take,
+  type View,
+  api,
+  mediaUrl,
+} from "./api";
 import { ModelsPanel } from "./ModelsPanel";
 import { useProject } from "./ProjectView";
 import { type Stage, hasFinalTake, shotStage, shotStatus, stageCounts } from "./progress";
@@ -281,14 +293,28 @@ function SceneBlock({ ep, scene, n, mode, sel }: { ep: Episode; scene: Scene; n:
           <select
             value={scene.cutting ?? "continuous"}
             aria-label="Cutting style"
-            title="Continuous takes: a few long shots, each carrying on from the last. Quick cuts: a new angle every few seconds, like vertical dramas. Applies when you storyboard."
+            title="Continuous takes: a few long shots, each carrying on from the last. Quick cuts: a new angle every few seconds, for talking scenes. Action: each clip holds two to four shots with hard cuts inside it, for fights, chases and fast physical comedy. Applies when you storyboard."
             onChange={(e) =>
               void act(`sc-${scene.id}`, () => api.patch<View>(`/projects/${pid}/scenes/${scene.id}`, { cutting: e.target.value }))
             }
           >
             <option value="continuous">Continuous takes</option>
-            <option value="cuts">Quick cuts</option>
+            <option value="cuts">Quick cuts (talking)</option>
+            <option value="sequences">Action sequences</option>
           </select>
+          {scene.cutting === "sequences" && (
+            <select
+              value={scene.start ?? "references"}
+              aria-label="Start each clip from"
+              title="Cast pictures: the video model sees each character's picture, so looks and species stay right. First frame: a picture of the opening moment is made first, then animated."
+              onChange={(e) =>
+                void act(`sc-${scene.id}`, () => api.patch<View>(`/projects/${pid}/scenes/${scene.id}`, { start: e.target.value }))
+              }
+            >
+              <option value="references">Start from cast pictures</option>
+              <option value="first-frame">Start from a first frame</option>
+            </select>
+          )}
           {toRender.length > 0 && renderTotal !== undefined && (
             <button type="button" className={untried.length > 0 ? "" : "primary"} disabled={renderingAll || boarding} onClick={renderAll}>
               {renderingAll && <Spinner />} {`Render ${toRender.length} approved`}
@@ -321,6 +347,7 @@ function SceneBlock({ ep, scene, n, mode, sel }: { ep: Episode; scene: Scene; n:
         </div>
       </div>
       {scene.shots.length > 0 && <SceneStill scene={scene} />}
+      {scene.cutting === "sequences" && <ScenePlan scene={scene} />}
       {scene.script.trim() && (
         <details className="scene-script">
           <summary>Scene script</summary>
@@ -715,7 +742,8 @@ const setupLine = (shot: Shot, silentVideo: boolean) =>
     shot.cutaway ? "Cutaway" : "",
     shot.continueFromPrevious ? "Continues" : "",
     shot.endPicture?.trim() ? "Ends on a target" : "",
-    cap(shot.camera.trim()) || "No camera set",
+    shot.beats?.length ? `${plural(shot.beats.length, "shot")} in one clip` : cap(shot.camera.trim()) || "No camera set",
+    shot.promptStale ? "Prompt out of date" : "",
     `${round(shot.durationS)} s`,
     audioLabel(shot, silentVideo),
     shot.onScreenText?.trim() ? "Text on screen" : "",
@@ -889,106 +917,116 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
         )}
       </div>
       {c.take?.analysis && <TakeTiming shot={shot} take={c.take} c={c} />}
-      {a.approved && <p className="insp-note">Editing direction, camera, length, people or lines clears this shot's approval.</p>}
-      <label className="insp-field">
-        <span>Direction</span>
-        <textarea
-          key={shot.description}
-          defaultValue={shot.description}
-          rows={4}
-          maxLength={4000}
-          placeholder="What we see"
-          onBlur={(e) => {
-            if (e.target.value !== shot.description) void c.patch({ description: e.target.value });
-          }}
-        />
-      </label>
-      <CameraField key={shot.id} value={shot.camera} presets={app.config.cameraPresets} onSave={(camera) => void c.patch({ camera })} />
-      <label className="insp-field">
-        <span>Ends on (optional)</span>
-        <textarea
-          key={`end-${shot.id}-${shot.endPicture ?? ""}`}
-          defaultValue={shot.endPicture ?? ""}
-          rows={2}
-          maxLength={2000}
-          placeholder="For a change of place or age: how the last moment looks"
-          onBlur={(e) => {
-            if (e.target.value !== (shot.endPicture ?? "")) void c.patch({ endPicture: e.target.value });
-          }}
-        />
-        <small className="muted">
-          {endImageModel(app.config, c.p.models?.draftVideo)
-            ? "A target picture is made from this shot's own first frame (same camera), and the video ends on it. Hide the change in a movement, like a spin."
-            : "Your video model can't end on a target picture. MiniMax H3, Gemini Omni and Seedance 2.5 can."}
-        </small>
-      </label>
-      {index > 0 && (
-        <label className="insp-check">
-          <input
-            type="checkbox"
-            checked={!!shot.continueFromPrevious}
-            onChange={(e) => void c.patch({ continueFromPrevious: e.target.checked })}
-          />
-          <span>
-            Continue from the end of the previous shot
-            <small className="muted">Starts from the frame where the previous take ends, so the action carries straight on.</small>
-          </span>
-        </label>
+      {c.take && <TakeCheck take={c.take} c={c} />}
+      {a.approved && (
+        <p className="insp-note">Editing direction, camera, length, people, lines or the prompt clears this shot's approval.</p>
       )}
-      {index > 0 && shot.dialogue.length === 0 && (
-        <div className="insp-field">
-          <label className="insp-check">
-            <input
-              type="checkbox"
-              checked={!!shot.cutaway}
-              onChange={(e) =>
-                void c.patch({
-                  cutaway: e.target.checked ? { atS: Math.max(0.5, scene.shots[index - 1]!.durationS / 2 - 1), lengthS: 2 } : null,
-                })
-              }
+      {(shot.beats?.length ?? 0) > 0 && <SequenceEditor shot={shot} c={c} />}
+      <PromptBox shot={shot} c={c} />
+      {!(shot.beats?.length ?? 0) && (
+        <>
+          <label className="insp-field">
+            <span>Direction</span>
+            <textarea
+              key={shot.description}
+              defaultValue={shot.description}
+              rows={4}
+              maxLength={4000}
+              placeholder="What we see"
+              onBlur={(e) => {
+                if (e.target.value !== shot.description) void c.patch({ description: e.target.value });
+              }}
             />
-            <span>
-              Cutaway over the previous shot
-              <small className="muted">
-                Its picture plays during the previous shot while that line carries on underneath, like cutting to a listener.
-              </small>
-            </span>
           </label>
-          {shot.cutaway && (
-            <div className="insp-pair">
-              <label className="insp-field">
-                <span>Cut in at (s)</span>
+          <CameraField key={shot.id} value={shot.camera} presets={app.config.cameraPresets} onSave={(camera) => void c.patch({ camera })} />
+          <label className="insp-field">
+            <span>Ends on (optional)</span>
+            <textarea
+              key={`end-${shot.id}-${shot.endPicture ?? ""}`}
+              defaultValue={shot.endPicture ?? ""}
+              rows={2}
+              maxLength={2000}
+              placeholder="For a change of place or age: how the last moment looks"
+              onBlur={(e) => {
+                if (e.target.value !== (shot.endPicture ?? "")) void c.patch({ endPicture: e.target.value });
+              }}
+            />
+            <small className="muted">
+              {endImageModel(app.config, c.p.models?.draftVideo)
+                ? "A target picture is made from this shot's own first frame (same camera), and the video ends on it. Hide the change in a movement, like a spin."
+                : "Your video model can't end on a target picture. MiniMax H3, Gemini Omni and Seedance 2.5 can."}
+            </small>
+          </label>
+          {index > 0 && (
+            <label className="insp-check">
+              <input
+                type="checkbox"
+                checked={!!shot.continueFromPrevious}
+                onChange={(e) => void c.patch({ continueFromPrevious: e.target.checked })}
+              />
+              <span>
+                Continue from the end of the previous shot
+                <small className="muted">Starts from the frame where the previous take ends, so the action carries straight on.</small>
+              </span>
+            </label>
+          )}
+          {index > 0 && shot.dialogue.length === 0 && (
+            <div className="insp-field">
+              <label className="insp-check">
                 <input
-                  key={`a${shot.cutaway.atS}`}
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  defaultValue={shot.cutaway.atS}
-                  onBlur={(e) => {
-                    const v = Number(e.target.value);
-                    if (Number.isFinite(v) && v !== shot.cutaway!.atS) void c.patch({ cutaway: { ...shot.cutaway!, atS: Math.max(0, v) } });
-                  }}
+                  type="checkbox"
+                  checked={!!shot.cutaway}
+                  onChange={(e) =>
+                    void c.patch({
+                      cutaway: e.target.checked ? { atS: Math.max(0.5, scene.shots[index - 1]!.durationS / 2 - 1), lengthS: 2 } : null,
+                    })
+                  }
                 />
+                <span>
+                  Cutaway over the previous shot
+                  <small className="muted">
+                    Its picture plays during the previous shot while that line carries on underneath, like cutting to a listener.
+                  </small>
+                </span>
               </label>
-              <label className="insp-field">
-                <span>For (s)</span>
-                <input
-                  key={`l${shot.cutaway.lengthS}`}
-                  type="number"
-                  min={0.5}
-                  max={8}
-                  step={0.5}
-                  defaultValue={shot.cutaway.lengthS}
-                  onBlur={(e) => {
-                    const v = Number(e.target.value);
-                    if (Number.isFinite(v) && v !== shot.cutaway!.lengthS)
-                      void c.patch({ cutaway: { ...shot.cutaway!, lengthS: Math.min(8, Math.max(0.5, v)) } });
-                  }}
-                />
-              </label>
+              {shot.cutaway && (
+                <div className="insp-pair">
+                  <label className="insp-field">
+                    <span>Cut in at (s)</span>
+                    <input
+                      key={`a${shot.cutaway.atS}`}
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      defaultValue={shot.cutaway.atS}
+                      onBlur={(e) => {
+                        const v = Number(e.target.value);
+                        if (Number.isFinite(v) && v !== shot.cutaway!.atS)
+                          void c.patch({ cutaway: { ...shot.cutaway!, atS: Math.max(0, v) } });
+                      }}
+                    />
+                  </label>
+                  <label className="insp-field">
+                    <span>For (s)</span>
+                    <input
+                      key={`l${shot.cutaway.lengthS}`}
+                      type="number"
+                      min={0.5}
+                      max={8}
+                      step={0.5}
+                      defaultValue={shot.cutaway.lengthS}
+                      onBlur={(e) => {
+                        const v = Number(e.target.value);
+                        if (Number.isFinite(v) && v !== shot.cutaway!.lengthS)
+                          void c.patch({ cutaway: { ...shot.cutaway!, lengthS: Math.min(8, Math.max(0.5, v)) } });
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
           )}
-        </div>
+        </>
       )}
       <div className="insp-pair">
         <label className="insp-field">
@@ -999,6 +1037,8 @@ function Inspector({ ep, scene, shot, index, onClose }: { ep: Episode; scene: Sc
             min={1}
             max={30}
             step={0.5}
+            disabled={(shot.beats?.length ?? 0) > 0}
+            title={(shot.beats?.length ?? 0) > 0 ? "A sequence runs to the end of its last shot: change the shots' times" : undefined}
             defaultValue={shot.durationS}
             onBlur={(e) => {
               const v = Number(e.target.value);
@@ -1230,6 +1270,392 @@ function SceneStill({ scene }: { scene: Scene }) {
           {busy && <Spinner />} {m?.status === "done" ? "Remake scene still" : "Make scene still"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/** "penguins: 1" per line, both ways. */
+const countsText = (counts: { what: string; n: number }[] = []) => counts.map((c) => `${c.what}: ${c.n}`).join("\n");
+function parseCounts(text: string): { what: string; n: number }[] {
+  return text
+    .split("\n")
+    .map((l) => /^\s*(.+?)\s*[:=]\s*(\d+)\s*$/.exec(l))
+    .filter((m): m is RegExpExecArray => !!m)
+    .map((m) => ({ what: m[1]!.slice(0, 120), n: Math.min(99, Number(m[2])) }))
+    .slice(0, 30);
+}
+
+/** An action scene's plan: the world, the look, how many of each may be seen, and the automatic retake. */
+function ScenePlan({ scene }: { scene: Scene }) {
+  const { pid, estimates, act } = useProject();
+  const path = `/projects/${pid}/scenes/${scene.id}`;
+  const save = (body: Record<string, unknown>) => void act(`plan-${scene.id}`, () => api.patch<View>(path, body));
+  const seqs = scene.shots.filter((s) => (s.beats?.length ?? 0) > 0);
+  const most = seqs.reduce((a, s) => Math.max(a, estimates?.shots[s.id]?.autoRetake ?? 0), 0);
+  return (
+    <details className="scene-script scene-plan">
+      <summary>Scene plan: the world, characters and counts every clip keeps to</summary>
+      <label className="insp-field">
+        <span>The world (place, light, weather, fixed props with sizes)</span>
+        <textarea
+          key={`plate-${scene.plate ?? ""}`}
+          defaultValue={scene.plate ?? ""}
+          rows={3}
+          maxLength={3000}
+          onBlur={(e) => e.target.value !== (scene.plate ?? "") && save({ plate: e.target.value })}
+        />
+      </label>
+      <label className="insp-field">
+        <span>Look (palette, contrast, key light)</span>
+        <textarea
+          key={`grade-${scene.grade ?? ""}`}
+          defaultValue={scene.grade ?? ""}
+          rows={2}
+          maxLength={1000}
+          onBlur={(e) => e.target.value !== (scene.grade ?? "") && save({ grade: e.target.value })}
+        />
+      </label>
+      {(scene.castNotes?.length ?? 0) > 0 && (
+        <div className="insp-field">
+          <span>Characters</span>
+          <ul className="plan-notes">
+            {scene.castNotes!.map((n) => (
+              <li key={n.name}>
+                <strong>{n.name}</strong>
+                {[n.size, n.side ? `keeps to the ${n.side}` : "", n.anatomy, n.acting].filter(Boolean).join(". ")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <label className="insp-field">
+        <span>How many may be in frame (one per line, like "penguins: 1")</span>
+        <textarea
+          key={`counts-${countsText(scene.counts)}`}
+          defaultValue={countsText(scene.counts)}
+          rows={3}
+          onBlur={(e) => {
+            const next = parseCounts(e.target.value);
+            if (countsText(next) !== countsText(scene.counts)) save({ counts: next });
+          }}
+        />
+        <small className="muted">Added to the end of every clip's prompt as written here, so they are never left out.</small>
+      </label>
+      <label className="insp-check">
+        <input type="checkbox" checked={!!scene.autoRetake} onChange={(e) => save({ autoRetake: e.target.checked })} />
+        <span>
+          Retake once by itself when the check finds a problem
+          <small className="muted">
+            At most one retake per shot, with the corrected prompt
+            {most > 0 ? `: up to ${money(most)} more per shot` : ""}. Off unless you turn it on.
+          </small>
+        </span>
+      </label>
+    </details>
+  );
+}
+
+/** The shots inside a sequence, each with its time, camera, action and the state it ends on. */
+function SequenceEditor({ shot, c }: { shot: Shot; c: ShotCtl }) {
+  const beats = shot.beats ?? [];
+  const save = (next: Beat[]) => void c.patch({ beats: next });
+  const setBeat = (i: number, patch: Partial<Beat>) => {
+    const next = beats.map((b, k) => (k === i ? { ...b, ...patch } : b));
+    if (JSON.stringify(next[i]) !== JSON.stringify(beats[i])) save(next);
+  };
+  const field = (i: number, key: keyof Beat, label: string, rows?: number) => {
+    const v = String(beats[i]![key] ?? "");
+    return rows ? (
+      <label className="insp-field">
+        <span>{label}</span>
+        <textarea
+          key={`${key}-${i}-${v}`}
+          defaultValue={v}
+          rows={rows}
+          onBlur={(e) => e.target.value !== v && setBeat(i, { [key]: e.target.value })}
+        />
+      </label>
+    ) : (
+      <label className="insp-field">
+        <span>{label}</span>
+        <input key={`${key}-${i}-${v}`} defaultValue={v} onBlur={(e) => e.target.value !== v && setBeat(i, { [key]: e.target.value })} />
+      </label>
+    );
+  };
+  const time = (i: number, key: "startS" | "endS") => (
+    <input
+      key={`${key}-${i}-${beats[i]![key]}`}
+      type="number"
+      min={0}
+      max={30}
+      step={0.5}
+      aria-label={key === "startS" ? "Starts at (s)" : "Ends at (s)"}
+      defaultValue={beats[i]![key]}
+      onBlur={(e) => {
+        const v = Number(e.target.value);
+        if (Number.isFinite(v) && v !== beats[i]![key]) setBeat(i, { [key]: v });
+      }}
+    />
+  );
+  return (
+    <div className="sequence">
+      <label className="insp-field">
+        <span>In one sentence</span>
+        <input
+          key={`log-${shot.logline ?? ""}`}
+          defaultValue={shot.logline ?? ""}
+          maxLength={600}
+          onBlur={(e) => e.target.value !== (shot.logline ?? "") && void c.patch({ logline: e.target.value })}
+        />
+      </label>
+      <label className="insp-field">
+        <span>Where everyone is as it starts</span>
+        <textarea
+          key={`start-${shot.startState ?? ""}`}
+          defaultValue={shot.startState ?? ""}
+          rows={2}
+          maxLength={1000}
+          onBlur={(e) => e.target.value !== (shot.startState ?? "") && void c.patch({ startState: e.target.value })}
+        />
+      </label>
+      <p className="muted small-text">
+        {plural(beats.length, "shot")} in one clip, with hard cuts between them. The video model keeps the place and the characters the same
+        across the cuts.
+      </p>
+      <ol className="beats">
+        {beats.map((b, i) => (
+          <li key={`${b.startS}-${b.endS}`} className="beat">
+            <div className="beat-head">
+              <strong>Shot {i + 1}</strong>
+              <span className="row">
+                {time(i, "startS")} to {time(i, "endS")} s
+              </span>
+              {beats.length > 1 && (
+                <button type="button" className="link-btn" onClick={() => save(beats.filter((_, k) => k !== i))}>
+                  Remove
+                </button>
+              )}
+            </div>
+            <div className="insp-pair">
+              {field(i, "size", "Size (WS, MCU, CU)")}
+              {field(i, "lens", "Lens")}
+            </div>
+            <div className="insp-pair">
+              {field(i, "angle", "Angle")}
+              {field(i, "height", "Camera height")}
+            </div>
+            {field(i, "movement", "Camera movement")}
+            {field(i, "action", "What happens", 3)}
+            {field(i, "endState", "Ends with", 2)}
+          </li>
+        ))}
+      </ol>
+      {beats.length < 6 && (
+        <button
+          type="button"
+          className="small"
+          onClick={() => {
+            const end = beats.at(-1)?.endS ?? 0;
+            if (end + 1.5 > 30) return;
+            save([
+              ...beats,
+              {
+                startS: end,
+                endS: Math.min(30, end + 3),
+                size: "",
+                angle: "",
+                height: "",
+                lens: "",
+                movement: "",
+                action: "",
+                endState: "",
+              },
+            ]);
+          }}
+        >
+          <Icon name="plus" /> Add a shot to this clip
+        </button>
+      )}
+      <label className="insp-field">
+        <span>Sounds heard (one per line)</span>
+        <textarea
+          key={`snd-${(shot.sounds ?? []).join("|")}`}
+          defaultValue={(shot.sounds ?? []).join("\n")}
+          rows={3}
+          onBlur={(e) => {
+            const next = e.target.value
+              .split("\n")
+              .map((x) => x.trim())
+              .filter(Boolean);
+            if (next.join("|") !== (shot.sounds ?? []).join("|")) void c.patch({ sounds: next });
+          }}
+        />
+        <small className="muted">Music is added in the edit, so every clip asks for none.</small>
+      </label>
+      <label className="insp-check">
+        <input type="checkbox" checked={!!shot.slowMotion} onChange={(e) => void c.patch({ slowMotion: e.target.checked })} />
+        <span>Slow motion for the whole clip</span>
+      </label>
+    </div>
+  );
+}
+
+/** The exact prompt the video model gets, editable. A sequence's is written for its model; an ordinary shot's is made from its direction. */
+function PromptBox({ shot, c }: { shot: Shot; c: ShotCtl }) {
+  const { act, isBusy } = useProject();
+  const app = useApp();
+  const [preview, setPreview] = useState<PromptPreview | null>(null);
+  const seq = (shot.beats?.length ?? 0) > 0;
+  // Refetched whenever anything it is made from changes.
+  const key = JSON.stringify([
+    shot.id,
+    shot.writtenPrompt ?? "",
+    shot.description,
+    shot.camera,
+    shot.castIds,
+    shot.dialogue.map((l) => l.text),
+    shot.beats ?? [],
+    shot.sounds ?? [],
+    shot.slowMotion,
+    shot.audio,
+    c.p.cast.map((m) => m.refImageIds.length),
+  ]);
+  useEffect(() => {
+    if (!key) return;
+    let stale = false;
+    api
+      .get<PromptPreview>(`${c.path}/prompt`)
+      .then((p) => !stale && setPreview(p))
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [key, c.path]);
+  const writing = isBusy(`write-${shot.id}`);
+  const write = () => void act(`write-${shot.id}`, () => api.post<View>(`${c.path}/write`));
+  const text = preview?.prompt ?? "";
+  const source = preview?.source;
+  return (
+    <div className="insp-field prompt-box">
+      <span>Video prompt, sent as it is</span>
+      <textarea
+        key={`p-${text}`}
+        defaultValue={text}
+        rows={seq ? 14 : 6}
+        maxLength={12000}
+        spellCheck={false}
+        aria-label="Video prompt"
+        onBlur={(e) => {
+          if (preview && e.target.value.trim() !== text.trim()) void c.patch({ writtenPrompt: e.target.value });
+        }}
+      />
+      {shot.promptStale &&
+        (seq ? (
+          <p className="note warn small-text">
+            Out of date: the shot changed after this prompt was written. Rewrite it, or edit it here to keep your own words. Making a take
+            rewrites it first.
+          </p>
+        ) : (
+          <p className="note warn small-text">
+            Out of date: the shot changed after you set this prompt. Keep it as it is, or go back to the prompt made from the direction.
+          </p>
+        ))}
+      <small className="muted">
+        {source === "written"
+          ? seq
+            ? `Written for ${modelLabel(app.config, shot.writtenFor || preview?.model || "")}. The counts at the end are always added as the scene plan says.`
+            : "Your own words: sent instead of the prompt made from the direction."
+          : source === "plan"
+            ? "Made from the plan. It is written for the video model before the first take."
+            : "Made from the direction, camera and lines above. Edit it to send your own words instead."}
+        {preview?.references.length
+          ? ` Sent with ${plural(preview.references.length, "cast picture")}: ${preview.references.join(", ")}.`
+          : ""}
+      </small>
+      <div className="row">
+        {seq && (
+          <button type="button" className="small" disabled={writing || c.generating} onClick={write}>
+            {writing && <Spinner />} {shot.writtenPrompt?.trim() ? "Rewrite prompt" : "Write prompt"} <Ticket micro={c.est?.write} />
+          </button>
+        )}
+        {!seq && shot.writtenPrompt?.trim() && shot.promptStale && (
+          <button type="button" className="small" onClick={() => void c.patch({ writtenPrompt: shot.writtenPrompt ?? "" })}>
+            Keep this prompt
+          </button>
+        )}
+        {!seq && shot.writtenPrompt?.trim() && (
+          <button type="button" className="link-btn" onClick={() => void c.patch({ writtenPrompt: "" })}>
+            Go back to the prompt made from the direction
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** What the check found in a take, and a retake with the corrected prompt. */
+function TakeCheck({ take, c }: { take: Take; c: ShotCtl }) {
+  const { act, isBusy } = useProject();
+  const r = take.review;
+  const base = `${c.path}/takes/${take.id}`;
+  const checking = isBusy(`review-${take.id}`);
+  const retaking = isBusy(`retake-${take.id}`);
+  const check = () => void act(`review-${take.id}`, () => api.post<View>(`${base}/review`), { kick: true });
+  const retake = () => void act(`retake-${take.id}`, () => api.post<View>(`${base}/retake`), { kick: true });
+  const sent = take.prompt ? (
+    <details className="sent-prompt">
+      <summary>What was sent for this take</summary>
+      <pre>{take.prompt}</pre>
+    </details>
+  ) : null;
+  if (take.status !== "done" || !take.videoMediaId) return sent;
+  return (
+    <div className={`take-check${r?.status === "done" ? (r.pass ? " pass" : " fail") : ""}`}>
+      {!r && (
+        <button type="button" className="small" disabled={checking} onClick={check}>
+          {checking && <Spinner />} Check this take against the plan <Ticket micro={c.est?.review} />
+        </button>
+      )}
+      {r?.status === "running" && (
+        <p className="small-text">
+          <Spinner /> Checking this take against the plan
+        </p>
+      )}
+      {r?.status === "failed" && (
+        <p className="note warn small-text">
+          The check didn't work: {r.error ?? "no answer"}.{" "}
+          <button type="button" className="link-btn" disabled={checking} onClick={check}>
+            Check again <Ticket micro={c.est?.review} />
+          </button>
+        </p>
+      )}
+      {r?.status === "done" && (
+        <>
+          <p className="small-text">
+            <strong>{r.pass ? "Checked: matches the plan" : "Checked: problems found"}</strong>
+            {take.autoRetake ? " (this is the automatic retake)" : ""}
+          </p>
+          {r.problems.length > 0 && (
+            <ul className="small-text check-problems">
+              {r.problems.map((x) => (
+                <li key={`${x.atS}-${x.text}`}>
+                  {x.atS !== null ? <span className="muted">{x.atS.toFixed(1)} s: </span> : null}
+                  {x.text}
+                </li>
+              ))}
+            </ul>
+          )}
+          {!r.pass && (
+            <button type="button" className="primary small" disabled={retaking || c.generating} onClick={retake}>
+              {retaking && <Spinner />} Retake with fix <Ticket micro={c.est?.retakes?.[take.id]} />
+            </button>
+          )}
+          {!r.pass && r.fixedPrompt && (
+            <small className="muted">The retake sends the corrected prompt, and it becomes this shot's prompt.</small>
+          )}
+        </>
+      )}
+      {sent}
     </div>
   );
 }

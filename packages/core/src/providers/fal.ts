@@ -141,7 +141,9 @@ export class FalProvider implements Provider {
 
   /** Maps Dropisode's request onto the endpoint's own field names (from the catalog). */
   async buildInput(input: ProviderInput): Promise<Record<string, unknown>> {
-    const map = input.model.input;
+    // A video with reference pictures (and no first frame) goes to the model's reference-to-video endpoint.
+    const ref = usesReference(input.model, !!input.images?.length) ? input.model.reference : undefined;
+    const map = ref ? ref.input : input.model.input;
     const out: Record<string, unknown> = structuredClone(map.extra);
     const set = (path: string, v: unknown) => setPath(out, path, v);
     if (input.prompt !== undefined) set(map.prompt, input.prompt);
@@ -151,7 +153,7 @@ export class FalProvider implements Provider {
     if (input.image && map.image) set(map.image, await this.upload(input.image));
     if (input.endImage && map.endImage) set(map.endImage, await this.upload(input.endImage));
     if (input.images?.length && map.images) {
-      const max = input.model.maxRefImages || input.images.length;
+      const max = (ref ? ref.maxImages : input.model.maxRefImages) || input.images.length;
       set(map.images, await Promise.all(input.images.slice(0, max).map((f) => this.upload(f))));
     }
     if (input.durationS !== undefined && map.duration) {
@@ -176,8 +178,14 @@ export class FalProvider implements Provider {
   }
 }
 
+/** A video model sent reference pictures uses its reference-to-video endpoint. */
+export function usesReference(model: CatalogModel, hasRefImages: boolean): boolean {
+  return model.kind === "video" && hasRefImages && !!model.reference;
+}
+
 /** The endpoint a request goes to: text-to-image when there are no reference images and the model has one. */
 export function endpointFor(model: CatalogModel, hasRefImages: boolean): string {
+  if (usesReference(model, hasRefImages)) return model.reference!.endpoint;
   return !hasRefImages && model.textEndpoint ? model.textEndpoint : model.endpoint;
 }
 

@@ -101,6 +101,24 @@ export const CatalogModel = z.object({
   aspects: z.array(z.enum(["9:16", "16:9"])).default(["9:16", "16:9"]),
   /** Most reference images the endpoint accepts. */
   maxRefImages: z.number().int().nonnegative().default(0),
+  /** Whose prompt guide the writer uses ("seedance"); unset: worked out from the endpoint, else the generic guide. */
+  family: z.string().optional(),
+  /**
+   * Video: a reference-to-video endpoint of the same model, used instead of a first frame when the cast's
+   * pictures are sent as references (named @Image1, @Image2 in the prompt). Same price unless `price` says otherwise.
+   */
+  reference: z
+    .object({
+      endpoint: z.string(),
+      input: InputMap,
+      maxImages: z.number().int().positive(),
+      /** How the prompt names the n-th reference image; {n} is replaced. */
+      imageToken: z.string().default("@Image{n}"),
+      source: z.string().url(),
+      verifiedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      notes: z.string().optional(),
+    })
+    .optional(),
   input: InputMap,
   output: OutputMap,
   hidden: z.boolean().default(false),
@@ -134,6 +152,8 @@ export const PricesConfig = z.object({
     music: z.string().optional(),
     ambience: z.string().optional(),
     voiceIsolation: z.string().optional(),
+    /** A vision model that checks finished takes against the plan (it reads a sheet of frames). */
+    review: z.string().optional(),
     /** Separates a shot's sound effects from any voices, for shots with no lines. */
     effectsIsolation: z.string().optional(),
   }),
@@ -162,6 +182,7 @@ export class Catalog {
       config.defaults.castImage,
       config.defaults.tts,
       config.defaults.llm,
+      ...(config.defaults.review ? [config.defaults.review] : []),
     ]) {
       if (!this.models.has(id)) throw new Error(`prices.json default "${id}" is not a model in the catalog`);
     }
@@ -260,6 +281,13 @@ export function estimate(model: CatalogModel, p: EstimateInput): Estimate {
 function need(v: number | undefined, m: CatalogModel): number {
   if (v === undefined) throw new Error(`prices.json: model "${m.id}" has no price for this request`);
   return v;
+}
+
+/** The prompt guide a video model gets: its family, from the catalog or its endpoint. */
+export function modelFamily(m: CatalogModel): string {
+  if (m.family) return m.family;
+  if (/seedance/i.test(m.endpoint)) return "seedance";
+  return "generic";
 }
 
 /** Whether a video model renders at the project's aspect ratio. */

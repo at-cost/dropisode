@@ -5,6 +5,7 @@
 import { randomBytes } from "node:crypto";
 import {
   type Aspect,
+  type Beat,
   type CastKind,
   type CastMember,
   type CostLine,
@@ -110,6 +111,13 @@ export function addScene(episode: Episode, p: { heading: string; script?: string
     cutting: "continuous",
     ambience: null,
     master: null,
+    plate: "",
+    grade: "",
+    castNotes: [],
+    counts: [],
+    whitelist: [],
+    start: "references",
+    autoRetake: false,
   };
   episode.scenes.push(scene);
   return scene;
@@ -156,6 +164,38 @@ export interface ShotInput {
   onScreenText?: string;
   audio?: Shot["audio"];
   cutaway?: Shot["cutaway"];
+  beats?: Beat[];
+  logline?: string;
+  startState?: string;
+  sounds?: string[];
+  slowMotion?: boolean;
+}
+
+/** Sequence fields of a new shot: an ordinary shot has none. */
+const sequenceFields = (p: Partial<ShotInput> = {}) => ({
+  beats: p.beats ?? [],
+  logline: p.logline ?? "",
+  startState: p.startState ?? "",
+  sounds: p.sounds ?? [],
+  slowMotion: p.slowMotion ?? false,
+  writtenPrompt: "",
+  writtenFor: "",
+  promptStale: false,
+});
+
+/** A sequence runs to the end of its last beat. */
+export const sequenceSeconds = (beats: Beat[]): number => beats.reduce((a, b) => Math.max(a, b.endS), 0);
+
+/** Beats in time order, each inside the clip and at least half a second long. */
+export function cleanBeats(beats: Beat[]): Beat[] {
+  const out = [...beats]
+    .filter((b) => Number.isFinite(b.startS) && Number.isFinite(b.endS))
+    .sort((a, b) => a.startS - b.startS)
+    .map((b) => ({ ...b, startS: round1(Math.max(0, b.startS)), endS: round1(Math.min(30, b.endS)) }));
+  for (const b of out) if (!(b.endS - b.startS >= 0.5)) throw new EditError("Each shot in a sequence lasts at least half a second");
+  for (let i = 1; i < out.length; i++)
+    if (out[i]!.startS < out[i - 1]!.endS - 1e-9) throw new EditError("The shots in a sequence can't overlap in time");
+  return out;
 }
 
 const toLines = (lines: { castId: string | null; text: string }[] = []): DialogueLine[] =>
@@ -179,6 +219,7 @@ export function addShot(scene: Scene, p: ShotInput, at?: number): Shot {
     joinIn: "cut" as const,
     joinS: 0.5,
     move: "none" as const,
+    ...sequenceFields(p),
   };
   if (at === undefined) scene.shots.push(shot);
   else scene.shots.splice(Math.max(0, Math.min(at, scene.shots.length)), 0, shot);
@@ -206,6 +247,12 @@ export function updateShot(
       | "joinIn"
       | "joinS"
       | "move"
+      | "beats"
+      | "logline"
+      | "startState"
+      | "sounds"
+      | "slowMotion"
+      | "writtenPrompt"
     >
   > & {
     dialogue?: { id?: string; castId: string | null; text: string }[];
@@ -216,12 +263,57 @@ export function updateShot(
   if (patch.selectedTakeId !== undefined && !shot.takes.some((t) => t.id === patch.selectedTakeId))
     throw new EditError("No such take", "not_found");
   // On-screen text is drawn at assembly, so changing it doesn't touch the clip or its approval.
-  const content = ["description", "camera", "castIds", "durationS", "dialogue", "continueFromPrevious", "endPicture"] as const;
+  const content = [
+    "description",
+    "camera",
+    "castIds",
+    "durationS",
+    "dialogue",
+    "continueFromPrevious",
+    "endPicture",
+    "beats",
+    "logline",
+    "startState",
+    "sounds",
+    "slowMotion",
+    "writtenPrompt",
+  ] as const;
   const changesContent = content.some((k) => patch[k] !== undefined);
+  // What the written prompt was made from: changing it makes the prompt out of date (the creator may rewrite it or keep it).
+  const plan = [
+    "description",
+    "camera",
+    "castIds",
+    "durationS",
+    "dialogue",
+    "beats",
+    "logline",
+    "startState",
+    "sounds",
+    "slowMotion",
+  ] as const;
+  if (plan.some((k) => patch[k] !== undefined) && shot.writtenPrompt.trim() && patch.writtenPrompt === undefined) shot.promptStale = true;
+  if (patch.beats !== undefined) {
+    shot.beats = cleanBeats(patch.beats);
+    if (shot.beats.length) shot.durationS = Math.min(30, Math.max(1, sequenceSeconds(shot.beats)));
+  }
+  if (patch.logline !== undefined) shot.logline = patch.logline.slice(0, 600);
+  if (patch.startState !== undefined) shot.startState = patch.startState.slice(0, 1000);
+  if (patch.sounds !== undefined)
+    shot.sounds = patch.sounds
+      .map((x) => x.trim().slice(0, 200))
+      .filter(Boolean)
+      .slice(0, 20);
+  if (patch.slowMotion !== undefined) shot.slowMotion = patch.slowMotion;
+  if (patch.writtenPrompt !== undefined) {
+    // The creator's own words: sent as they are, and up to date by definition.
+    shot.writtenPrompt = patch.writtenPrompt.slice(0, 12_000);
+    shot.promptStale = false;
+  }
   if (patch.description !== undefined) shot.description = patch.description;
   if (patch.camera !== undefined) shot.camera = patch.camera;
   if (patch.castIds !== undefined) shot.castIds = patch.castIds;
-  if (patch.durationS !== undefined) {
+  if (patch.durationS !== undefined && patch.beats === undefined) {
     if (!(patch.durationS > 0 && patch.durationS <= 30)) throw new EditError("A shot is between 0 and 30 seconds");
     shot.durationS = patch.durationS;
   }
@@ -268,6 +360,7 @@ export function moveShot(project: Project, shotId: string, toSceneId: string, to
  */
 export function splitShot(project: Project, shotId: string, atS?: number): [Shot, Shot] {
   const { scene, index, shot } = findShot(project, shotId);
+  if (shot.beats.length) throw new EditError("A sequence is one generation: edit the shots inside it instead of splitting it");
   const at = atS ?? shot.durationS / 2;
   if (!(at > 0 && at < shot.durationS)) throw new EditError("Split point must be inside the shot");
   const cut = Math.ceil(shot.dialogue.length / 2);
@@ -289,6 +382,7 @@ export function splitShot(project: Project, shotId: string, atS?: number): [Shot
     joinIn: "cut" as const,
     joinS: 0.5,
     move: "none" as const,
+    ...sequenceFields(),
   };
   shot.dialogue = shot.dialogue.slice(0, cut);
   shot.durationS = round1(at);
@@ -307,12 +401,39 @@ export function mergeWithNext(project: Project, shotId: string): Shot {
   if (!next) throw new EditError("There is no next shot in this scene to merge with");
   if (next.takes.some((t) => t.status === "queued" || t.status === "running"))
     throw new EditError("The next shot is still generating. Wait for it to finish first.");
+  if (shot.beats.length || next.beats.length) {
+    // Two sequences (or a sequence and a shot) become one generation: the second's shots follow the first's.
+    const asBeats = (s: Shot): Beat[] =>
+      s.beats.length
+        ? s.beats
+        : [
+            {
+              startS: 0,
+              endS: s.durationS,
+              size: "",
+              angle: s.camera,
+              height: "",
+              lens: "",
+              movement: "",
+              action: s.description,
+              endState: "",
+            },
+          ];
+    const first = asBeats(shot);
+    const offset = sequenceSeconds(first);
+    const merged = [...first, ...asBeats(next).map((b) => ({ ...b, startS: round1(b.startS + offset), endS: round1(b.endS + offset) }))];
+    if (sequenceSeconds(merged) > 30) throw new EditError("Together these run over 30 seconds, the longest one generation can be");
+    shot.beats = merged;
+    shot.sounds = [...new Set([...shot.sounds, ...next.sounds])].slice(0, 20);
+    shot.slowMotion = shot.slowMotion || next.slowMotion;
+    if (shot.writtenPrompt.trim()) shot.promptStale = true;
+  }
   // After a split both halves share a description; don't repeat it.
   shot.description = next.description === shot.description ? shot.description : `${shot.description}\n${next.description}`.trim();
   shot.camera = shot.camera || next.camera;
   shot.castIds = [...new Set([...shot.castIds, ...next.castIds])];
   shot.dialogue = [...shot.dialogue, ...next.dialogue];
-  shot.durationS = Math.min(30, round1(shot.durationS + next.durationS));
+  shot.durationS = shot.beats.length ? sequenceSeconds(shot.beats) : Math.min(30, round1(shot.durationS + next.durationS));
   shot.approved = false;
   // The merged shot ends where the second one did.
   shot.endPicture = next.endPicture || shot.endPicture;
